@@ -1,0 +1,17 @@
+{
+  "name": "Fish Pokedex",
+  "short_name": "FishDex",
+  "description": "Log your catches and fill in your San Diego fishing dex",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1d3a",
+  "theme_color": "#0b1d3a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
