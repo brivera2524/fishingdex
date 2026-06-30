@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { identifyPhoto, listSpecies } from "../api/endpoints";
+import { identifyPhoto, listMyCatches, listSpecies } from "../api/endpoints";
 import { ApiError } from "../api/client";
 import type { Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
+import DiscoveryReveal from "../components/DiscoveryReveal";
 
 export default function CameraDetect() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -15,6 +16,8 @@ export default function CameraDetect() {
   const [species, setSpecies] = useState<Species[]>([]);
   const [confirmedSpeciesId, setConfirmedSpeciesId] = useState<number | null>(null);
   const [overriding, setOverriding] = useState(false);
+  const [caughtSpeciesIds, setCaughtSpeciesIds] = useState<Set<number> | null>(null);
+  const [discoverySpecies, setDiscoverySpecies] = useState<Species | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,6 +25,9 @@ export default function CameraDetect() {
     listSpecies()
       .then(setSpecies)
       .catch(() => {});
+    listMyCatches()
+      .then((catches) => setCaughtSpeciesIds(new Set(catches.map((c) => c.species_id))))
+      .catch(() => setCaughtSpeciesIds(new Set()));
     return () => stopCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -83,15 +89,29 @@ export default function CameraDetect() {
     setConfirmedSpeciesId(null);
   }
 
-  function handleConfirm() {
+  function goToLogForm(alreadyRevealed: boolean) {
     if (!capturedPhoto || confirmedSpeciesId == null) return;
     stopCamera();
     navigate("/log", {
       state: {
         speciesId: confirmedSpeciesId,
         photoBlob: capturedPhoto.blob,
+        alreadyRevealed,
       },
     });
+  }
+
+  function handleConfirm() {
+    if (confirmedSpeciesId == null) return;
+    const isNew = caughtSpeciesIds != null && !caughtSpeciesIds.has(confirmedSpeciesId);
+    if (isNew) {
+      const matched = species.find((s) => s.id === confirmedSpeciesId);
+      if (matched) {
+        setDiscoverySpecies(matched);
+        return;
+      }
+    }
+    goToLogForm(false);
   }
 
   function handleClose() {
@@ -100,6 +120,16 @@ export default function CameraDetect() {
   }
 
   const confirmedSpecies = species.find((s) => s.id === confirmedSpeciesId) ?? null;
+
+  if (discoverySpecies) {
+    return (
+      <DiscoveryReveal
+        species={discoverySpecies}
+        photoSrc={capturedPhoto?.url ?? null}
+        onDone={() => goToLogForm(true)}
+      />
+    );
+  }
 
   return (
     <div className="camera-screen">

@@ -28,6 +28,8 @@ function toDatetimeLocal(iso: string) {
 interface DetectState {
   speciesId: number | null;
   photoBlob: Blob;
+  /** True when the camera flow already showed the discovery reveal at confirm time. */
+  alreadyRevealed?: boolean;
 }
 
 export default function CatchForm() {
@@ -106,7 +108,11 @@ export default function CatchForm() {
     setLoading(true);
     try {
       let catchId: number;
-      const isNewSpecies = !isEdit && priorSpeciesIds != null && !priorSpeciesIds.has(speciesId);
+      const isNewSpecies =
+        !isEdit &&
+        !detectState?.alreadyRevealed &&
+        priorSpeciesIds != null &&
+        !priorSpeciesIds.has(speciesId);
 
       if (isEdit) {
         catchId = Number(id);
@@ -163,7 +169,7 @@ export default function CatchForm() {
     return (
       <DiscoveryReveal
         species={discovery.species}
-        photoUrl={discovery.photoUrl}
+        photoSrc={discovery.photoUrl ? `${API_BASE}${discovery.photoUrl}` : null}
         onDone={() => navigate("/dex")}
       />
     );

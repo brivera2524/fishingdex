@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { API_BASE } from "../api/client";
 import type { Species } from "../api/types";
 
 interface DiscoveryRevealProps {
   species: Species;
-  photoUrl: string | null;
+  /** Fully-resolved image src (blob: URL or absolute URL) — caller resolves it. */
+  photoSrc: string | null;
   onDone: () => void;
 }
 
-export default function DiscoveryReveal({ species, photoUrl, onDone }: DiscoveryRevealProps) {
+export default function DiscoveryReveal({ species, photoSrc, onDone }: DiscoveryRevealProps) {
   const [flipped, setFlipped] = useState(false);
   const [showText, setShowText] = useState(false);
 
@@ -41,8 +41,8 @@ export default function DiscoveryReveal({ species, photoUrl, onDone }: Discovery
             </span>
           </div>
           <div className="discovery-face discovery-face-back">
-            {photoUrl ? (
-              <img src={`${API_BASE}${photoUrl}`} alt={species.common_name} />
+            {photoSrc ? (
+              <img src={photoSrc} alt={species.common_name} />
             ) : (
               <span className="dex-card-emoji" style={{ fontSize: 64 }}>
                 🐟
