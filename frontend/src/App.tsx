@@ -5,7 +5,7 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import MyCatches from "./pages/MyCatches";
 import CatchForm from "./pages/CatchForm";
-import SpeciesList from "./pages/SpeciesList";
+import Dex from "./pages/Dex";
 import CameraDetect from "./pages/CameraDetect";
 
 export default function App() {
@@ -32,8 +32,8 @@ export default function App() {
             <Route path="/catches" element={<MyCatches />} />
             <Route path="/log" element={<CatchForm />} />
             <Route path="/catches/:id/edit" element={<CatchForm />} />
-            <Route path="/species" element={<SpeciesList />} />
-            <Route path="/" element={<Navigate to="/catches" replace />} />
+            <Route path="/dex" element={<Dex />} />
+            <Route path="/" element={<Navigate to="/dex" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

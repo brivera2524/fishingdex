@@ -4,12 +4,14 @@ import {
   createCatch,
   deleteCatchPhoto,
   getCatch,
+  listMyCatches,
   listSpecies,
   updateCatch,
   uploadCatchPhoto,
 } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { Species } from "../api/types";
+import DiscoveryReveal from "../components/DiscoveryReveal";
 
 function nowForInput() {
   const now = new Date();
@@ -46,6 +48,8 @@ export default function CatchForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCatch, setLoadingCatch] = useState(isEdit);
+  const [priorSpeciesIds, setPriorSpeciesIds] = useState<Set<number> | null>(null);
+  const [discovery, setDiscovery] = useState<{ species: Species; photoUrl: string | null } | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -59,6 +63,13 @@ export default function CatchForm() {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load species"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit]);
+
+  useEffect(() => {
+    if (isEdit) return;
+    listMyCatches()
+      .then((catches) => setPriorSpeciesIds(new Set(catches.map((c) => c.species_id))))
+      .catch(() => setPriorSpeciesIds(new Set()));
   }, [isEdit]);
 
   useEffect(() => {
@@ -95,6 +106,8 @@ export default function CatchForm() {
     setLoading(true);
     try {
       let catchId: number;
+      const isNewSpecies = !isEdit && priorSpeciesIds != null && !priorSpeciesIds.has(speciesId);
+
       if (isEdit) {
         catchId = Number(id);
         await updateCatch(catchId, {
@@ -115,10 +128,21 @@ export default function CatchForm() {
         catchId = created.id;
       }
 
+      let savedPhotoUrl: string | null = existingPhotoUrl;
       if (photoFile) {
-        await uploadCatchPhoto(catchId, photoFile);
+        const updated = await uploadCatchPhoto(catchId, photoFile);
+        savedPhotoUrl = updated.photo_url;
       } else if (isEdit && removePhoto && existingPhotoUrl) {
         await deleteCatchPhoto(catchId);
+        savedPhotoUrl = null;
+      }
+
+      if (isNewSpecies) {
+        const matchedSpecies = species.find((s) => s.id === speciesId);
+        if (matchedSpecies) {
+          setDiscovery({ species: matchedSpecies, photoUrl: savedPhotoUrl });
+          return;
+        }
       }
 
       navigate("/catches");
@@ -134,6 +158,16 @@ export default function CatchForm() {
     : existingPhotoUrl && !removePhoto
       ? `${API_BASE}${existingPhotoUrl}`
       : null;
+
+  if (discovery) {
+    return (
+      <DiscoveryReveal
+        species={discovery.species}
+        photoUrl={discovery.photoUrl}
+        onDone={() => navigate("/dex")}
+      />
+    );
+  }
 
   if (loadingCatch) {
     return (

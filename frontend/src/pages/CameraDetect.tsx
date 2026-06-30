@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { identifyPhoto } from "../api/endpoints";
+import { identifyPhoto, listSpecies } from "../api/endpoints";
 import { ApiError } from "../api/client";
-import type { IdentifyResult } from "../api/types";
+import type { Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 
 export default function CameraDetect() {
@@ -11,12 +11,17 @@ export default function CameraDetect() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<{ blob: Blob; url: string } | null>(null);
   const [identifying, setIdentifying] = useState(false);
-  const [result, setResult] = useState<IdentifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [species, setSpecies] = useState<Species[]>([]);
+  const [confirmedSpeciesId, setConfirmedSpeciesId] = useState<number | null>(null);
+  const [overriding, setOverriding] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     startCamera();
+    listSpecies()
+      .then(setSpecies)
+      .catch(() => {});
     return () => stopCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -56,11 +61,13 @@ export default function CameraDetect() {
     const url = URL.createObjectURL(blob);
     setCapturedPhoto({ blob, url });
     setError(null);
+    setOverriding(false);
+    setConfirmedSpeciesId(null);
     setIdentifying(true);
 
     try {
       const res = await identifyPhoto(blob);
-      setResult(res);
+      setConfirmedSpeciesId(res.species?.id ?? null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Identification failed");
     } finally {
@@ -71,16 +78,17 @@ export default function CameraDetect() {
   function handleRetake() {
     if (capturedPhoto) URL.revokeObjectURL(capturedPhoto.url);
     setCapturedPhoto(null);
-    setResult(null);
     setError(null);
+    setOverriding(false);
+    setConfirmedSpeciesId(null);
   }
 
-  function handleLogCatch() {
-    if (!capturedPhoto) return;
+  function handleConfirm() {
+    if (!capturedPhoto || confirmedSpeciesId == null) return;
     stopCamera();
     navigate("/log", {
       state: {
-        speciesId: result?.species?.id ?? null,
+        speciesId: confirmedSpeciesId,
         photoBlob: capturedPhoto.blob,
       },
     });
@@ -90,6 +98,8 @@ export default function CameraDetect() {
     stopCamera();
     navigate("/catches");
   }
+
+  const confirmedSpecies = species.find((s) => s.id === confirmedSpeciesId) ?? null;
 
   return (
     <div className="camera-screen">
@@ -127,28 +137,55 @@ export default function CameraDetect() {
 
             {!identifying && error && <p className="error">{error}</p>}
 
-            {!identifying && !error && result && (
+            {!identifying && !error && !overriding && (
               <>
-                {result.species ? (
+                {confirmedSpecies ? (
                   <>
-                    <span className="identify-species-name">{result.species.common_name}</span>
-                    {result.species.scientific_name && (
-                      <span className="identify-sci-name">{result.species.scientific_name}</span>
+                    <span className="identify-species-name">{confirmedSpecies.common_name}</span>
+                    {confirmedSpecies.scientific_name && (
+                      <span className="identify-sci-name">{confirmedSpecies.scientific_name}</span>
                     )}
                   </>
                 ) : (
-                  <p>Couldn't confidently match a species in our dex. You can still log it manually.</p>
+                  <p>Couldn't confidently match a species in our dex. Pick one manually below.</p>
                 )}
+                <button type="button" className="link-button" onClick={() => setOverriding(true)}>
+                  {confirmedSpecies ? "Not right? Pick manually" : "Pick species manually"}
+                </button>
               </>
             )}
 
-            {!identifying && (
+            {!identifying && !error && overriding && (
+              <div className="form" style={{ width: "100%" }}>
+                <label>
+                  Species
+                  <select
+                    value={confirmedSpeciesId ?? ""}
+                    onChange={(e) => setConfirmedSpeciesId(Number(e.target.value))}
+                  >
+                    <option value="" disabled>
+                      Choose a species
+                    </option>
+                    {species.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.common_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" className="secondary-button" onClick={() => setOverriding(false)}>
+                  Done
+                </button>
+              </div>
+            )}
+
+            {!identifying && !overriding && (
               <div className="identify-actions">
                 <button type="button" className="secondary-button" onClick={handleRetake}>
                   Retake
                 </button>
-                <button type="button" onClick={handleLogCatch}>
-                  Log this catch
+                <button type="button" onClick={handleConfirm} disabled={confirmedSpeciesId == null}>
+                  Confirm &amp; continue
                 </button>
               </div>
             )}

@@ -37,9 +37,9 @@ export default function Layout() {
             📷
           </NavLink>
         </div>
-        <NavLink to="/species" className="bottom-nav-item">
+        <NavLink to="/dex" className="bottom-nav-item">
           <span className="bottom-nav-icon">🐟</span>
-          Species
+          Dex
         </NavLink>
       </nav>
     </div>

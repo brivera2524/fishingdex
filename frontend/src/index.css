@@ -270,6 +270,64 @@ button:disabled {
   cursor: pointer;
 }
 
+.dex-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.dex-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.dex-card-image-wrap {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dex-card-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dex-card-emoji {
+  font-size: 40px;
+}
+
+.dex-card.locked .dex-card-image-wrap {
+  filter: grayscale(1) brightness(0.75);
+  opacity: 0.55;
+}
+
+.dex-card.locked .dex-card-name {
+  color: var(--ink-soft);
+}
+
+.dex-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+}
+
 .catch-photo {
   width: 100%;
   max-height: 220px;
@@ -490,4 +548,74 @@ button:disabled {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Discovery reveal */
+.discovery-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: radial-gradient(circle at center, #123a4a 0%, #061521 80%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 24px;
+  text-align: center;
+}
+
+.discovery-card {
+  width: 180px;
+  height: 180px;
+  perspective: 1000px;
+}
+
+.discovery-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.discovery-face {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.25);
+}
+
+.discovery-face-front {
+  filter: grayscale(1) brightness(0.7);
+}
+
+.discovery-face-back {
+  transform: rotateY(180deg);
+}
+
+.discovery-face-back img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.discovery-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.discovery-title {
+  color: #9fe6d8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 13px;
+  margin-bottom: 6px;
 }
