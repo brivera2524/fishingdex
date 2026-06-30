@@ -28,7 +28,10 @@ export default function Layout() {
         </AnimatePresence>
       </main>
       <nav className="bottom-nav">
-        <NavLink to="/catches" className="bottom-nav-item">
+        <NavLink
+          to="/catches"
+          className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
+        >
           <span className="bottom-nav-icon">📋</span>
           My Catches
         </NavLink>
@@ -37,7 +40,10 @@ export default function Layout() {
             📷
           </NavLink>
         </div>
-        <NavLink to="/dex" className="bottom-nav-item">
+        <NavLink
+          to="/dex"
+          className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
+        >
           <span className="bottom-nav-icon">🐟</span>
           Dex
         </NavLink>

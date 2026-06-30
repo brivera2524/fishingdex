@@ -29,7 +29,7 @@ export default function Dex() {
   }, []);
 
   const entries = useMemo<DexEntry[]>(() => {
-    return species.map((s) => {
+    const mapped = species.map((s) => {
       const myCatches = catches
         .filter((c) => c.species_id === s.id)
         .sort((a, b) => new Date(b.caught_at).getTime() - new Date(a.caught_at).getTime());
@@ -40,6 +40,10 @@ export default function Dex() {
         photoUrl: withPhoto?.photo_url ?? null,
         catchCount: myCatches.length,
       };
+    });
+    return mapped.sort((a, b) => {
+      if (a.caught !== b.caught) return a.caught ? -1 : 1;
+      return a.species.common_name.localeCompare(b.species.common_name);
     });
   }, [species, catches]);
 

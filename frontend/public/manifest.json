@@ -4,8 +4,8 @@
   "description": "Log your catches and fill in your San Diego fishing dex",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b1d3a",
-  "theme_color": "#0b1d3a",
+  "background_color": "#0a1424",
+  "theme_color": "#060d1c",
   "icons": [
     {
       "src": "/favicon.svg",
