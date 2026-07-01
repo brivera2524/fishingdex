@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { getRecentCatches, listUsers } from "../api/endpoints";
-import { API_BASE, ApiError } from "../api/client";
-import type { RecentCatch, UserStat } from "../api/types";
+import { listUsers } from "../api/endpoints";
+import { ApiError } from "../api/client";
+import type { UserStat } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
-import CommentThread from "../components/CommentThread";
 import AnglerDetail from "../components/AnglerDetail";
-import ViewOnMapButton from "../components/ViewOnMapButton";
+import Leaderboard from "./Leaderboard";
 
-type Tab = "anglers" | "recent";
+type Tab = "anglers" | "leaderboard";
 
 interface SelectedAngler {
   id: number;
@@ -18,10 +17,7 @@ export default function Anglers() {
   const [tab, setTab] = useState<Tab>("anglers");
   const [users, setUsers] = useState<UserStat[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
-  const [recent, setRecent] = useState<RecentCatch[]>([]);
-  const [recentLoading, setRecentLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCatch, setSelectedCatch] = useState<RecentCatch | null>(null);
   const [selectedAngler, setSelectedAngler] = useState<SelectedAngler | null>(null);
 
   useEffect(() => {
@@ -29,10 +25,6 @@ export default function Anglers() {
       .then(setUsers)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load anglers"))
       .finally(() => setUsersLoading(false));
-    getRecentCatches()
-      .then(setRecent)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load recent catches"))
-      .finally(() => setRecentLoading(false));
   }, []);
 
   return (
@@ -48,10 +40,10 @@ export default function Anglers() {
         </button>
         <button
           type="button"
-          className={tab === "recent" ? "" : "secondary-button"}
-          onClick={() => setTab("recent")}
+          className={tab === "leaderboard" ? "" : "secondary-button"}
+          onClick={() => setTab("leaderboard")}
         >
-          Recent Catches
+          Leaderboard
         </button>
       </div>
 
@@ -79,72 +71,7 @@ export default function Anglers() {
         </>
       )}
 
-      {tab === "recent" && (
-        <>
-          {recentLoading && <p>Loading...</p>}
-          <ul className="catch-list">
-            {recent.map((c) => (
-              <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
-                {c.photo_url && (
-                  <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.species.common_name} />
-                )}
-                <div className="page-header">
-                  <span className="card-title">{c.species.common_name}</span>
-                  {c.weight != null && <span className="card-stat">{c.weight} lb</span>}
-                </div>
-                <span className="card-meta">
-                  {c.display_name} · {new Date(c.caught_at).toLocaleString()}
-                </span>
-              </li>
-            ))}
-            {!recentLoading && recent.length === 0 && <p>No catches logged yet.</p>}
-          </ul>
-        </>
-      )}
-
-      <BottomSheet open={selectedCatch != null} onClose={() => setSelectedCatch(null)}>
-        {selectedCatch && (
-          <div>
-            {selectedCatch.photo_url && (
-              <img
-                className="catch-photo"
-                src={`${API_BASE}${selectedCatch.photo_url}`}
-                alt={selectedCatch.species.common_name}
-              />
-            )}
-            <h1>{selectedCatch.species.common_name}</h1>
-            <p className="card-meta">
-              Caught by{" "}
-              <button
-                type="button"
-                className="link-button"
-                onClick={() => {
-                  const angler = { id: selectedCatch.user_id, displayName: selectedCatch.display_name };
-                  setSelectedCatch(null);
-                  setSelectedAngler(angler);
-                }}
-              >
-                {selectedCatch.display_name}
-              </button>
-            </p>
-            <div className="card-stats" style={{ margin: "10px 0" }}>
-              {selectedCatch.weight != null && <span className="card-stat">{selectedCatch.weight} lb</span>}
-              {selectedCatch.length != null && <span className="card-stat">{selectedCatch.length} in</span>}
-            </div>
-            <p className="card-meta">{new Date(selectedCatch.caught_at).toLocaleString()}</p>
-            {selectedCatch.latitude != null && (
-              <div className="catch-actions">
-                <ViewOnMapButton
-                  catchId={selectedCatch.id}
-                  latitude={selectedCatch.latitude}
-                  longitude={selectedCatch.longitude}
-                />
-              </div>
-            )}
-            <CommentThread catchId={selectedCatch.id} />
-          </div>
-        )}
-      </BottomSheet>
+      {tab === "leaderboard" && <Leaderboard embedded />}
 
       <BottomSheet open={selectedAngler != null} onClose={() => setSelectedAngler(null)} fixedHeight>
         {selectedAngler && <AnglerDetail userId={selectedAngler.id} displayName={selectedAngler.displayName} />}

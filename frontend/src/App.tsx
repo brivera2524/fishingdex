@@ -5,10 +5,10 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import CatchesHub from "./pages/CatchesHub";
 import CatchForm from "./pages/CatchForm";
-import Leaderboard from "./pages/Leaderboard";
 import MapPage from "./pages/Map";
 import CameraDetect from "./pages/CameraDetect";
 import Anglers from "./pages/Anglers";
+import RecentCatches from "./pages/RecentCatches";
 
 export default function App() {
   return (
@@ -35,8 +35,8 @@ export default function App() {
             <Route path="/catches/:id/edit" element={<CatchForm />} />
             <Route path="/dex" element={<CatchesHub />} />
             <Route path="/map" element={<MapPage />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/anglers" element={<Anglers />} />
+            <Route path="/recent" element={<RecentCatches />} />
             <Route path="/" element={<Navigate to="/dex" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

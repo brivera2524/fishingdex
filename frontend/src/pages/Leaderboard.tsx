@@ -12,7 +12,11 @@ import ViewOnMapButton from "../components/ViewOnMapButton";
 
 type Tab = "species" | "anglers";
 
-export default function Leaderboard() {
+interface LeaderboardProps {
+  embedded?: boolean;
+}
+
+export default function Leaderboard({ embedded = false }: LeaderboardProps) {
   const [tab, setTab] = useState<Tab>("species");
   const [records, setRecords] = useState<SpeciesRecord[]>([]);
   const [anglers, setAnglers] = useState<AnglerStat[]>([]);
@@ -62,8 +66,8 @@ export default function Leaderboard() {
   }
 
   return (
-    <div className="page">
-      <h1>Leaderboard</h1>
+    <div className={embedded ? undefined : "page"}>
+      {!embedded && <h1>Leaderboard</h1>}
       <div className="tab-switch">
         <button
           type="button"
