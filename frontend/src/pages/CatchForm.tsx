@@ -150,7 +150,7 @@ export default function CatchForm() {
         }
       }
 
-      navigate("/catches");
+      navigate("/dex", { state: { tab: "catches" } });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save catch");
     } finally {

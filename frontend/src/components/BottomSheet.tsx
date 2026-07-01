@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import type { ReactNode } from "react";
 
 interface BottomSheetProps {
@@ -8,6 +8,8 @@ interface BottomSheetProps {
 }
 
 export default function BottomSheet({ open, onClose, children }: BottomSheetProps) {
+  const dragControls = useDragControls();
+
   return (
     <AnimatePresence>
       {open && (
@@ -27,14 +29,20 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 32, stiffness: 320 }}
               drag="y"
+              dragListener={false}
+              dragControls={dragControls}
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 0.5 }}
               onDragEnd={(_, info) => {
                 if (info.offset.y > 100) onClose();
               }}
             >
-              <div className="sheet-handle" />
-              {children}
+              <div
+                className="sheet-handle"
+                onPointerDown={(e) => dragControls.start(e)}
+                style={{ touchAction: "none" }}
+              />
+              <div className="sheet-content">{children}</div>
             </motion.div>
           </div>
         </>

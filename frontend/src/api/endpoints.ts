@@ -12,6 +12,7 @@ import type {
   Species,
   SpeciesRecord,
   TokenResponse,
+  UserStat,
 } from "./types";
 
 export function signup(inviteCode: string, displayName: string, password: string) {
@@ -120,4 +121,12 @@ export function updateComment(commentId: number, body: string) {
 
 export function deleteComment(commentId: number) {
   return apiFetch<void>(`/comments/${commentId}`, { method: "DELETE" });
+}
+
+export function listUsers() {
+  return apiFetch<UserStat[]>("/users");
+}
+
+export function getUserCatches(userId: number) {
+  return apiFetch<Catch[]>(`/users/${userId}/catches`);
 }

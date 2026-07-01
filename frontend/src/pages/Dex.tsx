@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { getSpeciesCatchLeaderboard, listMyCatches, listSpecies } from "../api/endpoints";
+import { getSpeciesCatchLeaderboard, getUserCatches, listMyCatches, listSpecies } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { Catch, LeaderboardCatch, Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
@@ -12,7 +12,12 @@ interface DexEntry {
   catchCount: number;
 }
 
-export default function Dex() {
+interface DexProps {
+  embedded?: boolean;
+  userId?: number;
+}
+
+export default function Dex({ embedded = false, userId }: DexProps) {
   const [species, setSpecies] = useState<Species[]>([]);
   const [catches, setCatches] = useState<Catch[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -24,14 +29,15 @@ export default function Dex() {
   const [selectedCatch, setSelectedCatch] = useState<LeaderboardCatch | null>(null);
 
   useEffect(() => {
-    Promise.all([listSpecies(), listMyCatches()])
+    setLoading(true);
+    Promise.all([listSpecies(), userId != null ? getUserCatches(userId) : listMyCatches()])
       .then(([speciesList, catchList]) => {
         setSpecies(speciesList);
         setCatches(catchList);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load dex"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   const entries = useMemo<DexEntry[]>(() => {
     const mapped = species.map((s) => {
@@ -77,9 +83,9 @@ export default function Dex() {
   }
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Dex</h1>
+    <div className={embedded ? undefined : "page"}>
+      <div className="page-header" style={embedded ? { justifyContent: "flex-end", marginBottom: 12 } : undefined}>
+        {!embedded && <h1>Dex</h1>}
         <span className="card-stat">
           {caughtCount}/{entries.length} caught
         </span>

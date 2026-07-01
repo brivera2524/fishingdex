@@ -3,12 +3,13 @@ import { AuthProvider } from "./auth/AuthContext";
 import RequireAuth from "./components/RequireAuth";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
-import MyCatches from "./pages/MyCatches";
+import CatchesHub from "./pages/CatchesHub";
 import CatchForm from "./pages/CatchForm";
-import Dex from "./pages/Dex";
 import Leaderboard from "./pages/Leaderboard";
 import MapPage from "./pages/Map";
 import CameraDetect from "./pages/CameraDetect";
+import Anglers from "./pages/Anglers";
+import AnglerProfile from "./pages/AnglerProfile";
 
 export default function App() {
   return (
@@ -31,12 +32,13 @@ export default function App() {
               </RequireAuth>
             }
           >
-            <Route path="/catches" element={<MyCatches />} />
             <Route path="/log" element={<CatchForm />} />
             <Route path="/catches/:id/edit" element={<CatchForm />} />
-            <Route path="/dex" element={<Dex />} />
+            <Route path="/dex" element={<CatchesHub />} />
             <Route path="/map" element={<MapPage />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/anglers" element={<Anglers />} />
+            <Route path="/anglers/:id" element={<AnglerProfile />} />
             <Route path="/" element={<Navigate to="/dex" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

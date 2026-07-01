@@ -138,7 +138,7 @@ export default function CameraDetect() {
 
   function handleClose() {
     stopCamera();
-    navigate("/catches");
+    navigate("/dex");
   }
 
   const confirmedSpecies = species.find((s) => s.id === confirmedSpeciesId) ?? null;

@@ -123,6 +123,13 @@ class AnglerStat(BaseModel):
     species_count: int
 
 
+class UserStat(BaseModel):
+    id: int
+    display_name: str
+    catch_count: int
+    species_count: int
+
+
 class MapCatch(BaseModel):
     id: int
     display_name: str

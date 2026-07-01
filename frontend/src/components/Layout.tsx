@@ -29,11 +29,11 @@ export default function Layout() {
       </main>
       <nav className="bottom-nav">
         <NavLink
-          to="/catches"
+          to="/anglers"
           className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
         >
-          <span className="bottom-nav-icon">📋</span>
-          My Catches
+          <span className="bottom-nav-icon">👤</span>
+          Anglers
         </NavLink>
         <NavLink
           to="/map"

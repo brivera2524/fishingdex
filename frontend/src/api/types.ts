@@ -94,6 +94,13 @@ export interface CurrentUser {
   created_at: string;
 }
 
+export interface UserStat {
+  id: number;
+  display_name: string;
+  catch_count: number;
+  species_count: number;
+}
+
 export interface Comment {
   id: number;
   catch_id: number;

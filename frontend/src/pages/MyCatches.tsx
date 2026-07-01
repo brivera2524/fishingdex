@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { deleteCatch, listMyCatches } from "../api/endpoints";
+import { deleteCatch, getUserCatches, listMyCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { Catch } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
 
-export default function MyCatches() {
+interface MyCatchesProps {
+  embedded?: boolean;
+  userId?: number;
+  readOnly?: boolean;
+}
+
+export default function MyCatches({ embedded = false, userId, readOnly = false }: MyCatchesProps) {
   const [catches, setCatches] = useState<Catch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -14,13 +20,15 @@ export default function MyCatches() {
   const [confirming, setConfirming] = useState(false);
   const [selected, setSelected] = useState<Catch | null>(null);
   const navigate = useNavigate();
+  const canEdit = !readOnly && userId == null;
 
   useEffect(() => {
-    listMyCatches()
+    setLoading(true);
+    (userId != null ? getUserCatches(userId) : listMyCatches())
       .then(setCatches)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load catches"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   function closeSheet() {
     setSelected(null);
@@ -41,13 +49,15 @@ export default function MyCatches() {
   }
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>My catches</h1>
-        <Link to="/log" className="button-link">
-          + Log a catch
-        </Link>
-      </div>
+    <div className={embedded ? undefined : "page"}>
+      {!embedded && (
+        <div className="page-header">
+          <h1>My catches</h1>
+          <Link to="/log" className="button-link">
+            + Log a catch
+          </Link>
+        </div>
+      )}
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
       {!loading && catches.length === 0 && <p>No catches yet. Go log one!</p>}
@@ -92,36 +102,37 @@ export default function MyCatches() {
             </div>
             {selected.notes && <p style={{ marginBottom: 14 }}>{selected.notes}</p>}
 
-            {confirming ? (
-              <div className="catch-actions">
-                <span className="confirm-label">Delete this catch?</span>
-                <button
-                  type="button"
-                  className="danger-button"
-                  onClick={() => handleDelete(selected.id)}
-                  disabled={deletingId === selected.id}
-                >
-                  {deletingId === selected.id ? "Deleting..." : "Yes, delete"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setConfirming(false)}
-                  disabled={deletingId === selected.id}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="catch-actions">
-                <button type="button" onClick={() => navigate(`/catches/${selected.id}/edit`)}>
-                  Edit
-                </button>
-                <button type="button" className="danger-button" onClick={() => setConfirming(true)}>
-                  Delete
-                </button>
-              </div>
-            )}
+            {canEdit &&
+              (confirming ? (
+                <div className="catch-actions">
+                  <span className="confirm-label">Delete this catch?</span>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => handleDelete(selected.id)}
+                    disabled={deletingId === selected.id}
+                  >
+                    {deletingId === selected.id ? "Deleting..." : "Yes, delete"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setConfirming(false)}
+                    disabled={deletingId === selected.id}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="catch-actions">
+                  <button type="button" onClick={() => navigate(`/catches/${selected.id}/edit`)}>
+                    Edit
+                  </button>
+                  <button type="button" className="danger-button" onClick={() => setConfirming(true)}>
+                    Delete
+                  </button>
+                </div>
+              ))}
 
             <CommentThread catchId={selected.id} />
           </div>
