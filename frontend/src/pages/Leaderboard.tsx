@@ -6,6 +6,7 @@ import {
 } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { AnglerStat, LeaderboardCatch, SpeciesRecord } from "../api/types";
+import BottomSheet from "../components/BottomSheet";
 
 type Tab = "species" | "anglers";
 
@@ -18,6 +19,7 @@ export default function Leaderboard() {
   const [index, setIndex] = useState(0);
   const [detail, setDetail] = useState<LeaderboardCatch[] | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([getSpeciesLeaderboard(), getAnglerLeaderboard()])
@@ -27,6 +29,12 @@ export default function Leaderboard() {
         );
         setRecords(sorted);
         setAnglers(anglerStats);
+
+        const mostCaughtIndex = sorted.reduce(
+          (bestIdx, r, i) => (r.catch_count > sorted[bestIdx].catch_count ? i : bestIdx),
+          0
+        );
+        setIndex(mostCaughtIndex);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load leaderboard"))
       .finally(() => setLoading(false));
@@ -76,16 +84,30 @@ export default function Leaderboard() {
       {!loading && tab === "species" && current && (
         <>
           <div className="species-switcher">
-            <button type="button" className="secondary-button" onClick={() => step(-1)} aria-label="Previous species">
+            <button
+              type="button"
+              className="secondary-button species-switcher-arrow"
+              onClick={() => step(-1)}
+              aria-label="Previous species"
+            >
               ‹
             </button>
-            <div className="species-switcher-label">
-              <span className="card-title">{current.species.common_name}</span>
+            <button
+              type="button"
+              className="species-switcher-label"
+              onClick={() => setPickerOpen(true)}
+            >
+              <span className="card-title">{current.species.common_name} ▾</span>
               <span className="card-meta">
                 {index + 1} / {records.length}
               </span>
-            </div>
-            <button type="button" className="secondary-button" onClick={() => step(1)} aria-label="Next species">
+            </button>
+            <button
+              type="button"
+              className="secondary-button species-switcher-arrow"
+              onClick={() => step(1)}
+              aria-label="Next species"
+            >
               ›
             </button>
           </div>
@@ -130,6 +152,27 @@ export default function Leaderboard() {
           {anglers.length === 0 && <p>No catches logged yet.</p>}
         </ul>
       )}
+
+      <BottomSheet open={pickerOpen} onClose={() => setPickerOpen(false)}>
+        <h1>Jump to species</h1>
+        <ul className="catch-list">
+          {records.map((r, i) => (
+            <li
+              key={r.species.id}
+              className="card card-tappable"
+              onClick={() => {
+                setIndex(i);
+                setPickerOpen(false);
+              }}
+            >
+              <div className="page-header">
+                <span className="card-title">{r.species.common_name}</span>
+                <span className="card-stat">{r.catch_count} caught</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </BottomSheet>
     </div>
   );
 }
