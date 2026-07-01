@@ -13,7 +13,7 @@ from app.database import SessionLocal
 from app.models import Species
 
 SPECIES: list[dict] = [
-    {
+{
         "common_name": "Spotted Bay Bass",
         "scientific_name": "Paralabrax maculatofasciatus",
         "habitat_description": "Shallow bays and harbors, eelgrass beds, docks, and mudflats",
@@ -22,20 +22,7 @@ SPECIES: list[dict] = [
         "min_size": "14 inches",
         "bag_limit": "5",
         "regulation_notes": "Limit of 5 is in combination with Barred Sand Bass and Kelp (Calico) Bass.",
-        "classifier_description": (
-            "Sleek, streamlined bass body shape with an elongated third top spine. Skin is completely "
-            "SMOOTH — small, flat, tight scales with no bumps, spikes, or fleshy tabs anywhere. The head "
-            "is small, sloped, and unarmored, with a normal-sized mouth. CRITICAL FEATURE: The entire "
-            "head, body, and fins are densely covered in thousands of small, evenly-spaced, round, dark "
-            "brown or black freckles, uniform in size like polka dots — NOT a blotchy or camouflage "
-            "pattern. COMMONLY CONFUSED WITH: Calico Bass, Barred Sand Bass, and Sculpin. "
-            "DIFFERENTIATION: The dense, uniform round polka-dot spotting distinguishes it from Calico "
-            "Bass (square blotches) and Barred Sand Bass (vertical bars). Against Sculpin specifically: "
-            "Spotted Bay Bass has smooth skin, a small unarmored head, a slender/sleek body, and no "
-            "spines or skin tabs of any kind. Sculpin is the opposite on every one of these — rough, "
-            "spiky, blocky-headed, and chunky. If the skin looks smooth and the spots are small uniform "
-            "dots rather than a blotchy camouflage wash, it is a Spotted Bay Bass, not a Sculpin."
-        ),
+        "classifier_description": "Sleek bass body shape with an elongated third top spine. CRITICAL FEATURE: The entire head, body, belly, and fins are densely covered in hundreds of small, evenly-spaced, round, dark brown or black freckles (polka dots). IMPORTANT OVERLAP: Spotted Bay Bass often HAVE dark vertical bars underneath their spots. COMMONLY CONFUSED WITH: Barred Sand Bass and Sculpin. DIFFERENTIATION: Do not just look for bars. If the fish has vertical bars BUT its face, cheeks, and belly are completely covered in tiny, dense polka-dots, it is a Spotted Bay Bass. Barred Sand Bass do not have freckled faces. Against Sculpin: Spotted Bay Bass are smooth and sleek; Sculpin are chunky, spiky, and heavily armored with no smooth polka-dots."
     },
     {
         "common_name": "Calico Bass",
@@ -46,14 +33,7 @@ SPECIES: list[dict] = [
         "min_size": "14 inches",
         "bag_limit": "5",
         "regulation_notes": "Limit of 5 is in combination with Spotted and Barred Sand Bass.",
-        "classifier_description": (
-            "Thick, heavy bass body. CRITICAL FEATURES: Distinct 'checkerboard' pattern of square-ish "
-            "white and olive-brown blotches covering the body. It completely lacks vertical stripes or "
-            "solid bars. The third spine on the top fin is roughly the same length as the fourth and "
-            "fifth spines. COMMONLY CONFUSED WITH: Barred Sand Bass and Spotted Bay Bass. "
-            "DIFFERENTIATION: Calico Bass has square blotches instead of vertical bars, and its top "
-            "fin is relatively flat, lacking the elongated third-spine spike found on Barred Sand Bass."
-        ),
+        "classifier_description": "Thick, heavy bass body. CRITICAL FEATURES: Distinct 'checkerboard' pattern of square-ish white and olive-brown blotches covering the body. It completely lacks vertical stripes or solid bars. The third spine on the top fin is roughly the same length as the fourth and fifth spines. COMMONLY CONFUSED WITH: Barred Sand Bass and Spotted Bay Bass. DIFFERENTIATION: Calico Bass has square blotches instead of vertical bars, and its top fin is relatively flat, lacking the massively elongated third-spine spike found on both Sand Bass and Spotted Bay Bass."
     },
     {
         "common_name": "Barred Sand Bass",
@@ -64,14 +44,7 @@ SPECIES: list[dict] = [
         "min_size": "14 inches",
         "bag_limit": "5",
         "regulation_notes": "Limit of 5 is in combination with Spotted and Kelp (Calico) Bass.",
-        "classifier_description": (
-            "High-backed bass body with a grey to whitish background. CRITICAL FEATURES: Dominated by "
-            "distinct dark, vertical 'jail bars' running down the sides. The third spine of the top fin "
-            "is dramatically elongated, standing up like a tall spike compared to the rest of the fin. "
-            "COMMONLY CONFUSED WITH: Calico Bass. DIFFERENTIATION: Barred Sand Bass has vertical jail "
-            "bars and an elongated third dorsal spike; Calico Bass has square blotches and flat dorsal "
-            "spines."
-        ),
+        "classifier_description": "High-backed bass body with a grey, whitish, or olive background. CRITICAL FEATURES: Dominated by thick, distinct dark, vertical 'jail bars' running down the sides. The third spine of the top fin is dramatically elongated, standing up like a tall spike. COMMONLY CONFUSED WITH: Spotted Bay Bass and Calico Bass. DIFFERENTIATION: Both Barred Sand Bass and Spotted Bay Bass have vertical bars. However, Barred Sand Bass have a relatively clean, unfreckled face, cheek, and lower belly. If you see vertical bars PLUS a clean face lacking dense polka-dots, it is a Barred Sand Bass. If the face and belly are covered in tiny freckles, it is a Spotted Bay Bass."
     },
     {
         "common_name": "California Halibut",
