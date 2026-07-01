@@ -51,7 +51,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
     function onMove(moveEvent: PointerEvent) {
       if (moveEvent.pointerId !== pointerId) return;
       const deltaY = moveEvent.clientY - startY;
-      if (Math.abs(deltaY) < 6) return;
+      if (Math.abs(deltaY) < 4) return;
       cleanup();
       if (deltaY > 0 && (contentRef.current?.scrollTop ?? 0) <= 0) {
         dragControls.start(moveEvent);
@@ -93,7 +93,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 0.6 }}
               onDragEnd={(_, info) => {
-                if (info.offset.y > 70 || info.velocity.y > 300) onClose();
+                if (info.offset.y > 60) onClose();
               }}
             >
               <div className="sheet-header" onPointerDown={(e) => dragControls.start(e)}>

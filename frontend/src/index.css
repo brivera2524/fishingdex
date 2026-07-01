@@ -487,7 +487,12 @@ button:disabled {
 .sheet-content {
   flex: 1;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* "none" (not just "contain") also suppresses the native rubber-band
+     bounce-back at the top of the list — otherwise pulling down from the
+     top flashes empty space before our own drag-to-dismiss handoff kicks
+     in, since "contain" only stops the scroll from chaining to the page
+     behind it, not the local bounce effect itself. */
+  overscroll-behavior: none;
   min-height: 0;
   touch-action: pan-y;
 }
