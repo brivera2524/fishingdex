@@ -35,6 +35,13 @@ export default function Layout() {
           <span className="bottom-nav-icon">📋</span>
           My Catches
         </NavLink>
+        <NavLink
+          to="/map"
+          className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
+        >
+          <span className="bottom-nav-icon">🗺️</span>
+          Map
+        </NavLink>
         <div className="fab-wrap">
           <NavLink to="/detect" className="fab" aria-label="Identify a fish">
             📷

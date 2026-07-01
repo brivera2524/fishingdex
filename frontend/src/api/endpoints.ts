@@ -6,6 +6,7 @@ import type {
   CatchUpdateInput,
   IdentifyResult,
   LeaderboardCatch,
+  MapCatch,
   Species,
   SpeciesRecord,
   TokenResponse,
@@ -38,6 +39,10 @@ export function createCatch(input: CatchInput) {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function getMapCatches() {
+  return apiFetch<MapCatch[]>("/catches/map");
 }
 
 export function getCatch(catchId: number) {

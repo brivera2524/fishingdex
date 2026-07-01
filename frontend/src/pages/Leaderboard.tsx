@@ -6,7 +6,6 @@ import {
 } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { AnglerStat, LeaderboardCatch, SpeciesRecord } from "../api/types";
-import BottomSheet from "../components/BottomSheet";
 
 type Tab = "species" | "anglers";
 
@@ -16,28 +15,39 @@ export default function Leaderboard() {
   const [anglers, setAnglers] = useState<AnglerStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SpeciesRecord | null>(null);
+  const [index, setIndex] = useState(0);
   const [detail, setDetail] = useState<LeaderboardCatch[] | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([getSpeciesLeaderboard(), getAnglerLeaderboard()])
       .then(([speciesRecords, anglerStats]) => {
-        setRecords(speciesRecords);
+        const sorted = [...speciesRecords].sort((a, b) =>
+          a.species.common_name.localeCompare(b.species.common_name)
+        );
+        setRecords(sorted);
         setAnglers(anglerStats);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load leaderboard"))
       .finally(() => setLoading(false));
   }, []);
 
-  function openSpecies(record: SpeciesRecord) {
-    setSelected(record);
-    setDetail(null);
+  const current = records[index] ?? null;
+
+  useEffect(() => {
+    if (!current) return;
     setDetailLoading(true);
-    getSpeciesCatchLeaderboard(record.species.id)
+    setDetail(null);
+    getSpeciesCatchLeaderboard(current.species.id)
       .then(setDetail)
       .catch(() => setDetail([]))
       .finally(() => setDetailLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.species.id]);
+
+  function step(delta: number) {
+    if (records.length === 0) return;
+    setIndex((i) => (i + delta + records.length) % records.length);
   }
 
   return (
@@ -63,21 +73,45 @@ export default function Leaderboard() {
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
 
-      {!loading && tab === "species" && (
-        <ul className="catch-list">
-          {records.map((r) => (
-            <li key={r.species.id} className="card card-tappable" onClick={() => openSpecies(r)}>
-              <span className="card-title">{r.species.common_name}</span>
-              {r.top_catch ? (
-                <span className="card-meta">
-                  🏆 {r.top_catch.display_name} — {r.top_catch.weight} lb
-                </span>
-              ) : (
-                <span className="card-meta">No record yet</span>
-              )}
-            </li>
-          ))}
-        </ul>
+      {!loading && tab === "species" && current && (
+        <>
+          <div className="species-switcher">
+            <button type="button" className="secondary-button" onClick={() => step(-1)} aria-label="Previous species">
+              ‹
+            </button>
+            <div className="species-switcher-label">
+              <span className="card-title">{current.species.common_name}</span>
+              <span className="card-meta">
+                {index + 1} / {records.length}
+              </span>
+            </div>
+            <button type="button" className="secondary-button" onClick={() => step(1)} aria-label="Next species">
+              ›
+            </button>
+          </div>
+
+          {detailLoading && <p>Loading...</p>}
+          {!detailLoading && detail && detail.length === 0 && <p>No one has caught this yet.</p>}
+          {!detailLoading && detail && detail.length > 0 && (
+            <ul className="catch-list">
+              {detail.map((c, i) => (
+                <li key={c.id} className="card">
+                  {c.photo_url && (
+                    <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.display_name} />
+                  )}
+                  <div className="page-header">
+                    <span className="card-title">
+                      {i === 0 ? "🏆 " : `#${i + 1} `}
+                      {c.display_name}
+                    </span>
+                    <span className="card-stat">{c.weight} lb</span>
+                  </div>
+                  <span className="card-meta">{new Date(c.caught_at).toLocaleDateString()}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       {!loading && tab === "anglers" && (
@@ -96,34 +130,6 @@ export default function Leaderboard() {
           {anglers.length === 0 && <p>No catches logged yet.</p>}
         </ul>
       )}
-
-      <BottomSheet open={selected != null} onClose={() => setSelected(null)}>
-        {selected && (
-          <div>
-            <h1>{selected.species.common_name}</h1>
-            {detailLoading && <p>Loading...</p>}
-            {!detailLoading && detail && detail.length === 0 && <p>No one has caught this yet.</p>}
-            {!detailLoading && detail && detail.length > 0 && (
-              <ul className="catch-list">
-                {detail.map((c, i) => (
-                  <li key={c.id} className="card">
-                    {c.photo_url && (
-                      <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.display_name} />
-                    )}
-                    <div className="page-header">
-                      <span className="card-title">
-                        #{i + 1} {c.display_name}
-                      </span>
-                      <span className="card-stat">{c.weight} lb</span>
-                    </div>
-                    <span className="card-meta">{new Date(c.caught_at).toLocaleDateString()}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </BottomSheet>
     </div>
   );
 }

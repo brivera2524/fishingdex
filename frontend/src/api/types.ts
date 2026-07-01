@@ -75,3 +75,15 @@ export interface AnglerStat {
   catch_count: number;
   species_count: number;
 }
+
+export interface MapCatch {
+  id: number;
+  display_name: string;
+  weight: number | null;
+  length: number | null;
+  caught_at: string;
+  latitude: number;
+  longitude: number;
+  photo_url: string | null;
+  species: Species;
+}

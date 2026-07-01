@@ -52,7 +52,19 @@ export default function CatchForm() {
   const [loadingCatch, setLoadingCatch] = useState(isEdit);
   const [priorSpeciesIds, setPriorSpeciesIds] = useState<Set<number> | null>(null);
   const [discovery, setDiscovery] = useState<{ species: Species; photoUrl: string | null } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isEdit || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {
+        /* Location unavailable or denied — catch still saves without it. */
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
+  }, [isEdit]);
 
   useEffect(() => {
     listSpecies()
@@ -130,6 +142,8 @@ export default function CatchForm() {
           length: length ? Number(length) : null,
           caught_at: new Date(caughtAt).toISOString(),
           notes: notes || null,
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lng ?? null,
         });
         catchId = created.id;
       }
@@ -240,6 +254,7 @@ export default function CatchForm() {
             )}
           </div>
         )}
+        {!isEdit && coords && <p className="card-meta">📍 Location attached</p>}
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={loading || species.length === 0}>
           {loading ? "Saving..." : isEdit ? "Save changes" : "Save catch"}
