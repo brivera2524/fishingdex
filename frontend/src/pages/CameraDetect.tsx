@@ -262,6 +262,7 @@ export default function CameraDetect() {
         <>
           <div className="camera-frame-mask camera-frame-mask-top" aria-hidden="true" />
           <div className="camera-frame-mask camera-frame-mask-bottom" aria-hidden="true" />
+          <p className="camera-hint">Fill the frame with your fish for the best ID</p>
         </>
       )}
 

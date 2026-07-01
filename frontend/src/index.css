@@ -581,6 +581,22 @@ button:disabled {
   border-top: 1px solid rgba(255, 255, 255, 0.35);
 }
 
+.camera-hint {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 84px);
+  left: 0;
+  right: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0 32px;
+  text-align: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
 .camera-top-bar {
   position: absolute;
   top: 0;
