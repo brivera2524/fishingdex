@@ -1,6 +1,6 @@
-import { AnimatePresence, motion, useDragControls } from "framer-motion";
+import { AnimatePresence, animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import { useEffect, useRef } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface BottomSheetProps {
   open: boolean;
@@ -8,8 +8,12 @@ interface BottomSheetProps {
   children: ReactNode;
 }
 
+const SPRING = { type: "spring" as const, damping: 32, stiffness: 320 };
+const DISMISS_THRESHOLD = 60;
+
 export default function BottomSheet({ open, onClose, children }: BottomSheetProps) {
   const dragControls = useDragControls();
+  const y = useMotionValue(0);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Without this, the page has no scroll container of its own (it scrolls
@@ -18,6 +22,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
   // (with the iOS rubber-band-safe position:fixed technique) stops that.
   useEffect(() => {
     if (!open) return;
+    y.set(0);
     const scrollY = window.scrollY;
     const { style } = document.body;
     const prevPosition = style.position;
@@ -32,42 +37,70 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
       style.width = prevWidth;
       window.scrollTo(0, scrollY);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // The header (handle + close button) has no scrollable content, so it can
-  // hand off to Framer's drag immediately on pointerdown. The scrollable
-  // body can't do that — starting the drag eagerly on pointerdown claims the
-  // touch immediately, before we know which direction the user is moving,
-  // which blocks native scrolling entirely (this is what made scrolling long
-  // lists like Recent Catches feel broken/unresponsive). Instead we watch
-  // the first bit of movement ourselves: if it's a clear pull downward while
-  // already scrolled to the top, hand off to the sheet's drag; if it's
-  // upward or the list isn't at the top, back off and let the browser
-  // scroll normally.
-  function startDragFromContent(e: ReactPointerEvent<HTMLDivElement>) {
-    const startY = e.clientY;
-    const pointerId = e.pointerId;
+  // The header (handle + close button) has no scrollable content, so Framer's
+  // built-in drag can start right on pointerdown with no conflict.
+  //
+  // The content area is different: it needs native scrolling most of the
+  // time, so it can't eagerly claim the touch. But Pointer Events can't
+  // reliably cancel the browser's own scroll gesture once it starts — that's
+  // a race only *touch* events with a non-passive listener can win, which is
+  // why the previous pointermove-based handoff felt like it only worked on
+  // fast flicks (a slow drag gave the browser's native scroll recognizer time
+  // to claim the touch first). So this drives the sheet's position directly:
+  // watch touchmove ourselves, and the instant we've confirmed "pulling down
+  // while already at the top", call preventDefault to take the touch away
+  // from the browser for the rest of the gesture.
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || !open) return;
 
-    function onMove(moveEvent: PointerEvent) {
-      if (moveEvent.pointerId !== pointerId) return;
-      const deltaY = moveEvent.clientY - startY;
-      if (Math.abs(deltaY) < 4) return;
-      cleanup();
-      if (deltaY > 0 && (contentRef.current?.scrollTop ?? 0) <= 0) {
-        dragControls.start(moveEvent);
+    let startY = 0;
+    let phase: "pending" | "dragging" | "scrolling" = "pending";
+
+    function onTouchStart(e: TouchEvent) {
+      startY = e.touches[0].clientY;
+      phase = "pending";
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      const deltaY = e.touches[0].clientY - startY;
+
+      if (phase === "pending") {
+        if (Math.abs(deltaY) < 4) return;
+        phase = deltaY > 0 && el!.scrollTop <= 0 ? "dragging" : "scrolling";
+      }
+
+      if (phase === "dragging") {
+        e.preventDefault();
+        y.set(Math.max(0, deltaY * 0.6));
       }
     }
 
-    function cleanup() {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", cleanup);
-      window.removeEventListener("pointercancel", cleanup);
+    function onTouchEnd() {
+      if (phase === "dragging") {
+        if (y.get() > DISMISS_THRESHOLD) {
+          onClose();
+        } else {
+          animate(y, 0, SPRING);
+        }
+      }
+      phase = "pending";
     }
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", cleanup);
-    window.addEventListener("pointercancel", cleanup);
-  }
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [open, onClose, y]);
 
   return (
     <AnimatePresence>
@@ -83,17 +116,18 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
           <div className="sheet-wrap">
             <motion.div
               className="sheet"
+              style={{ y }}
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 32, stiffness: 320 }}
+              transition={SPRING}
               drag="y"
               dragListener={false}
               dragControls={dragControls}
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 0.6 }}
               onDragEnd={(_, info) => {
-                if (info.offset.y > 60) onClose();
+                if (info.offset.y > DISMISS_THRESHOLD) onClose();
               }}
             >
               <div className="sheet-header" onPointerDown={(e) => dragControls.start(e)}>
@@ -102,7 +136,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
               <button type="button" className="sheet-close" onClick={onClose} aria-label="Close">
                 ✕
               </button>
-              <div className="sheet-content" ref={contentRef} onPointerDown={startDragFromContent}>
+              <div className="sheet-content" ref={contentRef}>
                 {children}
               </div>
             </motion.div>
