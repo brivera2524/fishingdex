@@ -8,7 +8,7 @@ from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db
 from app.models import Catch, Species, User
-from app.schemas import CatchCreate, CatchOut, CatchUpdate, MapCatch
+from app.schemas import CatchCreate, CatchOut, CatchUpdate, MapCatch, RecentCatch
 
 router = APIRouter(prefix="/catches", tags=["catches"])
 
@@ -69,6 +69,33 @@ def list_my_catches(
         .order_by(Catch.caught_at.desc())
         .all()
     )
+
+
+@router.get("/recent", response_model=list[RecentCatch])
+def list_recent_catches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    catches = (
+        db.query(Catch)
+        .options(joinedload(Catch.species), joinedload(Catch.user))
+        .order_by(Catch.caught_at.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        RecentCatch(
+            id=c.id,
+            user_id=c.user_id,
+            display_name=c.user.display_name,
+            weight=c.weight,
+            length=c.length,
+            caught_at=c.caught_at,
+            photo_url=c.photo_url,
+            species=c.species,
+        )
+        for c in catches
+    ]
 
 
 @router.get("/map", response_model=list[MapCatch])

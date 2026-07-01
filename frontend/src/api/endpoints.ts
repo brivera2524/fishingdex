@@ -9,6 +9,7 @@ import type {
   IdentifyResult,
   LeaderboardCatch,
   MapCatch,
+  RecentCatch,
   Species,
   SpeciesRecord,
   TokenResponse,
@@ -50,6 +51,10 @@ export function createCatch(input: CatchInput) {
 
 export function getMapCatches() {
   return apiFetch<MapCatch[]>("/catches/map");
+}
+
+export function getRecentCatches() {
+  return apiFetch<RecentCatch[]>("/catches/recent");
 }
 
 export function getCatch(catchId: number) {

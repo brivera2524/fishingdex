@@ -94,6 +94,17 @@ export interface CurrentUser {
   created_at: string;
 }
 
+export interface RecentCatch {
+  id: number;
+  user_id: number;
+  display_name: string;
+  weight: number | null;
+  length: number | null;
+  caught_at: string;
+  photo_url: string | null;
+  species: Species;
+}
+
 export interface UserStat {
   id: number;
   display_name: string;

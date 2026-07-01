@@ -130,6 +130,19 @@ class UserStat(BaseModel):
     species_count: int
 
 
+class RecentCatch(BaseModel):
+    id: int
+    user_id: int
+    display_name: str
+    weight: float | None = None
+    length: float | None = None
+    caught_at: datetime
+    photo_url: str | None = None
+    species: SpeciesOut
+
+    _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
+
+
 class MapCatch(BaseModel):
     id: int
     display_name: str
