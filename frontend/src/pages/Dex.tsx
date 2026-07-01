@@ -1,10 +1,17 @@
 import { useMemo, useState, useEffect } from "react";
-import { getSpeciesCatchLeaderboard, getUserCatches, listMyCatches, listSpecies } from "../api/endpoints";
+import {
+  getMapCatches,
+  getSpeciesCatchLeaderboard,
+  getUserCatches,
+  listMyCatches,
+  listSpecies,
+} from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
-import type { Catch, LeaderboardCatch, Species } from "../api/types";
+import type { Catch, LeaderboardCatch, MapCatch, Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
 import SpeciesRegulations from "../components/SpeciesRegulations";
+import SpeciesLocationsMap from "../components/SpeciesLocationsMap";
 import ViewOnMapButton from "../components/ViewOnMapButton";
 
 interface DexEntry {
@@ -29,6 +36,7 @@ export default function Dex({ embedded = false, userId }: DexProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardCatch[] | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [selectedCatch, setSelectedCatch] = useState<LeaderboardCatch | null>(null);
+  const [mapCatches, setMapCatches] = useState<MapCatch[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -39,6 +47,9 @@ export default function Dex({ embedded = false, userId }: DexProps) {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load dex"))
       .finally(() => setLoading(false));
+    getMapCatches()
+      .then(setMapCatches)
+      .catch(() => {});
   }, [userId]);
 
   const entries = useMemo<DexEntry[]>(() => {
@@ -61,6 +72,11 @@ export default function Dex({ embedded = false, userId }: DexProps) {
   }, [species, catches]);
 
   const caughtCount = entries.filter((e) => e.caught).length;
+
+  const selectedSpeciesMapCatches = useMemo(
+    () => (selected ? mapCatches.filter((c) => c.species.id === selected.species.id) : []),
+    [mapCatches, selected]
+  );
 
   function openEntry(entry: DexEntry) {
     setSelected(entry);
@@ -149,6 +165,8 @@ export default function Dex({ embedded = false, userId }: DexProps) {
             )}
 
             <SpeciesRegulations species={selected.species} />
+
+            <SpeciesLocationsMap catches={selectedSpeciesMapCatches} />
 
             <button type="button" className="secondary-button" onClick={toggleLeaderboard}>
               {showLeaderboard ? "Hide leaderboard" : "🏆 View leaderboard"}

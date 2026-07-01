@@ -1,23 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
+import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import { SAN_DIEGO } from "../leafletSetup";
 import { getMapCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { MapCatch } from "../api/types";
-
-// Vite bundles Leaflet's default marker image paths incorrectly out of the box.
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
-
-const SAN_DIEGO: [number, number] = [32.7157, -117.1611];
 
 interface FocusState {
   focusCatchId: number;
