@@ -22,7 +22,20 @@ SPECIES: list[dict] = [
         "min_size": "14 inches",
         "bag_limit": "5",
         "regulation_notes": "Limit of 5 is in combination with Barred Sand Bass and Kelp (Calico) Bass.",
-        "classifier_description": "Sleek bass body shape with an elongated third top spine. CRITICAL FEATURE: The entire head, body, belly, and fins are densely covered in hundreds of small, evenly-spaced, round, dark brown or black freckles (polka dots). IMPORTANT OVERLAP: Spotted Bay Bass often HAVE dark vertical bars underneath their spots. COMMONLY CONFUSED WITH: Barred Sand Bass and Sculpin. DIFFERENTIATION: Do not just look for bars. If the fish has vertical bars BUT its face, cheeks, and belly are completely covered in tiny, dense polka-dots, it is a Spotted Bay Bass. Barred Sand Bass do not have freckled faces. Against Sculpin: Spotted Bay Bass are smooth and sleek; Sculpin are chunky, spiky, and heavily armored with no smooth polka-dots."
+        "classifier_description": (
+            "Sleek bass body shape with an elongated third top spine. STEP 1 — CHECK THE FACE/CHEEK "
+            "FIRST, BEFORE LOOKING AT BARS: the head, cheeks, gill cover, and belly are densely covered "
+            "edge-to-edge in small, round, evenly-spaced dark brown or black freckles (polka-dots), like "
+            "the fish was sprinkled with pepper. This dense facial/belly spotting is the single most "
+            "reliable feature for this species and OVERRIDES any bar pattern. DO NOT let vertical bars "
+            "override this — Spotted Bay Bass very commonly ALSO have bold dark vertical bars on the "
+            "body in addition to their spots, so bars alone prove nothing. DECISION RULE: if the face, "
+            "cheek, or belly shows dense round freckling, this is a Spotted Bay Bass, full stop — even "
+            "if strong vertical bars are also clearly visible. COMMONLY CONFUSED WITH: Barred Sand Bass "
+            "(which has a comparatively CLEAN, unfreckled face — check the face, not the bars, to tell "
+            "them apart) and Sculpin (which has a rough, spiny, armored head and blotchy camouflage "
+            "instead of small uniform round dots, and is generally chunkier)."
+        ),
     },
     {
         "common_name": "Calico Bass",
@@ -44,7 +57,18 @@ SPECIES: list[dict] = [
         "min_size": "14 inches",
         "bag_limit": "5",
         "regulation_notes": "Limit of 5 is in combination with Spotted and Kelp (Calico) Bass.",
-        "classifier_description": "High-backed bass body with a grey, whitish, or olive background. CRITICAL FEATURES: Dominated by thick, distinct dark, vertical 'jail bars' running down the sides. The third spine of the top fin is dramatically elongated, standing up like a tall spike. COMMONLY CONFUSED WITH: Spotted Bay Bass and Calico Bass. DIFFERENTIATION: Both Barred Sand Bass and Spotted Bay Bass have vertical bars. However, Barred Sand Bass have a relatively clean, unfreckled face, cheek, and lower belly. If you see vertical bars PLUS a clean face lacking dense polka-dots, it is a Barred Sand Bass. If the face and belly are covered in tiny freckles, it is a Spotted Bay Bass."
+        "classifier_description": (
+            "High-backed bass body with a grey, whitish, or olive background, dominated by thick, "
+            "distinct dark vertical 'jail bars' running down the sides, and a dramatically elongated "
+            "3rd dorsal spine standing up like a tall spike. STEP 1 — CHECK THE FACE/CHEEK FIRST, BEFORE "
+            "CONFIRMING FROM THE BARS: the face, cheek, and lower belly must be relatively CLEAN — free "
+            "of dense small round freckling — for this ID to be correct. IMPORTANT: vertical bars ALONE "
+            "are NOT enough to call a fish a Barred Sand Bass, because Spotted Bay Bass commonly show "
+            "very similar bars too. DECISION RULE: only classify as Barred Sand Bass if the face and "
+            "cheek are clean of dense polka-dot freckling. If the head, cheek, or belly is covered in "
+            "small round dark spots, it is a Spotted Bay Bass instead, regardless of how bold the bars "
+            "look. COMMONLY CONFUSED WITH: Spotted Bay Bass — the face is the tiebreaker, not the bars."
+        ),
     },
     {
         "common_name": "California Halibut",
