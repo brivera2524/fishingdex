@@ -13,18 +13,6 @@ import { API_BASE, ApiError } from "../api/client";
 import type { Species } from "../api/types";
 import DiscoveryReveal from "../components/DiscoveryReveal";
 
-function nowForInput() {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  return now.toISOString().slice(0, 16);
-}
-
-function toDatetimeLocal(iso: string) {
-  const d = new Date(iso);
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16);
-}
-
 interface DetectState {
   speciesId: number | null;
   photoBlob: Blob;
@@ -42,7 +30,6 @@ export default function CatchForm() {
   const [speciesId, setSpeciesId] = useState<number | "">("");
   const [weight, setWeight] = useState("");
   const [length, setLength] = useState("");
-  const [caughtAt, setCaughtAt] = useState(nowForInput());
   const [notes, setNotes] = useState("");
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -99,7 +86,6 @@ export default function CatchForm() {
         setSpeciesId(c.species_id);
         setWeight(c.weight != null ? String(c.weight) : "");
         setLength(c.length != null ? String(c.length) : "");
-        setCaughtAt(toDatetimeLocal(c.caught_at));
         setNotes(c.notes ?? "");
         setExistingPhotoUrl(c.photo_url);
       })
@@ -132,7 +118,6 @@ export default function CatchForm() {
           species_id: speciesId,
           weight: weight ? Number(weight) : null,
           length: length ? Number(length) : null,
-          caught_at: new Date(caughtAt).toISOString(),
           notes: notes || null,
         });
       } else {
@@ -140,7 +125,7 @@ export default function CatchForm() {
           species_id: speciesId,
           weight: weight ? Number(weight) : null,
           length: length ? Number(length) : null,
-          caught_at: new Date(caughtAt).toISOString(),
+          caught_at: new Date().toISOString(),
           notes: notes || null,
           latitude: coords?.lat ?? null,
           longitude: coords?.lng ?? null,
@@ -222,15 +207,6 @@ export default function CatchForm() {
         <label>
           Length (in)
           <input type="number" step="0.01" value={length} onChange={(e) => setLength(e.target.value)} />
-        </label>
-        <label>
-          Date/time caught
-          <input
-            type="datetime-local"
-            value={caughtAt}
-            onChange={(e) => setCaughtAt(e.target.value)}
-            required
-          />
         </label>
         <label>
           Notes
