@@ -214,7 +214,7 @@ export default function CatchForm() {
         </label>
         <label>
           Photo
-          <input type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} />
+          <input type="file" accept="image/*" onChange={handlePhotoChange} />
         </label>
         {previewUrl && (
           <div className="photo-preview">
