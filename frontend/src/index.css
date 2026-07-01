@@ -73,6 +73,23 @@ p {
   letter-spacing: -0.01em;
 }
 
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-model-select {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 4px 8px;
+  min-height: auto;
+}
+
 main {
   flex: 1;
   padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 24px);

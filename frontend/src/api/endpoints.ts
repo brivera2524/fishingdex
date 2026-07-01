@@ -1,5 +1,6 @@
 import { apiFetch } from "./client";
 import type {
+  AdminSettings,
   AnglerStat,
   Catch,
   CatchInput,
@@ -134,4 +135,15 @@ export function listUsers() {
 
 export function getUserCatches(userId: number) {
   return apiFetch<Catch[]>(`/users/${userId}/catches`);
+}
+
+export function getAdminSettings() {
+  return apiFetch<AdminSettings>("/admin/settings");
+}
+
+export function updateAdminSettings(model: string) {
+  return apiFetch<AdminSettings>("/admin/settings", {
+    method: "PUT",
+    body: JSON.stringify({ model }),
+  });
 }

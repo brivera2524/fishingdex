@@ -30,11 +30,10 @@ class TokenResponse(BaseModel):
 
 
 class UserOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     display_name: str
     created_at: datetime
+    is_admin: bool = False
 
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)
 
@@ -183,3 +182,12 @@ class CommentOut(BaseModel):
 
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)
     _normalize_updated_at = field_validator("updated_at", mode="before")(_as_utc)
+
+
+class AdminSettingsOut(BaseModel):
+    model: str
+    available_models: list[str]
+
+
+class AdminSettingsUpdate(BaseModel):
+    model: str

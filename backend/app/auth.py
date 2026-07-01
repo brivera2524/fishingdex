@@ -12,7 +12,21 @@ from app.models import User
 
 ALGORITHM = "HS256"
 
+# The app owner's account — the first user ever created (via the initial
+# invite-code signup). Small friend-group app, so a single hardcoded admin
+# is simpler than a role system or an extra column just for one person.
+ADMIN_USER_ID = 1
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+def is_admin(user: User) -> bool:
+    return user.id == ADMIN_USER_ID
+
+
+def require_admin(user: User) -> None:
+    if not is_admin(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
 
 def hash_password(password: str) -> str:

@@ -81,3 +81,14 @@ class Comment(Base):
 
     catch: Mapped["Catch"] = relationship(back_populates="comments")
     user: Mapped["User"] = relationship()
+
+
+class AppSetting(Base):
+    """Tiny key/value store for admin-tunable runtime settings (e.g. which
+    Claude model /identify uses). Not worth a dedicated table per setting
+    given how few of these exist."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[str] = mapped_column(String(200), nullable=False)

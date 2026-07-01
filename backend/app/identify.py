@@ -4,10 +4,19 @@ import anthropic
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Species
+from app.models import AppSetting, Species
 
-MODEL = "claude-sonnet-5"
+DEFAULT_MODEL = "claude-sonnet-5"
+ALLOWED_MODELS = ["claude-sonnet-5", "claude-opus-4-8"]
+MODEL_SETTING_KEY = "identify_model"
 NO_MATCH = "NONE"
+
+
+def get_active_model(db: Session) -> str:
+    setting = db.get(AppSetting, MODEL_SETTING_KEY)
+    if setting and setting.value in ALLOWED_MODELS:
+        return setting.value
+    return DEFAULT_MODEL
 
 
 def _build_species_blocks(species_list: list[Species]) -> list[dict]:
@@ -71,7 +80,7 @@ def identify_species(db: Session, image_bytes: bytes, media_type: str) -> tuple[
     )
 
     response = client.messages.create(
-        model=MODEL,
+        model=get_active_model(db),
         max_tokens=1024,
         messages=[{"role": "user", "content": content}],
     )

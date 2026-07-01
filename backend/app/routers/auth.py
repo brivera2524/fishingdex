@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, get_current_user, hash_password, verify_password
+from app.auth import create_access_token, get_current_user, hash_password, is_admin, verify_password
 from app.config import settings
 from app.database import get_db
 from app.models import User
@@ -33,7 +33,12 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
-    return current_user
+    return UserOut(
+        id=current_user.id,
+        display_name=current_user.display_name,
+        created_at=current_user.created_at,
+        is_admin=is_admin(current_user),
+    )
 
 
 @router.post("/login", response_model=TokenResponse)

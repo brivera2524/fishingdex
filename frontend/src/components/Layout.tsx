@@ -1,18 +1,22 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import AdminModelToggle from "./AdminModelToggle";
 
 export default function Layout() {
-  const { logout } = useAuth();
+  const { logout, currentUser } = useAuth();
   const location = useLocation();
 
   return (
     <div className="app-shell">
       <header className="top-bar">
         <span className="brand">Fish Pokedex</span>
-        <button className="link-button" onClick={logout} style={{ color: "#fff" }}>
-          Log out
-        </button>
+        <div className="top-bar-actions">
+          {currentUser?.is_admin && <AdminModelToggle />}
+          <button className="link-button" onClick={logout} style={{ color: "#fff" }}>
+            Log out
+          </button>
+        </div>
       </header>
       <main>
         <AnimatePresence mode="wait">

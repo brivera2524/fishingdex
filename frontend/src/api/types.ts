@@ -97,6 +97,12 @@ export interface CurrentUser {
   id: number;
   display_name: string;
   created_at: string;
+  is_admin: boolean;
+}
+
+export interface AdminSettings {
+  model: string;
+  available_models: string[];
 }
 
 export interface RecentCatch {
