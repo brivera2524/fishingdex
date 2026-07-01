@@ -623,6 +623,46 @@ button:disabled {
   }
 }
 
+/* Garibaldi joke alert */
+.garibaldi-alert {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+  animation: garibaldi-flash 0.35s steps(1, jump-none) infinite;
+}
+
+.garibaldi-alert-text {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.4;
+  color: #fff;
+  text-shadow: 0 0 14px rgba(0, 0, 0, 0.7);
+  animation: garibaldi-pulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes garibaldi-flash {
+  0%, 100% {
+    background: rgba(220, 20, 20, 0.96);
+  }
+  50% {
+    background: rgba(110, 0, 0, 0.96);
+  }
+}
+
+@keyframes garibaldi-pulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+
 /* Discovery reveal */
 .discovery-overlay {
   position: fixed;

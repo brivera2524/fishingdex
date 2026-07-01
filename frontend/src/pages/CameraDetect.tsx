@@ -21,6 +21,7 @@ export default function CameraDetect() {
   const [discoverySpecies, setDiscoverySpecies] = useState<Species | null>(null);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  const [garibaldiAlert, setGaribaldiAlert] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,9 +32,55 @@ export default function CameraDetect() {
     listMyCatches()
       .then((catches) => setCaughtSpeciesIds(new Set(catches.map((c) => c.species_id))))
       .catch(() => setCaughtSpeciesIds(new Set()));
-    return () => stopCamera();
+    return () => {
+      stopCamera();
+      window.speechSynthesis?.cancel();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function triggerGaribaldiAlert() {
+    setGaribaldiAlert(true);
+    playAlertSiren();
+    speakGaribaldiWarning();
+    setTimeout(() => setGaribaldiAlert(false), 4000);
+  }
+
+  function playAlertSiren() {
+    try {
+      const AudioCtxCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtxCtor();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      const duration = 1.4;
+      gain.gain.setValueAtTime(0.25, now);
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.linearRampToValueAtTime(880, now + duration / 4);
+      osc.frequency.linearRampToValueAtTime(440, now + duration / 2);
+      osc.frequency.linearRampToValueAtTime(880, now + (3 * duration) / 4);
+      osc.frequency.linearRampToValueAtTime(440, now + duration);
+      gain.gain.setValueAtTime(0.25, now + duration - 0.05);
+      gain.gain.linearRampToValueAtTime(0, now + duration);
+      osc.start(now);
+      osc.stop(now + duration);
+      osc.onended = () => ctx.close();
+    } catch {
+      /* Web Audio unsupported or blocked — silently skip the sound. */
+    }
+  }
+
+  function speakGaribaldiWarning() {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance("Holy shit, you're so fucked!");
+    utterance.pitch = 1.3;
+    utterance.rate = 1.05;
+    window.speechSynthesis.speak(utterance);
+  }
 
   async function startCamera() {
     try {
@@ -97,6 +144,9 @@ export default function CameraDetect() {
     try {
       const res = await identifyPhoto(blob);
       setConfirmedSpeciesId(res.species?.id ?? null);
+      if (res.species?.common_name === "Garibaldi") {
+        triggerGaribaldiAlert();
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Identification failed");
     } finally {
@@ -256,6 +306,16 @@ export default function CameraDetect() {
           </div>
         )}
       </BottomSheet>
+
+      {garibaldiAlert && (
+        <div className="garibaldi-alert" onClick={() => setGaribaldiAlert(false)}>
+          <div className="garibaldi-alert-text">
+            🚨💀🐠 HOLY SHIT YOU'RE SO FUCKED 🐠💀🚨
+            <br />
+            😭🤣☠️🚔🚓 (that's a protected species, genius) 🚓🚔☠️🤣😭
+          </div>
+        </div>
+      )}
     </div>
   );
 }
