@@ -31,17 +31,15 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
   useEffect(() => {
     Promise.all([getSpeciesLeaderboard(), getAnglerLeaderboard()])
       .then(([speciesRecords, anglerStats]) => {
-        const sorted = [...speciesRecords].sort((a, b) =>
-          a.species.common_name.localeCompare(b.species.common_name)
-        );
+        // Most-caught species first, so both the carousel and the "jump to
+        // species" picker surface populated leaderboards before empty ones.
+        const sorted = [...speciesRecords].sort((a, b) => {
+          if (b.catch_count !== a.catch_count) return b.catch_count - a.catch_count;
+          return a.species.common_name.localeCompare(b.species.common_name);
+        });
         setRecords(sorted);
         setAnglers(anglerStats);
-
-        const mostCaughtIndex = sorted.reduce(
-          (bestIdx, r, i) => (r.catch_count > sorted[bestIdx].catch_count ? i : bestIdx),
-          0
-        );
-        setIndex(mostCaughtIndex);
+        setIndex(0);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load leaderboard"))
       .finally(() => setLoading(false));
