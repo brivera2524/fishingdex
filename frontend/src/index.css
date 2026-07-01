@@ -185,6 +185,49 @@ main {
   flex: 1;
 }
 
+.leaderboard-mode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-mode-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.mode-pill-toggle {
+  display: inline-flex;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.mode-pill-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  min-height: auto;
+  white-space: nowrap;
+}
+
+.mode-pill-toggle button.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
 .species-switcher {
   display: flex;
   align-items: center;

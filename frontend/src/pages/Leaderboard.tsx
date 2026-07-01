@@ -68,21 +68,24 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
   return (
     <div className={embedded ? undefined : "page"}>
       {!embedded && <h1>Leaderboard</h1>}
-      <div className="tab-switch">
-        <button
-          type="button"
-          className={tab === "species" ? "" : "secondary-button"}
-          onClick={() => setTab("species")}
-        >
-          Biggest Fish
-        </button>
-        <button
-          type="button"
-          className={tab === "anglers" ? "" : "secondary-button"}
-          onClick={() => setTab("anglers")}
-        >
-          Most Catches
-        </button>
+      <div className="leaderboard-mode-row">
+        <span className="leaderboard-mode-label">Leaderboard</span>
+        <div className="mode-pill-toggle">
+          <button
+            type="button"
+            className={tab === "species" ? "active" : ""}
+            onClick={() => setTab("species")}
+          >
+            Biggest Fish
+          </button>
+          <button
+            type="button"
+            className={tab === "anglers" ? "active" : ""}
+            onClick={() => setTab("anglers")}
+          >
+            Most Catches
+          </button>
+        </div>
       </div>
 
       {loading && <p>Loading...</p>}
