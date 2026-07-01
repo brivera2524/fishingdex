@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { getRecentCatches, listUsers } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { RecentCatch, UserStat } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
+import AnglerDetail from "../components/AnglerDetail";
 
 type Tab = "anglers" | "recent";
+
+interface SelectedAngler {
+  id: number;
+  displayName: string;
+}
 
 export default function Anglers() {
   const [tab, setTab] = useState<Tab>("anglers");
@@ -16,7 +21,7 @@ export default function Anglers() {
   const [recentLoading, setRecentLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCatch, setSelectedCatch] = useState<RecentCatch | null>(null);
-  const navigate = useNavigate();
+  const [selectedAngler, setSelectedAngler] = useState<SelectedAngler | null>(null);
 
   useEffect(() => {
     listUsers()
@@ -56,7 +61,11 @@ export default function Anglers() {
           {usersLoading && <p>Loading...</p>}
           <ul className="catch-list">
             {users.map((u) => (
-              <li key={u.id} className="card card-tappable" onClick={() => navigate(`/anglers/${u.id}`)}>
+              <li
+                key={u.id}
+                className="card card-tappable"
+                onClick={() => setSelectedAngler({ id: u.id, displayName: u.display_name })}
+              >
                 <div className="page-header">
                   <span className="card-title">{u.display_name}</span>
                   <span className="card-stat">{u.catch_count} catches</span>
@@ -108,7 +117,11 @@ export default function Anglers() {
               <button
                 type="button"
                 className="link-button"
-                onClick={() => navigate(`/anglers/${selectedCatch.user_id}`)}
+                onClick={() => {
+                  const angler = { id: selectedCatch.user_id, displayName: selectedCatch.display_name };
+                  setSelectedCatch(null);
+                  setSelectedAngler(angler);
+                }}
               >
                 {selectedCatch.display_name}
               </button>
@@ -121,6 +134,10 @@ export default function Anglers() {
             <CommentThread catchId={selectedCatch.id} />
           </div>
         )}
+      </BottomSheet>
+
+      <BottomSheet open={selectedAngler != null} onClose={() => setSelectedAngler(null)}>
+        {selectedAngler && <AnglerDetail userId={selectedAngler.id} displayName={selectedAngler.displayName} />}
       </BottomSheet>
     </div>
   );

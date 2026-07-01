@@ -9,7 +9,6 @@ import Leaderboard from "./pages/Leaderboard";
 import MapPage from "./pages/Map";
 import CameraDetect from "./pages/CameraDetect";
 import Anglers from "./pages/Anglers";
-import AnglerProfile from "./pages/AnglerProfile";
 
 export default function App() {
   return (
@@ -38,7 +37,6 @@ export default function App() {
             <Route path="/map" element={<MapPage />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/anglers" element={<Anglers />} />
-            <Route path="/anglers/:id" element={<AnglerProfile />} />
             <Route path="/" element={<Navigate to="/dex" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
