@@ -31,10 +31,17 @@ SPECIES: list[dict] = [
             "override this — Spotted Bay Bass very commonly ALSO have bold dark vertical bars on the "
             "body in addition to their spots, so bars alone prove nothing. DECISION RULE: if the face, "
             "cheek, or belly shows dense round freckling, this is a Spotted Bay Bass, full stop — even "
-            "if strong vertical bars are also clearly visible. COMMONLY CONFUSED WITH: Barred Sand Bass "
-            "(which has a comparatively CLEAN, unfreckled face — check the face, not the bars, to tell "
-            "them apart) and Sculpin (which has a rough, spiny, armored head and blotchy camouflage "
-            "instead of small uniform round dots, and is generally chunkier)."
+            "if strong vertical bars are also clearly visible. STEP 2 — RULE OUT SCULPIN BEFORE "
+            "FINALIZING: Spotted Bay Bass has smooth, unarmored skin, a sleek narrow head, no bony "
+            "spines, and no fleshy skin tabs/flaps anywhere on the head or jaw. Its dots are small, "
+            "round, uniform in size, and evenly spaced, like stippling — NOT an uneven blotchy "
+            "patchwork. If instead you see a big blocky armored head, bony ridges, spines, or small "
+            "fleshy tabs sticking out near the eyes/mouth, OR the coloring is an uneven blotchy wash "
+            "rather than uniform round dots, that is a Sculpin, not this species — reclassify "
+            "accordingly. COMMONLY CONFUSED WITH: Barred Sand Bass (which has a comparatively CLEAN, "
+            "unfreckled face — check the face, not the bars, to tell them apart) and Sculpin (rough, "
+            "spiny, armored head with blotchy camouflage instead of small uniform round dots — check "
+            "skin texture and head armor, not just 'has spots')."
         ),
     },
     {
@@ -241,11 +248,15 @@ SPECIES: list[dict] = [
         "bag_limit": "5",
         "regulation_notes": "Size limit was officially eliminated.",
         "classifier_description": (
-            "Chunky, heavy-bodied fish with ROUGH, textured skin. CRITICAL FEATURES: The head is large, "
+            "Chunky, heavy-bodied fish with ROUGH, textured skin. STEP 1 — CHECK HEAD ARMOR AND SKIN "
+            "TEXTURE FIRST, BEFORE 'HAS SPOTS' TRIGGERS A SPOTTED BAY BASS CALL: the head is large, "
             "blocky, and heavily armored, covered in sharp bony ridges, spines, and small fleshy skin "
             "tabs (like tiny flaps of skin sticking out, especially around the eyes and mouth). The body "
             "pattern is a mottled, blotchy red, orange, and brown camouflage wash — uneven patches, NOT "
             "small uniform round dots. The top fin consists of thick, highly visible, venomous spines. "
+            "DECISION RULE: a spotted-looking fish is NOT automatically a Spotted Bay Bass — if the head "
+            "is armored/spiny with fleshy tabs, or the pattern is an uneven blotchy wash rather than "
+            "small uniform evenly-spaced dots, call it a Sculpin regardless of overall 'spottiness.' "
             "COMMONLY CONFUSED WITH: Spotted Bay Bass. DIFFERENTIATION: Sculpin has a big rough armored "
             "head with bony spines and fleshy tabs, a chunky asymmetric build, and blotchy camouflage "
             "coloring. Spotted Bay Bass has smooth skin, a small sleek unarmored head, no spines or skin "
