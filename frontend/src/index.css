@@ -506,6 +506,10 @@ button:disabled {
   font-size: 18px;
 }
 
+.camera-close.torch-on {
+  background: var(--accent);
+}
+
 .camera-controls {
   position: absolute;
   bottom: calc(32px + env(safe-area-inset-bottom));

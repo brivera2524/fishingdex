@@ -18,6 +18,8 @@ export default function CameraDetect() {
   const [overriding, setOverriding] = useState(false);
   const [caughtSpeciesIds, setCaughtSpeciesIds] = useState<Set<number> | null>(null);
   const [discoverySpecies, setDiscoverySpecies] = useState<Species | null>(null);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,6 +42,13 @@ export default function CameraDetect() {
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
+
+      // Torch control is a non-standard extension to MediaTrackCapabilities —
+      // supported on most Android browsers, not on iOS Safari (WebKit has no
+      // web API for the camera flash at all).
+      const track = stream.getVideoTracks()[0];
+      const capabilities = track?.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+      setTorchSupported(Boolean(capabilities?.torch));
     } catch {
       setCameraError("Could not access the camera. Check your browser's camera permission.");
     }
@@ -48,6 +57,19 @@ export default function CameraDetect() {
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    setTorchOn(false);
+  }
+
+  async function toggleTorch() {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] });
+      setTorchOn(next);
+    } catch {
+      /* Torch toggle failed — leave state unchanged. */
+    }
   }
 
   async function handleCapture() {
@@ -137,6 +159,16 @@ export default function CameraDetect() {
         <button type="button" className="camera-close" onClick={handleClose} aria-label="Close">
           ✕
         </button>
+        {torchSupported && (
+          <button
+            type="button"
+            className={`camera-close${torchOn ? " torch-on" : ""}`}
+            onClick={toggleTorch}
+            aria-label="Toggle flashlight"
+          >
+            🔦
+          </button>
+        )}
       </div>
 
       {cameraError ? (
