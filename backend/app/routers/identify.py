@@ -1,6 +1,7 @@
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.auth import get_current_user
 from app.config import settings
@@ -35,7 +36,12 @@ async def identify(
         )
 
     try:
-        species, raw_answer = identify_species(db, contents, file.content_type)
+        # identify_species() makes a multi-second blocking HTTP call to Claude via
+        # the sync SDK client — run it off the event loop so one in-flight
+        # identification doesn't freeze every other request on the server.
+        species, raw_answer = await run_in_threadpool(
+            identify_species, db, contents, file.content_type
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except anthropic.RateLimitError:
