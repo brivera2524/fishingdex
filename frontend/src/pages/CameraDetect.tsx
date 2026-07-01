@@ -24,7 +24,16 @@ export default function CameraDetect() {
   const [torchOn, setTorchOn] = useState(false);
   const [garibaldiAlert, setGaribaldiAlert] = useState(false);
   const garibaldiAlertRef = useRef(false);
+  const [guideEnabled, setGuideEnabled] = useState(() => localStorage.getItem("cameraGuideEnabled") !== "false");
   const navigate = useNavigate();
+
+  function toggleGuide() {
+    setGuideEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem("cameraGuideEnabled", String(next));
+      return next;
+    });
+  }
 
   useEffect(() => {
     startCamera();
@@ -249,6 +258,16 @@ export default function CameraDetect() {
         <button type="button" className="camera-close" onClick={handleClose} aria-label="Close">
           ✕
         </button>
+        {!capturedPhoto && !cameraError && (
+          <button
+            type="button"
+            className={`camera-close${guideEnabled ? " torch-on" : ""}`}
+            onClick={toggleGuide}
+            aria-label={guideEnabled ? "Hide framing guide" : "Show framing guide"}
+          >
+            🐟
+          </button>
+        )}
       </div>
 
       {cameraError ? (
@@ -263,9 +282,11 @@ export default function CameraDetect() {
         <>
           <div className="camera-frame-mask camera-frame-mask-top" aria-hidden="true" />
           <div className="camera-frame-mask camera-frame-mask-bottom" aria-hidden="true" />
-          <div className="camera-frame-guide" aria-hidden="true">
-            <img className="camera-frame-guide-img" src={fishTemplate} alt="" />
-          </div>
+          {guideEnabled && (
+            <div className="camera-frame-guide" aria-hidden="true">
+              <img className="camera-frame-guide-img" src={fishTemplate} alt="" />
+            </div>
+          )}
           <p className="camera-hint">Fill the frame with your fish for the best ID</p>
         </>
       )}
