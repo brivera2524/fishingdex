@@ -465,6 +465,7 @@ button:disabled {
 }
 
 .sheet {
+  position: relative;
   width: 100%;
   max-width: 560px;
   background: var(--surface);
@@ -472,7 +473,14 @@ button:disabled {
   padding: 10px 18px calc(24px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 32px rgba(15, 23, 41, 0.2);
   max-height: 92svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-content {
+  flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .sheet-handle {
@@ -481,6 +489,22 @@ button:disabled {
   border-radius: 999px;
   background: var(--border);
   margin: 0 auto 14px;
+  flex-shrink: 0;
+}
+
+.sheet-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  min-height: auto;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 15px;
+  padding: 0;
+  z-index: 1;
 }
 
 /* Camera / detect screen */
