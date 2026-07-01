@@ -470,17 +470,26 @@ button:disabled {
   max-width: 560px;
   background: var(--surface);
   border-radius: 24px 24px 0 0;
-  padding: 10px 18px calc(24px + env(safe-area-inset-bottom));
+  padding: 0 18px calc(24px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 32px rgba(15, 23, 41, 0.2);
   max-height: 92svh;
   display: flex;
   flex-direction: column;
 }
 
+.sheet-header {
+  flex-shrink: 0;
+  padding: 14px 0 12px;
+  touch-action: none;
+  cursor: grab;
+}
+
 .sheet-content {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
   min-height: 0;
+  touch-action: pan-y;
 }
 
 .sheet-handle {
@@ -488,8 +497,7 @@ button:disabled {
   height: 4px;
   border-radius: 999px;
   background: var(--border);
-  margin: 0 auto 14px;
-  flex-shrink: 0;
+  margin: 0 auto;
 }
 
 .sheet-close {
