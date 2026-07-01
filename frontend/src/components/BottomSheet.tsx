@@ -35,16 +35,38 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
   }, [open]);
 
   // The header (handle + close button) has no scrollable content, so it can
-  // always start a drag. The scrollable body can too, but only once it's
-  // already scrolled to the top — otherwise a pull-down there just scrolls
-  // the list, the same way a native iOS/Android sheet behaves. Because
-  // dragListener is off, Framer never starts a drag on its own; it only
-  // starts here, and a plain tap (no real movement) still passes through to
-  // whatever's underneath, so list items stay tappable.
-  function startDragFromContent(e: ReactPointerEvent) {
-    if ((contentRef.current?.scrollTop ?? 0) <= 0) {
-      dragControls.start(e);
+  // hand off to Framer's drag immediately on pointerdown. The scrollable
+  // body can't do that — starting the drag eagerly on pointerdown claims the
+  // touch immediately, before we know which direction the user is moving,
+  // which blocks native scrolling entirely (this is what made scrolling long
+  // lists like Recent Catches feel broken/unresponsive). Instead we watch
+  // the first bit of movement ourselves: if it's a clear pull downward while
+  // already scrolled to the top, hand off to the sheet's drag; if it's
+  // upward or the list isn't at the top, back off and let the browser
+  // scroll normally.
+  function startDragFromContent(e: ReactPointerEvent<HTMLDivElement>) {
+    const startY = e.clientY;
+    const pointerId = e.pointerId;
+
+    function onMove(moveEvent: PointerEvent) {
+      if (moveEvent.pointerId !== pointerId) return;
+      const deltaY = moveEvent.clientY - startY;
+      if (Math.abs(deltaY) < 6) return;
+      cleanup();
+      if (deltaY > 0 && (contentRef.current?.scrollTop ?? 0) <= 0) {
+        dragControls.start(moveEvent);
+      }
     }
+
+    function cleanup() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
   }
 
   return (
