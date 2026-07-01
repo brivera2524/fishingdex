@@ -258,16 +258,6 @@ export default function CameraDetect() {
         <button type="button" className="camera-close" onClick={handleClose} aria-label="Close">
           ✕
         </button>
-        {!capturedPhoto && !cameraError && (
-          <button
-            type="button"
-            className={`camera-close${guideEnabled ? " torch-on" : ""}`}
-            onClick={toggleGuide}
-            aria-label={guideEnabled ? "Hide framing guide" : "Show framing guide"}
-          >
-            🐟
-          </button>
-        )}
       </div>
 
       {cameraError ? (
@@ -304,6 +294,14 @@ export default function CameraDetect() {
             </button>
           )}
           <button type="button" className="shutter-button" onClick={handleCapture} aria-label="Capture photo" />
+          <button
+            type="button"
+            className={`guide-toggle-button${guideEnabled ? " torch-on" : ""}`}
+            onClick={toggleGuide}
+            aria-label={guideEnabled ? "Hide framing guide" : "Show framing guide"}
+          >
+            🐟
+          </button>
         </div>
       )}
 

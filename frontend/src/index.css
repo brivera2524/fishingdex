@@ -689,6 +689,23 @@ button:disabled {
   background: var(--accent);
 }
 
+.guide-toggle-button {
+  position: absolute;
+  left: calc(50% + 60px);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 18px;
+  padding: 0;
+  min-height: auto;
+}
+
+.guide-toggle-button.torch-on {
+  background: var(--accent);
+}
+
 .identify-result {
   display: flex;
   flex-direction: column;
