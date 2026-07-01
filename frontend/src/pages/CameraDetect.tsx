@@ -22,6 +22,7 @@ export default function CameraDetect() {
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [garibaldiAlert, setGaribaldiAlert] = useState(false);
+  const garibaldiAlertRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sirenIntervalRef = useRef<number | null>(null);
   const navigate = useNavigate();
@@ -45,15 +46,26 @@ export default function CameraDetect() {
   // Browsers only allow audio/speech to start inside a user-gesture call stack.
   // The shutter tap is that gesture, but the alert doesn't fire until the
   // identify API call resolves, well after the gesture has expired. So we
-  // create (and resume) the AudioContext synchronously in the tap handler,
-  // and prime speech synthesis with a silent utterance — both stay usable
-  // later even once the async identify response comes back.
+  // create the AudioContext AND actually start (and immediately stop) a
+  // silent oscillator synchronously in the tap handler — resume() alone
+  // isn't always enough to unlock playback later, but actually running a
+  // node during the gesture reliably does. We also prime speech synthesis
+  // with a silent utterance. Both stay usable once the async identify
+  // response comes back.
   function unlockAudioForGesture() {
     try {
       const AudioCtxCtor =
         window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!audioCtxRef.current) audioCtxRef.current = new AudioCtxCtor();
-      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") ctx.resume();
+      const silentOsc = ctx.createOscillator();
+      const silentGain = ctx.createGain();
+      silentGain.gain.value = 0;
+      silentOsc.connect(silentGain);
+      silentGain.connect(ctx.destination);
+      silentOsc.start();
+      silentOsc.stop(ctx.currentTime + 0.01);
     } catch {
       /* Web Audio unsupported — sound will just be skipped later. */
     }
@@ -65,16 +77,15 @@ export default function CameraDetect() {
   }
 
   function triggerGaribaldiAlert() {
+    garibaldiAlertRef.current = true;
     setGaribaldiAlert(true);
     playAlertSiren();
-    speakGaribaldiWarning();
-    sirenIntervalRef.current = window.setInterval(() => {
-      playAlertSiren();
-      speakGaribaldiWarning();
-    }, 2200);
+    speakGaribaldiWarningLoop();
+    sirenIntervalRef.current = window.setInterval(playAlertSiren, 2200);
   }
 
   function stopGaribaldiAlert() {
+    garibaldiAlertRef.current = false;
     if (sirenIntervalRef.current != null) {
       window.clearInterval(sirenIntervalRef.current);
       sirenIntervalRef.current = null;
@@ -87,6 +98,7 @@ export default function CameraDetect() {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     try {
+      if (ctx.state === "suspended") ctx.resume();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sawtooth";
@@ -94,13 +106,13 @@ export default function CameraDetect() {
       gain.connect(ctx.destination);
       const now = ctx.currentTime;
       const duration = 1.4;
-      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.setValueAtTime(0.3, now);
       osc.frequency.setValueAtTime(440, now);
       osc.frequency.linearRampToValueAtTime(880, now + duration / 4);
       osc.frequency.linearRampToValueAtTime(440, now + duration / 2);
       osc.frequency.linearRampToValueAtTime(880, now + (3 * duration) / 4);
       osc.frequency.linearRampToValueAtTime(440, now + duration);
-      gain.gain.setValueAtTime(0.25, now + duration - 0.05);
+      gain.gain.setValueAtTime(0.3, now + duration - 0.05);
       gain.gain.linearRampToValueAtTime(0, now + duration);
       osc.start(now);
       osc.stop(now + duration);
@@ -109,12 +121,16 @@ export default function CameraDetect() {
     }
   }
 
-  function speakGaribaldiWarning() {
+  // Chained via onend (instead of a fixed setInterval) so a slower TTS voice
+  // never gets cut off mid-word by the next repetition starting early.
+  function speakGaribaldiWarningLoop() {
     if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance("Holy shit, you're so fucked!");
     utterance.pitch = 1.3;
     utterance.rate = 1.05;
+    utterance.onend = () => {
+      if (garibaldiAlertRef.current) speakGaribaldiWarningLoop();
+    };
     window.speechSynthesis.speak(utterance);
   }
 
