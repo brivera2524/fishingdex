@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routers import auth, catches, identify, leaderboard, species
+from app.routers import auth, catches, comments, identify, leaderboard, species
 
 app = FastAPI(title="Fish Pokedex API")
 
@@ -24,6 +24,7 @@ app.include_router(species.router)
 app.include_router(catches.router)
 app.include_router(identify.router)
 app.include_router(leaderboard.router)
+app.include_router(comments.router)
 
 
 @app.get("/health")

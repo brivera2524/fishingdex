@@ -3,6 +3,7 @@ import { getSpeciesCatchLeaderboard, listMyCatches, listSpecies } from "../api/e
 import { API_BASE, ApiError } from "../api/client";
 import type { Catch, LeaderboardCatch, Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
+import CommentThread from "../components/CommentThread";
 
 interface DexEntry {
   species: Species;
@@ -20,6 +21,7 @@ export default function Dex() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardCatch[] | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [selectedCatch, setSelectedCatch] = useState<LeaderboardCatch | null>(null);
 
   useEffect(() => {
     Promise.all([listSpecies(), listMyCatches()])
@@ -151,7 +153,7 @@ export default function Dex() {
                 {!leaderboardLoading && leaderboard && leaderboard.length > 0 && (
                   <ul className="catch-list">
                     {leaderboard.map((c, i) => (
-                      <li key={c.id} className="card">
+                      <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
                         <div className="page-header">
                           <span className="card-title">
                             #{i + 1} {c.display_name}
@@ -165,6 +167,27 @@ export default function Dex() {
                 )}
               </div>
             )}
+          </div>
+        )}
+      </BottomSheet>
+
+      <BottomSheet open={selectedCatch != null} onClose={() => setSelectedCatch(null)}>
+        {selectedCatch && (
+          <div>
+            {selectedCatch.photo_url && (
+              <img
+                className="catch-photo"
+                src={`${API_BASE}${selectedCatch.photo_url}`}
+                alt={selectedCatch.display_name}
+              />
+            )}
+            <h1>{selectedCatch.display_name}</h1>
+            <div className="card-stats" style={{ margin: "10px 0" }}>
+              {selectedCatch.weight != null && <span className="card-stat">{selectedCatch.weight} lb</span>}
+              {selectedCatch.length != null && <span className="card-stat">{selectedCatch.length} in</span>}
+            </div>
+            <p className="card-meta">{new Date(selectedCatch.caught_at).toLocaleString()}</p>
+            <CommentThread catchId={selectedCatch.id} />
           </div>
         )}
       </BottomSheet>

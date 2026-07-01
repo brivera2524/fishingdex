@@ -135,3 +135,24 @@ class MapCatch(BaseModel):
     species: SpeciesOut
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
+
+
+class CommentCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+
+
+class CommentUpdate(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+
+
+class CommentOut(BaseModel):
+    id: int
+    catch_id: int
+    user_id: int
+    display_name: str
+    body: str
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)
+    _normalize_updated_at = field_validator("updated_at", mode="before")(_as_utc)

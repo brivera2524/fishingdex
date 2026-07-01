@@ -4,6 +4,7 @@ import { deleteCatch, listMyCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { Catch } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
+import CommentThread from "../components/CommentThread";
 
 export default function MyCatches() {
   const [catches, setCatches] = useState<Catch[]>([]);
@@ -121,6 +122,8 @@ export default function MyCatches() {
                 </button>
               </div>
             )}
+
+            <CommentThread catchId={selected.id} />
           </div>
         )}
       </BottomSheet>

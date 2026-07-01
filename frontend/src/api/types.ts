@@ -87,3 +87,19 @@ export interface MapCatch {
   photo_url: string | null;
   species: Species;
 }
+
+export interface CurrentUser {
+  id: number;
+  display_name: string;
+  created_at: string;
+}
+
+export interface Comment {
+  id: number;
+  catch_id: number;
+  user_id: number;
+  display_name: string;
+  body: string;
+  created_at: string;
+  updated_at: string | null;
+}

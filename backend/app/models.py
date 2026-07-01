@@ -61,3 +61,18 @@ class Catch(Base):
 
     user: Mapped["User"] = relationship(back_populates="catches")
     species: Mapped["Species"] = relationship(back_populates="catches")
+    comments: Mapped[list["Comment"]] = relationship(back_populates="catch", cascade="all, delete-orphan")
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    catch_id: Mapped[int] = mapped_column(ForeignKey("catches.id"), index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    catch: Mapped["Catch"] = relationship(back_populates="comments")
+    user: Mapped["User"] = relationship()

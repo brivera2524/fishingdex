@@ -711,3 +711,9 @@ button:disabled {
   font-weight: 600;
   box-shadow: var(--shadow-md);
 }
+
+.comment-thread {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}

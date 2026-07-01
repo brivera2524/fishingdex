@@ -1,8 +1,11 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { clearToken, getToken, setToken as persistToken } from "../api/client";
+import { getMe } from "../api/endpoints";
+import type { CurrentUser } from "../api/types";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
+  currentUser: CurrentUser | null;
   setAuthenticated: (token: string) => void;
   logout: () => void;
 }
@@ -11,6 +14,17 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getToken()));
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setCurrentUser(null);
+      return;
+    }
+    getMe()
+      .then(setCurrentUser)
+      .catch(() => setCurrentUser(null));
+  }, [isAuthenticated]);
 
   const setAuthenticated = (token: string) => {
     persistToken(token);
@@ -23,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, setAuthenticated, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, currentUser, setAuthenticated, logout }}>
       {children}
     </AuthContext.Provider>
   );

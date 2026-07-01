@@ -4,6 +4,8 @@ import type {
   Catch,
   CatchInput,
   CatchUpdateInput,
+  Comment,
+  CurrentUser,
   IdentifyResult,
   LeaderboardCatch,
   MapCatch,
@@ -24,6 +26,10 @@ export function login(displayName: string, password: string) {
     method: "POST",
     body: JSON.stringify({ display_name: displayName, password }),
   });
+}
+
+export function getMe() {
+  return apiFetch<CurrentUser>("/auth/me");
 }
 
 export function listSpecies() {
@@ -92,4 +98,26 @@ export function getSpeciesCatchLeaderboard(speciesId: number) {
 
 export function getAnglerLeaderboard() {
   return apiFetch<AnglerStat[]>("/leaderboard/anglers");
+}
+
+export function getComments(catchId: number) {
+  return apiFetch<Comment[]>(`/catches/${catchId}/comments`);
+}
+
+export function createComment(catchId: number, body: string) {
+  return apiFetch<Comment>(`/catches/${catchId}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function updateComment(commentId: number, body: string) {
+  return apiFetch<Comment>(`/comments/${commentId}`, {
+    method: "PUT",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function deleteComment(commentId: number) {
+  return apiFetch<void>(`/comments/${commentId}`, { method: "DELETE" });
 }
