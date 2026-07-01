@@ -516,6 +516,7 @@ button:disabled {
   left: 0;
   right: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
   z-index: 2;
 }
@@ -532,6 +533,23 @@ button:disabled {
 
 .shutter-button:disabled {
   opacity: 0.6;
+}
+
+.torch-button {
+  position: absolute;
+  right: calc(50% + 60px);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 18px;
+  padding: 0;
+  min-height: auto;
+}
+
+.torch-button.torch-on {
+  background: var(--accent);
 }
 
 .identify-result {

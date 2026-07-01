@@ -159,16 +159,6 @@ export default function CameraDetect() {
         <button type="button" className="camera-close" onClick={handleClose} aria-label="Close">
           ✕
         </button>
-        {torchSupported && (
-          <button
-            type="button"
-            className={`camera-close${torchOn ? " torch-on" : ""}`}
-            onClick={toggleTorch}
-            aria-label="Toggle flashlight"
-          >
-            🔦
-          </button>
-        )}
       </div>
 
       {cameraError ? (
@@ -181,6 +171,16 @@ export default function CameraDetect() {
 
       {!capturedPhoto && !cameraError && (
         <div className="camera-controls">
+          {torchSupported && (
+            <button
+              type="button"
+              className={`torch-button${torchOn ? " torch-on" : ""}`}
+              onClick={toggleTorch}
+              aria-label="Toggle flashlight"
+            >
+              🔦
+            </button>
+          )}
           <button type="button" className="shutter-button" onClick={handleCapture} aria-label="Capture photo" />
         </div>
       )}
