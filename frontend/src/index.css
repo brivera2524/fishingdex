@@ -471,7 +471,7 @@ button:disabled {
   border-radius: 24px 24px 0 0;
   padding: 10px 18px calc(24px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 32px rgba(15, 23, 41, 0.2);
-  max-height: 85svh;
+  max-height: 92svh;
   overflow-y: auto;
 }
 
@@ -596,13 +596,16 @@ button:disabled {
 .identify-result {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   align-items: center;
   text-align: center;
 }
 
 .identify-photo {
-  width: 100%;
+  /* Bounded by viewport height (not just width) so the photo can never push
+     the Retake/Confirm buttons below the fold — the square aspect ratio is
+     guaranteed, so this sizes consistently without ever needing to scroll. */
+  width: min(100%, 36dvh);
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: var(--radius-md);
