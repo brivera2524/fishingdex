@@ -7,6 +7,9 @@ export interface Species {
   season_notes: string | null;
   image_url: string | null;
   silhouette_url: string | null;
+  min_size: string | null;
+  bag_limit: string | null;
+  regulation_notes: string | null;
 }
 
 export interface Catch {

@@ -205,6 +205,18 @@ main {
   margin: 20px 0 10px;
 }
 
+.regs-box {
+  background: var(--surface-soft, rgba(14, 124, 134, 0.08));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.regs-box .section-label {
+  margin: 0 0 8px;
+}
+
 .form {
   display: flex;
   flex-direction: column;

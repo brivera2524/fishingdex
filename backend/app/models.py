@@ -35,6 +35,11 @@ class Species(Base):
     # Visual diagnostic text fed to the camera-ID classifier prompt. Separate from
     # habitat_description (public-facing) since this is written for the model, not anglers.
     classifier_description: Mapped[str | None] = mapped_column(Text)
+    # CA DFW regulations for San Diego waters. Stored as strings since limits mix
+    # numbers with values like "No Limit" and sizes are written as "14 inches".
+    min_size: Mapped[str | None] = mapped_column(String(50))
+    bag_limit: Mapped[str | None] = mapped_column(String(50))
+    regulation_notes: Mapped[str | None] = mapped_column(Text)
 
     catches: Mapped[list["Catch"]] = relationship(back_populates="species")
 

@@ -50,6 +50,9 @@ class SpeciesOut(BaseModel):
     season_notes: str | None = None
     image_url: str | None = None
     silhouette_url: str | None = None
+    min_size: str | None = None
+    bag_limit: str | None = None
+    regulation_notes: str | None = None
 
 
 class CatchCreate(BaseModel):

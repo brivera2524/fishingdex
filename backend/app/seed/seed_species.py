@@ -19,6 +19,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Shallow bays and harbors, eelgrass beds, docks, and mudflats",
         "typical_size_range": "8-18 in",
         "season_notes": "Year-round, peaks in warmer months",
+        "min_size": "14 inches",
+        "bag_limit": "5",
+        "regulation_notes": "Limit of 5 is in combination with Barred Sand Bass and Kelp (Calico) Bass.",
         "classifier_description": (
             "Sleek, streamlined bass body shape with an elongated third top spine. Skin is completely "
             "SMOOTH — small, flat, tight scales with no bumps, spikes, or fleshy tabs anywhere. The head "
@@ -40,6 +43,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Kelp beds, rocky reefs, and structure near the coast",
         "typical_size_range": "10-20 in",
         "season_notes": "Year-round, best late spring through fall",
+        "min_size": "14 inches",
+        "bag_limit": "5",
+        "regulation_notes": "Limit of 5 is in combination with Spotted and Barred Sand Bass.",
         "classifier_description": (
             "Thick, heavy bass body. CRITICAL FEATURES: Distinct 'checkerboard' pattern of square-ish "
             "white and olive-brown blotches covering the body. It completely lacks vertical stripes or "
@@ -55,6 +61,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Sandy bottoms near structure, bays, and nearshore flats",
         "typical_size_range": "10-22 in",
         "season_notes": "Summer spawning aggregations, year-round otherwise",
+        "min_size": "14 inches",
+        "bag_limit": "5",
+        "regulation_notes": "Limit of 5 is in combination with Spotted and Kelp (Calico) Bass.",
         "classifier_description": (
             "High-backed bass body with a grey to whitish background. CRITICAL FEATURES: Dominated by "
             "distinct dark, vertical 'jail bars' running down the sides. The third spine of the top fin "
@@ -70,6 +79,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Sandy bottoms near bays, jetties, and surf zones",
         "typical_size_range": "12-30 in",
         "season_notes": "Year-round, best spring through fall",
+        "min_size": "22 inches",
+        "bag_limit": "5",
+        "regulation_notes": "San Diego is South of Point Sur, so the 5 fish limit applies.",
         "classifier_description": (
             "Flatfish silhouette with both eyes on one side. Mottled brown/sand-colored on top, white "
             "on the bottom. CRITICAL FEATURES: The lateral line (the line running down the middle of "
@@ -83,6 +95,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Open water near piers, jetties, and bait schools",
         "typical_size_range": "10-16 in",
         "season_notes": "Year-round, often thick in summer/fall",
+        "min_size": "None",
+        "bag_limit": "No Limit",
+        "regulation_notes": "Specifically exempt from the general finfish limit.",
         "classifier_description": (
             "Rigid, torpedo-shaped body. CRITICAL FEATURES: The upper back is metallic green-blue and "
             "heavily covered in dark, wavy, vertical 'tiger' or 'zebra' squiggles. The belly is clean "
@@ -96,6 +111,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Rocky structure, jetties, and bay pilings",
         "typical_size_range": "8-14 in",
         "season_notes": "Year-round, more active in warmer months",
+        "min_size": "None",
+        "bag_limit": "10",
+        "regulation_notes": "General finfish rules apply (max 10 per species, 20 total finfish in possession).",
         "classifier_description": (
             "Deep, compressed, oval panfish shape with a steep sloping forehead. Body color is a clean, "
             "uniform silver-grey. CRITICAL FEATURE: Identifiable by a single, prominent, thick black "
@@ -109,6 +127,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Shallow bay flats and channels, often near current",
         "typical_size_range": "12-24 in",
         "season_notes": "Warmer months",
+        "min_size": "None",
+        "bag_limit": "10",
+        "regulation_notes": "General finfish rules apply.",
         "classifier_description": (
             "Elongated, silver-grey body. CRITICAL FEATURES: Look closely at the top jaw — it contains "
             "one or two prominent, vampire-like canine teeth protruding downward. The tail fin is "
@@ -123,6 +144,12 @@ SPECIES: list[dict] = [
         "habitat_description": "Sandy surf zones along open beaches",
         "typical_size_range": "6-12 in",
         "season_notes": "Year-round",
+        "min_size": "None",
+        "bag_limit": "20",
+        "regulation_notes": (
+            "20 total, max 10 per species. (Northern CA exceptions do not apply to SD). "
+            "Shiner perch have a separate 20-fish limit."
+        ),
         "classifier_description": (
             "Highly compressed, tall oval disk-shaped body. CRITICAL FEATURES: Flanks are bright "
             "silver, marked by a series of distinct vertical brassy, gold, or rust-colored bars (not "
@@ -135,6 +162,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Bay flats, channels, and nearshore sandy bottoms",
         "typical_size_range": "20-40 in",
         "season_notes": "Year-round, common in bays",
+        "min_size": "None",
+        "bag_limit": "10",
+        "regulation_notes": "General finfish rules apply.",
         "classifier_description": (
             "Classic slender shark silhouette. CRITICAL FEATURES: Uniform slate-grey or brownish back "
             "fading to a white underbelly. It completely lacks any spots, bars, stripes, or scales. Has "
@@ -147,6 +177,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Muddy/sandy bay bottoms, often under structure",
         "typical_size_range": "6-12 in",
         "season_notes": "Year-round, more visible at night",
+        "min_size": "None",
+        "bag_limit": "10",
+        "regulation_notes": "General finfish rules apply.",
         "classifier_description": (
             "Heavy, thick body. Head is massive, wide, and flattened vertically (like a toad or "
             "catfish) with eyes sitting directly on top looking upward. Skin is completely smooth, "
@@ -169,6 +202,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Sandy surf zones and bay flats",
         "typical_size_range": "8-16 in",
         "season_notes": "Warmer months",
+        "min_size": "None",
+        "bag_limit": "10",
+        "regulation_notes": "General finfish rules apply. Strictly illegal to buy or sell this species commercially.",
         "classifier_description": (
             "Small, silvery croaker with a slightly arched back. CRITICAL FEATURES: Back and sides "
             "feature highly distinct dark, diagonal wavy lines. The lower fins (pectoral, pelvic, anal) "
@@ -183,6 +219,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Sandy bay and nearshore bottoms",
         "typical_size_range": "8-16 in",
         "season_notes": "Year-round",
+        "min_size": "None",
+        "bag_limit": "10",
+        "regulation_notes": "General finfish rules apply.",
         "classifier_description": (
             "Small, highly slender, cigar-shaped cylindrical body, covered in rigid, diamond-pattern "
             "scales. CRITICAL FEATURES: The head is pointed and reptilian with eyes on the sides. It "
@@ -201,6 +240,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Rocky reefs and structure, often near jetties",
         "typical_size_range": "8-15 in",
         "season_notes": "Year-round",
+        "min_size": "None",
+        "bag_limit": "5",
+        "regulation_notes": "Size limit was officially eliminated.",
         "classifier_description": (
             "Chunky, heavy-bodied fish with ROUGH, textured skin. CRITICAL FEATURES: The head is large, "
             "blocky, and heavily armored, covered in sharp bony ridges, spines, and small fleshy skin "
@@ -221,6 +263,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Rocky tide pools, jetties, and bay structure",
         "typical_size_range": "Arm span up to 24 in",
         "season_notes": "Year-round",
+        "min_size": "None",
+        "bag_limit": "35",
+        "regulation_notes": "Must be taken only by hand or hook-and-line. (Northern CA SCUBA restrictions do not apply to SD).",
         "classifier_description": (
             "Cephalopod. Eight highly flexible arms lined with circular suction cups. Has a bulbous "
             "head mantle and lacks any rigid fish anatomy (no fins, scales, or gills). Often features "
@@ -233,6 +278,12 @@ SPECIES: list[dict] = [
         "habitat_description": "Open coastal waters, kelp edges, and piers",
         "typical_size_range": "18-36 in",
         "season_notes": "Summer through fall",
+        "min_size": "28 inches",
+        "bag_limit": "10",
+        "regulation_notes": (
+            "28 inches total length (or 17 inches alternate length). Undersized fish are not "
+            "legally permitted to be kept."
+        ),
         "classifier_description": (
             "Long, cylindrical body with highly visible silver scales. CRITICAL FEATURES: The lower "
             "jaw features a severe underbite, protruding significantly further than the upper jaw. It "
@@ -248,6 +299,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Surface waters near bays, piers, and harbors",
         "typical_size_range": "12-24 in",
         "season_notes": "Warmer months",
+        "min_size": "None",
+        "bag_limit": "10",
+        "regulation_notes": "General finfish rules apply.",
         "classifier_description": (
             "Hyper-elongated, slender, almost snake-like body. Skin looks completely smooth and glassy "
             "green/silver. CRITICAL FEATURES: Both the upper and lower jaws are exactly equal in "
@@ -261,6 +315,9 @@ SPECIES: list[dict] = [
         "habitat_description": "Rocky reefs and kelp beds (protected species — catch and release only in CA)",
         "typical_size_range": "10-14 in",
         "season_notes": "Year-round",
+        "min_size": "N/A",
+        "bag_limit": "0",
+        "regulation_notes": "Fully Protected Species. Take or possession is strictly prohibited.",
         "classifier_description": (
             "Unmistakable. Deep, highly compressed, oval body with a very steep, rounded forehead. The "
             "coloring is a solid, uniform, brilliant neon golden-orange across the entire head, body, "

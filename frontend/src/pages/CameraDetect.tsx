@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import type { Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import DiscoveryReveal from "../components/DiscoveryReveal";
+import SpeciesRegulations from "../components/SpeciesRegulations";
 
 export default function CameraDetect() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -207,6 +208,7 @@ export default function CameraDetect() {
                     {confirmedSpecies.scientific_name && (
                       <span className="identify-sci-name">{confirmedSpecies.scientific_name}</span>
                     )}
+                    <SpeciesRegulations species={confirmedSpecies} />
                   </>
                 ) : (
                   <p>Couldn't confidently match a species in our dex. Pick one manually below.</p>

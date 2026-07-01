@@ -4,6 +4,7 @@ import { API_BASE, ApiError } from "../api/client";
 import type { Catch, LeaderboardCatch, Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
+import SpeciesRegulations from "../components/SpeciesRegulations";
 
 interface DexEntry {
   species: Species;
@@ -145,6 +146,8 @@ export default function Dex({ embedded = false, userId }: DexProps) {
             {selected.species.habitat_description && (
               <p style={{ marginBottom: 14 }}>{selected.species.habitat_description}</p>
             )}
+
+            <SpeciesRegulations species={selected.species} />
 
             <button type="button" className="secondary-button" onClick={toggleLeaderboard}>
               {showLeaderboard ? "Hide leaderboard" : "🏆 View leaderboard"}
