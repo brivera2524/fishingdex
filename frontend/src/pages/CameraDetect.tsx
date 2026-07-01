@@ -23,8 +23,6 @@ export default function CameraDetect() {
   const [torchOn, setTorchOn] = useState(false);
   const [garibaldiAlert, setGaribaldiAlert] = useState(false);
   const garibaldiAlertRef = useRef(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sirenIntervalRef = useRef<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,87 +36,33 @@ export default function CameraDetect() {
     return () => {
       stopCamera();
       stopGaribaldiAlert();
-      audioCtxRef.current?.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Browsers only allow audio/speech to start inside a user-gesture call stack.
-  // The shutter tap is that gesture, but the alert doesn't fire until the
-  // identify API call resolves, well after the gesture has expired. So we
-  // create the AudioContext AND actually start (and immediately stop) a
-  // silent oscillator synchronously in the tap handler — resume() alone
-  // isn't always enough to unlock playback later, but actually running a
-  // node during the gesture reliably does. We also prime speech synthesis
-  // with a silent utterance. Both stay usable once the async identify
-  // response comes back.
-  function unlockAudioForGesture() {
-    try {
-      const AudioCtxCtor =
-        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!audioCtxRef.current) audioCtxRef.current = new AudioCtxCtor();
-      const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") ctx.resume();
-      const silentOsc = ctx.createOscillator();
-      const silentGain = ctx.createGain();
-      silentGain.gain.value = 0;
-      silentOsc.connect(silentGain);
-      silentGain.connect(ctx.destination);
-      silentOsc.start();
-      silentOsc.stop(ctx.currentTime + 0.01);
-    } catch {
-      /* Web Audio unsupported — sound will just be skipped later. */
-    }
-    if ("speechSynthesis" in window) {
-      const primer = new SpeechSynthesisUtterance(" ");
-      primer.volume = 0;
-      window.speechSynthesis.speak(primer);
-    }
+  // speechSynthesis.speak() only works reliably if it's kicked off inside a
+  // user-gesture call stack. The shutter tap is that gesture, but the alert
+  // doesn't fire until the identify API call resolves, well after the
+  // gesture has expired — so we prime it with a silent utterance here,
+  // synchronously in the tap handler, to keep it usable once the async
+  // identify response comes back.
+  function unlockSpeechForGesture() {
+    if (!("speechSynthesis" in window)) return;
+    const primer = new SpeechSynthesisUtterance(" ");
+    primer.volume = 0;
+    window.speechSynthesis.speak(primer);
   }
 
   function triggerGaribaldiAlert() {
     garibaldiAlertRef.current = true;
     setGaribaldiAlert(true);
-    playAlertSiren();
     speakGaribaldiWarningLoop();
-    sirenIntervalRef.current = window.setInterval(playAlertSiren, 2200);
   }
 
   function stopGaribaldiAlert() {
     garibaldiAlertRef.current = false;
-    if (sirenIntervalRef.current != null) {
-      window.clearInterval(sirenIntervalRef.current);
-      sirenIntervalRef.current = null;
-    }
     window.speechSynthesis?.cancel();
     setGaribaldiAlert(false);
-  }
-
-  function playAlertSiren() {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    try {
-      if (ctx.state === "suspended") ctx.resume();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sawtooth";
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      const now = ctx.currentTime;
-      const duration = 1.4;
-      gain.gain.setValueAtTime(0.3, now);
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.linearRampToValueAtTime(880, now + duration / 4);
-      osc.frequency.linearRampToValueAtTime(440, now + duration / 2);
-      osc.frequency.linearRampToValueAtTime(880, now + (3 * duration) / 4);
-      osc.frequency.linearRampToValueAtTime(440, now + duration);
-      gain.gain.setValueAtTime(0.3, now + duration - 0.05);
-      gain.gain.linearRampToValueAtTime(0, now + duration);
-      osc.start(now);
-      osc.stop(now + duration);
-    } catch {
-      /* Web Audio blocked — silently skip the sound. */
-    }
   }
 
   // Chained via onend (instead of a fixed setInterval) so a slower TTS voice
@@ -176,12 +120,30 @@ export default function CameraDetect() {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
 
-    unlockAudioForGesture();
+    unlockSpeechForGesture();
+
+    // The <video> is displayed with object-fit: cover, so the visible preview
+    // is already cropped to the container's aspect ratio — capture that same
+    // cropped region instead of the full sensor frame, otherwise the saved
+    // photo includes stuff the user never saw framed on screen.
+    const containerAspect = video.clientWidth / video.clientHeight;
+    const videoAspect = video.videoWidth / video.videoHeight;
+    let sx = 0;
+    let sy = 0;
+    let sw = video.videoWidth;
+    let sh = video.videoHeight;
+    if (videoAspect > containerAspect) {
+      sw = video.videoHeight * containerAspect;
+      sx = (video.videoWidth - sw) / 2;
+    } else {
+      sh = video.videoWidth / containerAspect;
+      sy = (video.videoHeight - sh) / 2;
+    }
 
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext("2d")?.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
     const blob: Blob | null = await new Promise((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.85)
@@ -273,6 +235,17 @@ export default function CameraDetect() {
         </div>
       ) : (
         <video ref={videoRef} className="camera-video" autoPlay muted playsInline />
+      )}
+
+      {!capturedPhoto && !cameraError && (
+        <div className="camera-frame-guide" aria-hidden="true">
+          <svg viewBox="0 0 330 120" className="camera-frame-guide-fish">
+            <ellipse cx="150" cy="60" rx="120" ry="42" />
+            <polygon points="268,25 268,95 322,60" />
+            <circle cx="72" cy="50" r="4" fill="currentColor" stroke="none" />
+          </svg>
+          <p>Line your catch up here, nose to tail</p>
+        </div>
       )}
 
       {!capturedPhoto && !cameraError && (
