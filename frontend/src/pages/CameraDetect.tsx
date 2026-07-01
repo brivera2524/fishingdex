@@ -22,6 +22,8 @@ export default function CameraDetect() {
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [garibaldiAlert, setGaribaldiAlert] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sirenIntervalRef = useRef<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,22 +36,57 @@ export default function CameraDetect() {
       .catch(() => setCaughtSpeciesIds(new Set()));
     return () => {
       stopCamera();
-      window.speechSynthesis?.cancel();
+      stopGaribaldiAlert();
+      audioCtxRef.current?.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Browsers only allow audio/speech to start inside a user-gesture call stack.
+  // The shutter tap is that gesture, but the alert doesn't fire until the
+  // identify API call resolves, well after the gesture has expired. So we
+  // create (and resume) the AudioContext synchronously in the tap handler,
+  // and prime speech synthesis with a silent utterance — both stay usable
+  // later even once the async identify response comes back.
+  function unlockAudioForGesture() {
+    try {
+      const AudioCtxCtor =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioCtxCtor();
+      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+    } catch {
+      /* Web Audio unsupported — sound will just be skipped later. */
+    }
+    if ("speechSynthesis" in window) {
+      const primer = new SpeechSynthesisUtterance(" ");
+      primer.volume = 0;
+      window.speechSynthesis.speak(primer);
+    }
+  }
 
   function triggerGaribaldiAlert() {
     setGaribaldiAlert(true);
     playAlertSiren();
     speakGaribaldiWarning();
-    setTimeout(() => setGaribaldiAlert(false), 4000);
+    sirenIntervalRef.current = window.setInterval(() => {
+      playAlertSiren();
+      speakGaribaldiWarning();
+    }, 2200);
+  }
+
+  function stopGaribaldiAlert() {
+    if (sirenIntervalRef.current != null) {
+      window.clearInterval(sirenIntervalRef.current);
+      sirenIntervalRef.current = null;
+    }
+    window.speechSynthesis?.cancel();
+    setGaribaldiAlert(false);
   }
 
   function playAlertSiren() {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
     try {
-      const AudioCtxCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtxCtor();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sawtooth";
@@ -67,9 +104,8 @@ export default function CameraDetect() {
       gain.gain.linearRampToValueAtTime(0, now + duration);
       osc.start(now);
       osc.stop(now + duration);
-      osc.onended = () => ctx.close();
     } catch {
-      /* Web Audio unsupported or blocked — silently skip the sound. */
+      /* Web Audio blocked — silently skip the sound. */
     }
   }
 
@@ -124,6 +160,8 @@ export default function CameraDetect() {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
 
+    unlockAudioForGesture();
+
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -155,6 +193,7 @@ export default function CameraDetect() {
   }
 
   function handleRetake() {
+    stopGaribaldiAlert();
     if (capturedPhoto) URL.revokeObjectURL(capturedPhoto.url);
     setCapturedPhoto(null);
     setError(null);
@@ -308,11 +347,13 @@ export default function CameraDetect() {
       </BottomSheet>
 
       {garibaldiAlert && (
-        <div className="garibaldi-alert" onClick={() => setGaribaldiAlert(false)}>
+        <div className="garibaldi-alert" onClick={stopGaribaldiAlert}>
           <div className="garibaldi-alert-text">
             🚨💀🐠 HOLY SHIT YOU'RE SO FUCKED 🐠💀🚨
             <br />
             😭🤣☠️🚔🚓 (that's a protected species, genius) 🚓🚔☠️🤣😭
+            <br />
+            <span className="garibaldi-alert-hint">tap to dismiss</span>
           </div>
         </div>
       )}

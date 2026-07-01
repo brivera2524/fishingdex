@@ -627,13 +627,14 @@ button:disabled {
 .garibaldi-alert {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 32px;
   text-align: center;
-  animation: garibaldi-flash 0.35s steps(1, jump-none) infinite;
+  background-color: #dc1414;
+  animation: garibaldi-flash 0.6s linear infinite;
 }
 
 .garibaldi-alert-text {
@@ -645,12 +646,22 @@ button:disabled {
   animation: garibaldi-pulse 0.45s ease-in-out infinite alternate;
 }
 
+.garibaldi-alert-hint {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.85;
+  animation: none;
+}
+
 @keyframes garibaldi-flash {
-  0%, 100% {
-    background: rgba(220, 20, 20, 0.96);
+  0%,
+  100% {
+    background-color: #dc1414;
   }
   50% {
-    background: rgba(110, 0, 0, 0.96);
+    background-color: #6e0000;
   }
 }
 
