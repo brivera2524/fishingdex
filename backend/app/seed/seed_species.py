@@ -52,7 +52,9 @@ SPECIES: list[dict] = [
             "Sculpin, a smooth unarmored head means Spotted Bay Bass; and (2) pattern geometry — small "
             "uniform evenly-spaced round dots means Spotted Bay Bass, an uneven blotchy camouflage wash "
             "means Sculpin. If neither head armor nor blotchy patchwork is present, do not reclassify "
-            "as Sculpin just because the dorsal fin is spiky or the fish looks brownish. COMMONLY "
+            "as Sculpin just because the dorsal fin is spiky or the fish looks brownish. Spotted Bay "
+            "Bass also has smaller, more angular, pointed pectoral (side) fins, unlike Sculpin's large, "
+            "round, pleated fan-like pectoral fins. COMMONLY "
             "CONFUSED WITH: Barred Sand Bass (which is comparatively CLEAN and unfreckled everywhere, "
             "not just the face — check the whole body for freckling, not just the bars, to tell them "
             "apart) and Sculpin (rough, spiny, armored HEAD with blotchy camouflage instead of small "
@@ -201,7 +203,10 @@ SPECIES: list[dict] = [
         "classifier_description": (
             "Highly compressed, tall oval disk-shaped body. CRITICAL FEATURES: Flanks are bright "
             "silver, marked by a series of distinct vertical brassy, gold, or rust-colored bars (not "
-            "black/dark grey bars) running along the side."
+            "black/dark grey bars) running along the side. COMMONLY CONFUSED WITH: Yellowfin Croaker. "
+            "DIFFERENTIATION: Surf Perch has vertical bars and no chin whisker; Yellowfin Croaker has "
+            "diagonal wavy lines instead of vertical bars, yellow lower fins, and a single fleshy "
+            "barbel (whisker) under the chin that Surf Perch lacks."
         ),
     },
     {
@@ -237,11 +242,19 @@ SPECIES: list[dict] = [
             "marked with distinct dark spots or speckles. POSE WARNING: If held vertically by the jaw, "
             "gravity will stretch its soft body, making the head look artificially elongated — ignore "
             "head shape and rely on body thickness, the long continuous ribbon fins, and scaleless "
-            "skin. COMMONLY CONFUSED WITH: Lizardfish. DIFFERENTIATION: Specklefin Midshipman is "
-            "heavily built, has extremely long continuous top/bottom fins covered in speckles, huge "
-            "fan-like side fins, a wide flat head, and smooth scaleless skin. Lizardfish is small/"
-            "narrow, has a short triangular top fin, small side fins, visible scales, and a pointed "
-            "snout."
+            "skin. COMMONLY CONFUSED WITH: Lizardfish and Sculpin. DIFFERENTIATION FROM LIZARDFISH: "
+            "Specklefin Midshipman is heavily built, has extremely long continuous top/bottom fins "
+            "covered in speckles, huge fan-like side fins, a wide flat head, and smooth scaleless skin. "
+            "Lizardfish is small/narrow, has a short triangular top fin, small side fins, visible "
+            "scales, and a pointed snout. DIFFERENTIATION FROM SCULPIN: both species have large, round, "
+            "fan-shaped pectoral (side) fins, so don't rely on pectoral fin shape alone to separate "
+            "them. Instead check skin and head: Specklefin Midshipman has completely smooth, scaleless, "
+            "slimy skin, a flat toad-like head with no bony ridges or spines, and long continuous "
+            "ribbon-like fins running almost the full length of the top and bottom of the body. Sculpin "
+            "has rough, spiny, armored skin, a blocky head covered in bony ridges and fleshy skin tabs, "
+            "and a short, thick, separate dorsal fin with heavy venomous spines — NOT a long continuous "
+            "ribbon fin. A smooth flat-headed fish with long ribbon fins is Specklefin Midshipman; a "
+            "rough spiny-headed fish with a short spiky dorsal fin is Sculpin."
         ),
     },
     {
@@ -323,14 +336,23 @@ SPECIES: list[dict] = [
             "RULE: only classify as Sculpin if the HEAD shows bony ridges or fleshy tabs (required) — "
             "optionally strengthened by a large, round, pleated fan-like pectoral fin and/or a blotchy, "
             "non-uniform, NON-WHITE body pattern. Never call Sculpin based on body pattern, dorsal fin "
-            "or color alone if the head is smooth. COMMONLY CONFUSED WITH: Spotted Bay Bass and Calico "
-            "Bass. DIFFERENTIATION: Sculpin has a big rough armored HEAD with bony ridges and fleshy "
-            "tabs, large round pleated pectoral fins, a chunky asymmetric build, and blotchy camouflage "
-            "coloring. Spotted Bay Bass and Calico Bass both have smooth, unarmored heads, smaller "
-            "pointed pectoral fins, no head spines or skin tabs — even though both can also show a "
-            "spiky dorsal fin, irregular-looking body markings, and brownish coloring. Judge by head "
-            "armor and pectoral fin shape first; treat body pattern, dorsal spikiness, and color as "
-            "unreliable on their own."
+            "or color alone if the head is smooth. NOTE ON SPECKLEFIN MIDSHIPMAN OVERLAP: Specklefin "
+            "Midshipman also has large, round, fan-shaped pectoral fins, so pectoral fin shape alone "
+            "does NOT separate Sculpin from Specklefin Midshipman — use skin texture and dorsal fin type "
+            "instead. Sculpin has rough, spiny, scaled skin and a short, thick dorsal fin with heavy "
+            "individual spines. Specklefin Midshipman has completely smooth, scaleless, slimy skin and "
+            "a long continuous ribbon-like fin running almost the full length of the top and bottom of "
+            "the body — nothing like Sculpin's short spiky dorsal fin. COMMONLY CONFUSED WITH: Spotted "
+            "Bay Bass, Calico Bass, and Specklefin Midshipman. DIFFERENTIATION: Sculpin has a big rough "
+            "armored HEAD with bony ridges and fleshy tabs, large round pleated pectoral fins, rough "
+            "spiny/scaled skin, a short thick spiny dorsal fin, a chunky asymmetric build, and blotchy "
+            "camouflage coloring. Spotted Bay Bass and Calico Bass both have smooth, unarmored heads, "
+            "smaller pointed pectoral fins, no head spines or skin tabs — even though both can also show "
+            "a spiky dorsal fin, irregular-looking body markings, and brownish coloring. Specklefin "
+            "Midshipman shares Sculpin's round fan-shaped pectoral fins but has smooth scaleless skin, a "
+            "flat toad-like head with no bony armor, and a long continuous ribbon dorsal fin instead of "
+            "a short spiky one. Judge Sculpin by head armor and skin/dorsal-fin texture first; treat "
+            "pectoral fin shape, body pattern, dorsal spikiness, and color as unreliable on their own."
         ),
     },
     {
@@ -382,7 +404,10 @@ SPECIES: list[dict] = [
             "Hyper-elongated, slender, almost snake-like body. Skin looks completely smooth and glassy "
             "green/silver. CRITICAL FEATURES: Both the upper and lower jaws are exactly equal in "
             "length, forming a long, symmetrical tweezer-like beak. It has a single dorsal (top) fin "
-            "set incredibly far back, almost touching the tail."
+            "set incredibly far back, almost touching the tail. COMMONLY CONFUSED WITH: Barracuda. "
+            "DIFFERENTIATION: Needlefish have symmetrical jaws (no underbite), glassy smooth skin, and "
+            "only one dorsal fin pushed far back near the tail. Barracuda have a pronounced underbite "
+            "(lower jaw protrudes past the upper), large visible scales, and TWO separate dorsal fins."
         ),
     },
     {
