@@ -581,6 +581,28 @@ button:disabled {
   border-top: 1px solid rgba(255, 255, 255, 0.35);
 }
 
+/* Positioned to exactly cover the square "in frame" region between the two
+   mask bands (same 0.38 bias as the top mask / capture crop), so the guide
+   lines up with what actually gets captured. */
+.camera-frame-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(0px, calc((100dvh - 100vw) * 0.38));
+  height: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.camera-frame-guide-img {
+  width: 100%;
+  display: block;
+  opacity: 0.45;
+}
+
 .camera-hint {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 84px);

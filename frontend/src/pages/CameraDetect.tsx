@@ -6,6 +6,7 @@ import type { Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import DiscoveryReveal from "../components/DiscoveryReveal";
 import SpeciesRegulations from "../components/SpeciesRegulations";
+import fishTemplate from "../assets/fish-template.png";
 
 export default function CameraDetect() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -262,6 +263,9 @@ export default function CameraDetect() {
         <>
           <div className="camera-frame-mask camera-frame-mask-top" aria-hidden="true" />
           <div className="camera-frame-mask camera-frame-mask-bottom" aria-hidden="true" />
+          <div className="camera-frame-guide" aria-hidden="true">
+            <img className="camera-frame-guide-img" src={fishTemplate} alt="" />
+          </div>
           <p className="camera-hint">Fill the frame with your fish for the best ID</p>
         </>
       )}
