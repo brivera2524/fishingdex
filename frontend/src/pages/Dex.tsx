@@ -5,6 +5,7 @@ import type { Catch, LeaderboardCatch, Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
 import SpeciesRegulations from "../components/SpeciesRegulations";
+import ViewOnMapButton from "../components/ViewOnMapButton";
 
 interface DexEntry {
   species: Species;
@@ -196,6 +197,15 @@ export default function Dex({ embedded = false, userId }: DexProps) {
               {selectedCatch.length != null && <span className="card-stat">{selectedCatch.length} in</span>}
             </div>
             <p className="card-meta">{new Date(selectedCatch.caught_at).toLocaleString()}</p>
+            {selectedCatch.latitude != null && (
+              <div className="catch-actions">
+                <ViewOnMapButton
+                  catchId={selectedCatch.id}
+                  latitude={selectedCatch.latitude}
+                  longitude={selectedCatch.longitude}
+                />
+              </div>
+            )}
             <CommentThread catchId={selectedCatch.id} />
           </div>
         )}

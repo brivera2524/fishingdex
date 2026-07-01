@@ -5,6 +5,7 @@ import { API_BASE, ApiError } from "../api/client";
 import type { Catch } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
+import ViewOnMapButton from "../components/ViewOnMapButton";
 
 interface MyCatchesProps {
   embedded?: boolean;
@@ -125,6 +126,7 @@ export default function MyCatches({ embedded = false, userId, readOnly = false }
                 </div>
               ) : (
                 <div className="catch-actions">
+                  <ViewOnMapButton catchId={selected.id} latitude={selected.latitude} longitude={selected.longitude} />
                   <button type="button" onClick={() => navigate(`/catches/${selected.id}/edit`)}>
                     Edit
                   </button>
@@ -133,6 +135,12 @@ export default function MyCatches({ embedded = false, userId, readOnly = false }
                   </button>
                 </div>
               ))}
+
+            {!canEdit && selected.latitude != null && (
+              <div className="catch-actions">
+                <ViewOnMapButton catchId={selected.id} latitude={selected.latitude} longitude={selected.longitude} />
+              </div>
+            )}
 
             <CommentThread catchId={selected.id} />
           </div>

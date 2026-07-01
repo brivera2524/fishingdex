@@ -18,6 +18,8 @@ def _to_leaderboard_catch(catch: Catch) -> LeaderboardCatch:
         length=catch.length,
         caught_at=catch.caught_at,
         photo_url=catch.photo_url,
+        latitude=catch.latitude,
+        longitude=catch.longitude,
     )
 
 

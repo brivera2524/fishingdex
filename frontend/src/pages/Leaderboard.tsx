@@ -8,6 +8,7 @@ import { API_BASE, ApiError } from "../api/client";
 import type { AnglerStat, LeaderboardCatch, SpeciesRecord } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
+import ViewOnMapButton from "../components/ViewOnMapButton";
 
 type Tab = "species" | "anglers";
 
@@ -192,6 +193,15 @@ export default function Leaderboard() {
               {selectedCatch.length != null && <span className="card-stat">{selectedCatch.length} in</span>}
             </div>
             <p className="card-meta">{new Date(selectedCatch.caught_at).toLocaleString()}</p>
+            {selectedCatch.latitude != null && (
+              <div className="catch-actions">
+                <ViewOnMapButton
+                  catchId={selectedCatch.id}
+                  latitude={selectedCatch.latitude}
+                  longitude={selectedCatch.longitude}
+                />
+              </div>
+            )}
             <CommentThread catchId={selectedCatch.id} />
           </div>
         )}

@@ -110,6 +110,8 @@ class LeaderboardCatch(BaseModel):
     length: float | None = None
     caught_at: datetime
     photo_url: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
 
@@ -141,6 +143,8 @@ class RecentCatch(BaseModel):
     length: float | None = None
     caught_at: datetime
     photo_url: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     species: SpeciesOut
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)

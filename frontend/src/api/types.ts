@@ -65,6 +65,8 @@ export interface LeaderboardCatch {
   length: number | null;
   caught_at: string;
   photo_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface SpeciesRecord {
@@ -105,6 +107,8 @@ export interface RecentCatch {
   length: number | null;
   caught_at: string;
   photo_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
   species: Species;
 }
 

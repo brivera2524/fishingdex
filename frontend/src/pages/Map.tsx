@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -18,10 +19,28 @@ L.Icon.Default.mergeOptions({
 
 const SAN_DIEGO: [number, number] = [32.7157, -117.1611];
 
+interface FocusState {
+  focusCatchId: number;
+  latitude: number;
+  longitude: number;
+}
+
+function FlyToFocus({ latitude, longitude }: { latitude: number; longitude: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo([latitude, longitude], 15);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude]);
+  return null;
+}
+
 export default function MapPage() {
+  const location = useLocation();
+  const focus = location.state as FocusState | null;
   const [catches, setCatches] = useState<MapCatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const markerRefs = useRef<Record<number, L.Marker | null>>({});
 
   useEffect(() => {
     getMapCatches()
@@ -30,21 +49,37 @@ export default function MapPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const center: [number, number] =
-    catches.length > 0 ? [catches[0].latitude, catches[0].longitude] : SAN_DIEGO;
+  useEffect(() => {
+    if (!focus || loading) return;
+    markerRefs.current[focus.focusCatchId]?.openPopup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, loading, catches]);
+
+  const center: [number, number] = focus
+    ? [focus.latitude, focus.longitude]
+    : catches.length > 0
+      ? [catches[0].latitude, catches[0].longitude]
+      : SAN_DIEGO;
 
   return (
     <div className="map-page">
       <div className="map-badge">
         {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
       </div>
-      <MapContainer center={center} zoom={11} className="map-container">
+      <MapContainer center={center} zoom={focus ? 15 : 11} className="map-container">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {focus && <FlyToFocus latitude={focus.latitude} longitude={focus.longitude} />}
         {catches.map((c) => (
-          <Marker key={c.id} position={[c.latitude, c.longitude]}>
+          <Marker
+            key={c.id}
+            position={[c.latitude, c.longitude]}
+            ref={(instance) => {
+              markerRefs.current[c.id] = instance;
+            }}
+          >
             <Popup>
               <strong>{c.species.common_name}</strong>
               <br />

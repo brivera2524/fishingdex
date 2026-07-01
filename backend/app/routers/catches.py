@@ -92,6 +92,8 @@ def list_recent_catches(
             length=c.length,
             caught_at=c.caught_at,
             photo_url=c.photo_url,
+            latitude=c.latitude,
+            longitude=c.longitude,
             species=c.species,
         )
         for c in catches
