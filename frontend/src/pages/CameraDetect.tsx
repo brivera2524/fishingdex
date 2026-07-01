@@ -136,9 +136,14 @@ export default function CameraDetect() {
     const coverScale =
       videoAspect > containerAspect ? displayHeight / video.videoHeight : displayWidth / video.videoWidth;
 
+    // Biased above dead-center (matching the iPhone camera's native 1:1 mode,
+    // which visually balances the on-screen shutter controls below the
+    // square by leaving more empty space under it than above) — keep this
+    // ratio in sync with .camera-frame-mask-top/-bottom in index.css.
     const squareScreenSize = Math.min(displayWidth, displayHeight);
+    const verticalExcess = displayHeight - squareScreenSize;
     const screenOffsetX = (displayWidth - squareScreenSize) / 2;
-    const screenOffsetY = (displayHeight - squareScreenSize) / 2;
+    const screenOffsetY = verticalExcess * 0.38;
     const displayedVideoOffsetX = (displayWidth - video.videoWidth * coverScale) / 2;
     const displayedVideoOffsetY = (displayHeight - video.videoHeight * coverScale) / 2;
 
