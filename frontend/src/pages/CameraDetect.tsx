@@ -80,8 +80,18 @@ export default function CameraDetect() {
 
   async function startCamera() {
     try {
+      // Without explicit resolution constraints, browsers often default to a
+      // conservative capture size (as low as 640x480) regardless of the
+      // phone's actual camera quality. Requesting a high "ideal" resolution
+      // (the browser picks the closest the hardware actually supports, never
+      // errors if it can't hit this exactly) gets much sharper source frames
+      // for both the saved photo and the Claude identification request.
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: "environment",
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+        },
         audio: false,
       });
       streamRef.current = stream;
@@ -157,7 +167,7 @@ export default function CameraDetect() {
     canvas.getContext("2d")?.drawImage(video, sx, sy, side, side, 0, 0, side, side);
 
     const blob: Blob | null = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.85)
+      canvas.toBlob(resolve, "image/jpeg", 0.95)
     );
     if (!blob) return;
 
