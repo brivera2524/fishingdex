@@ -96,3 +96,28 @@ class CatchOut(BaseModel):
 class IdentifyResult(BaseModel):
     species: SpeciesOut | None
     raw_answer: str
+
+
+class LeaderboardCatch(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    display_name: str
+    weight: float | None = None
+    length: float | None = None
+    caught_at: datetime
+    photo_url: str | None = None
+
+    _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
+
+
+class SpeciesRecord(BaseModel):
+    species: SpeciesOut
+    catch_count: int
+    top_catch: LeaderboardCatch | None = None
+
+
+class AnglerStat(BaseModel):
+    display_name: str
+    catch_count: int
+    species_count: int

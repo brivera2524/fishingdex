@@ -161,6 +161,16 @@ main {
   gap: 12px;
 }
 
+.tab-switch {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.tab-switch button {
+  flex: 1;
+}
+
 .section-label {
   font-size: 13px;
   font-weight: 700;

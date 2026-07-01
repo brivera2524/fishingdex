@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { listMyCatches, listSpecies } from "../api/endpoints";
+import { useMemo, useState, useEffect } from "react";
+import { getSpeciesCatchLeaderboard, listMyCatches, listSpecies } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
-import type { Catch, Species } from "../api/types";
+import type { Catch, LeaderboardCatch, Species } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 
 interface DexEntry {
@@ -17,6 +17,9 @@ export default function Dex() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DexEntry | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardCatch[] | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([listSpecies(), listMyCatches()])
@@ -49,6 +52,28 @@ export default function Dex() {
 
   const caughtCount = entries.filter((e) => e.caught).length;
 
+  function openEntry(entry: DexEntry) {
+    setSelected(entry);
+    setShowLeaderboard(false);
+    setLeaderboard(null);
+  }
+
+  function toggleLeaderboard() {
+    if (!selected) return;
+    if (showLeaderboard) {
+      setShowLeaderboard(false);
+      return;
+    }
+    setShowLeaderboard(true);
+    if (leaderboard == null) {
+      setLeaderboardLoading(true);
+      getSpeciesCatchLeaderboard(selected.species.id)
+        .then(setLeaderboard)
+        .catch(() => setLeaderboard([]))
+        .finally(() => setLeaderboardLoading(false));
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -64,7 +89,7 @@ export default function Dex() {
           <li
             key={entry.species.id}
             className={`dex-card ${entry.caught ? "" : "locked"}`}
-            onClick={() => setSelected(entry)}
+            onClick={() => openEntry(entry)}
           >
             <div className="dex-card-image-wrap">
               {entry.caught && entry.photoUrl ? (
@@ -78,7 +103,13 @@ export default function Dex() {
         ))}
       </ul>
 
-      <BottomSheet open={selected != null} onClose={() => setSelected(null)}>
+      <BottomSheet
+        open={selected != null}
+        onClose={() => {
+          setSelected(null);
+          setShowLeaderboard(false);
+        }}
+      >
         {selected && (
           <div>
             {selected.caught && selected.photoUrl && (
@@ -103,7 +134,37 @@ export default function Dex() {
                 {selected.caught ? `Caught ${selected.catchCount}x` : "Not yet caught"}
               </span>
             </div>
-            {selected.species.habitat_description && <p>{selected.species.habitat_description}</p>}
+            {selected.species.habitat_description && (
+              <p style={{ marginBottom: 14 }}>{selected.species.habitat_description}</p>
+            )}
+
+            <button type="button" className="secondary-button" onClick={toggleLeaderboard}>
+              {showLeaderboard ? "Hide leaderboard" : "🏆 View leaderboard"}
+            </button>
+
+            {showLeaderboard && (
+              <div style={{ marginTop: 14 }}>
+                {leaderboardLoading && <p>Loading...</p>}
+                {!leaderboardLoading && leaderboard && leaderboard.length === 0 && (
+                  <p>No one has caught this yet.</p>
+                )}
+                {!leaderboardLoading && leaderboard && leaderboard.length > 0 && (
+                  <ul className="catch-list">
+                    {leaderboard.map((c, i) => (
+                      <li key={c.id} className="card">
+                        <div className="page-header">
+                          <span className="card-title">
+                            #{i + 1} {c.display_name}
+                          </span>
+                          <span className="card-stat">{c.weight} lb</span>
+                        </div>
+                        <span className="card-meta">{new Date(c.caught_at).toLocaleDateString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         )}
       </BottomSheet>

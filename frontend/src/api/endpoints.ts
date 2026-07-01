@@ -1,5 +1,15 @@
 import { apiFetch } from "./client";
-import type { Catch, CatchInput, CatchUpdateInput, IdentifyResult, Species, TokenResponse } from "./types";
+import type {
+  AnglerStat,
+  Catch,
+  CatchInput,
+  CatchUpdateInput,
+  IdentifyResult,
+  LeaderboardCatch,
+  Species,
+  SpeciesRecord,
+  TokenResponse,
+} from "./types";
 
 export function signup(inviteCode: string, displayName: string, password: string) {
   return apiFetch<TokenResponse>("/auth/signup", {
@@ -65,4 +75,16 @@ export function identifyPhoto(file: File | Blob) {
     method: "POST",
     body: formData,
   });
+}
+
+export function getSpeciesLeaderboard() {
+  return apiFetch<SpeciesRecord[]>("/leaderboard/species");
+}
+
+export function getSpeciesCatchLeaderboard(speciesId: number) {
+  return apiFetch<LeaderboardCatch[]>(`/leaderboard/species/${speciesId}`);
+}
+
+export function getAnglerLeaderboard() {
+  return apiFetch<AnglerStat[]>("/leaderboard/anglers");
 }

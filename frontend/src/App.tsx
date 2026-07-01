@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import MyCatches from "./pages/MyCatches";
 import CatchForm from "./pages/CatchForm";
 import Dex from "./pages/Dex";
+import Leaderboard from "./pages/Leaderboard";
 import CameraDetect from "./pages/CameraDetect";
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="/log" element={<CatchForm />} />
             <Route path="/catches/:id/edit" element={<CatchForm />} />
             <Route path="/dex" element={<Dex />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/" element={<Navigate to="/dex" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

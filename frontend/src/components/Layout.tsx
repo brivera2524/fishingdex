@@ -47,6 +47,13 @@ export default function Layout() {
           <span className="bottom-nav-icon">🐟</span>
           Dex
         </NavLink>
+        <NavLink
+          to="/leaderboard"
+          className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
+        >
+          <span className="bottom-nav-icon">🏆</span>
+          Leaders
+        </NavLink>
       </nav>
     </div>
   );

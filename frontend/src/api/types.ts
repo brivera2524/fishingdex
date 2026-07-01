@@ -54,3 +54,24 @@ export interface IdentifyResult {
   species: Species | null;
   raw_answer: string;
 }
+
+export interface LeaderboardCatch {
+  id: number;
+  display_name: string;
+  weight: number | null;
+  length: number | null;
+  caught_at: string;
+  photo_url: string | null;
+}
+
+export interface SpeciesRecord {
+  species: Species;
+  catch_count: number;
+  top_catch: LeaderboardCatch | null;
+}
+
+export interface AnglerStat {
+  display_name: string;
+  catch_count: number;
+  species_count: number;
+}
