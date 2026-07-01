@@ -122,28 +122,34 @@ export default function CameraDetect() {
 
     unlockSpeechForGesture();
 
-    // The <video> is displayed with object-fit: cover, so the visible preview
-    // is already cropped to the container's aspect ratio — capture that same
-    // cropped region instead of the full sensor frame, otherwise the saved
-    // photo includes stuff the user never saw framed on screen.
-    const containerAspect = video.clientWidth / video.clientHeight;
+    // The <video> is displayed with object-fit: cover, filling its on-screen
+    // box exactly (cropping whatever sensor pixels overflow it). We capture
+    // a square out of the middle of that same on-screen box — full width,
+    // vertically centered — matching the dimmed top/bottom mask bands shown
+    // over the live preview, so the saved photo is a square crop of exactly
+    // what looked "in frame" on screen (also just fits nicer in grid panels
+    // than an arbitrary phone-screen aspect ratio).
+    const displayWidth = video.clientWidth;
+    const displayHeight = video.clientHeight;
     const videoAspect = video.videoWidth / video.videoHeight;
-    let sx = 0;
-    let sy = 0;
-    let sw = video.videoWidth;
-    let sh = video.videoHeight;
-    if (videoAspect > containerAspect) {
-      sw = video.videoHeight * containerAspect;
-      sx = (video.videoWidth - sw) / 2;
-    } else {
-      sh = video.videoWidth / containerAspect;
-      sy = (video.videoHeight - sh) / 2;
-    }
+    const containerAspect = displayWidth / displayHeight;
+    const coverScale =
+      videoAspect > containerAspect ? displayHeight / video.videoHeight : displayWidth / video.videoWidth;
+
+    const squareScreenSize = Math.min(displayWidth, displayHeight);
+    const screenOffsetX = (displayWidth - squareScreenSize) / 2;
+    const screenOffsetY = (displayHeight - squareScreenSize) / 2;
+    const displayedVideoOffsetX = (displayWidth - video.videoWidth * coverScale) / 2;
+    const displayedVideoOffsetY = (displayHeight - video.videoHeight * coverScale) / 2;
+
+    const sx = (screenOffsetX - displayedVideoOffsetX) / coverScale;
+    const sy = (screenOffsetY - displayedVideoOffsetY) / coverScale;
+    const side = squareScreenSize / coverScale;
 
     const canvas = document.createElement("canvas");
-    canvas.width = sw;
-    canvas.height = sh;
-    canvas.getContext("2d")?.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    canvas.width = side;
+    canvas.height = side;
+    canvas.getContext("2d")?.drawImage(video, sx, sy, side, side, 0, 0, side, side);
 
     const blob: Blob | null = await new Promise((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.85)
@@ -238,14 +244,10 @@ export default function CameraDetect() {
       )}
 
       {!capturedPhoto && !cameraError && (
-        <div className="camera-frame-guide" aria-hidden="true">
-          <svg viewBox="0 0 330 120" className="camera-frame-guide-fish">
-            <ellipse cx="150" cy="60" rx="120" ry="42" />
-            <polygon points="268,25 268,95 322,60" />
-            <circle cx="72" cy="50" r="4" fill="currentColor" stroke="none" />
-          </svg>
-          <p>Line your catch up here, nose to tail</p>
-        </div>
+        <>
+          <div className="camera-frame-mask camera-frame-mask-top" aria-hidden="true" />
+          <div className="camera-frame-mask camera-frame-mask-bottom" aria-hidden="true" />
+        </>
       )}
 
       {!capturedPhoto && !cameraError && (

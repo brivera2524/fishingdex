@@ -500,40 +500,25 @@ button:disabled {
   object-fit: cover;
 }
 
-.camera-frame-guide {
+.camera-frame-mask {
   position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 0 28px;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.55);
   pointer-events: none;
   z-index: 1;
 }
 
-.camera-frame-guide-fish {
-  width: 100%;
-  max-width: 340px;
-  color: rgba(255, 255, 255, 0.55);
+.camera-frame-mask-top {
+  top: 0;
+  height: max(0px, calc((100dvh - 100vw) / 2));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
 }
 
-.camera-frame-guide-fish ellipse,
-.camera-frame-guide-fish polygon {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-dasharray: 10 8;
-}
-
-.camera-frame-guide p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-  font-weight: 600;
-  text-align: center;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+.camera-frame-mask-bottom {
+  bottom: 0;
+  height: max(0px, calc((100dvh - 100vw) / 2));
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .camera-top-bar {
