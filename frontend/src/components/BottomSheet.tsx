@@ -93,7 +93,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 0.6 }}
               onDragEnd={(_, info) => {
-                if (info.offset.y > 90 || info.velocity.y > 500) onClose();
+                if (info.offset.y > 70 || info.velocity.y > 300) onClose();
               }}
             >
               <div className="sheet-header" onPointerDown={(e) => dragControls.start(e)}>
