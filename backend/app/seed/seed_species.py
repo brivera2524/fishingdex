@@ -20,11 +20,18 @@ SPECIES: list[dict] = [
         "typical_size_range": "8-18 in",
         "season_notes": "Year-round, peaks in warmer months",
         "classifier_description": (
-            "Bass body shape with an elongated third top spine. CRITICAL FEATURE: The entire head, "
-            "body, and fins are densely covered in thousands of small, round, dark brown or black "
-            "freckles. It looks exactly like a leopard print. COMMONLY CONFUSED WITH: Calico Bass and "
-            "Barred Sand Bass. DIFFERENTIATION: The dense leopard spotting everywhere distinguishes it "
-            "immediately from both Calico Bass (square blotches) and Barred Sand Bass (vertical bars)."
+            "Sleek, streamlined bass body shape with an elongated third top spine. Skin is completely "
+            "SMOOTH — small, flat, tight scales with no bumps, spikes, or fleshy tabs anywhere. The head "
+            "is small, sloped, and unarmored, with a normal-sized mouth. CRITICAL FEATURE: The entire "
+            "head, body, and fins are densely covered in thousands of small, evenly-spaced, round, dark "
+            "brown or black freckles, uniform in size like polka dots — NOT a blotchy or camouflage "
+            "pattern. COMMONLY CONFUSED WITH: Calico Bass, Barred Sand Bass, and Sculpin. "
+            "DIFFERENTIATION: The dense, uniform round polka-dot spotting distinguishes it from Calico "
+            "Bass (square blotches) and Barred Sand Bass (vertical bars). Against Sculpin specifically: "
+            "Spotted Bay Bass has smooth skin, a small unarmored head, a slender/sleek body, and no "
+            "spines or skin tabs of any kind. Sculpin is the opposite on every one of these — rough, "
+            "spiky, blocky-headed, and chunky. If the skin looks smooth and the spots are small uniform "
+            "dots rather than a blotchy camouflage wash, it is a Spotted Bay Bass, not a Sculpin."
         ),
     },
     {
@@ -195,10 +202,17 @@ SPECIES: list[dict] = [
         "typical_size_range": "8-15 in",
         "season_notes": "Year-round",
         "classifier_description": (
-            "Chunky, heavy-bodied fish. CRITICAL FEATURES: The head is blocky and heavily armored, "
-            "covered in sharp bony spines and fleshy skin tabs. The body is a mottled red, orange, and "
-            "brown camouflage pattern. The top fin consists of thick, highly visible, venomous spines. "
-            "DIFFERENTIATION: If it looks spiky, blocky, and red/brown mottled, it is a Sculpin."
+            "Chunky, heavy-bodied fish with ROUGH, textured skin. CRITICAL FEATURES: The head is large, "
+            "blocky, and heavily armored, covered in sharp bony ridges, spines, and small fleshy skin "
+            "tabs (like tiny flaps of skin sticking out, especially around the eyes and mouth). The body "
+            "pattern is a mottled, blotchy red, orange, and brown camouflage wash — uneven patches, NOT "
+            "small uniform round dots. The top fin consists of thick, highly visible, venomous spines. "
+            "COMMONLY CONFUSED WITH: Spotted Bay Bass. DIFFERENTIATION: Sculpin has a big rough armored "
+            "head with bony spines and fleshy tabs, a chunky asymmetric build, and blotchy camouflage "
+            "coloring. Spotted Bay Bass has smooth skin, a small sleek unarmored head, no spines or skin "
+            "tabs, and small uniform round polka-dot freckles instead of blotchy camouflage. If the head "
+            "looks spiky/rough with fleshy tabs and the coloring is an uneven blotchy wash, it is a "
+            "Sculpin, not a Spotted Bay Bass."
         ),
     },
     {
