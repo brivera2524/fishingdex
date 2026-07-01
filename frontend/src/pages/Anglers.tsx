@@ -146,7 +146,7 @@ export default function Anglers() {
         )}
       </BottomSheet>
 
-      <BottomSheet open={selectedAngler != null} onClose={() => setSelectedAngler(null)}>
+      <BottomSheet open={selectedAngler != null} onClose={() => setSelectedAngler(null)} fixedHeight>
         {selectedAngler && <AnglerDetail userId={selectedAngler.id} displayName={selectedAngler.displayName} />}
       </BottomSheet>
     </div>

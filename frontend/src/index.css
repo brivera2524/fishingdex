@@ -477,6 +477,10 @@ button:disabled {
   flex-direction: column;
 }
 
+.sheet-fixed-height {
+  height: 92svh;
+}
+
 .sheet-header {
   flex-shrink: 0;
   padding: 14px 0 12px;

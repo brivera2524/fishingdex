@@ -6,12 +6,17 @@ interface BottomSheetProps {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  /** Locks the sheet to its max height instead of auto-fitting content.
+   * Use this when the sheet holds internal tabs whose content heights
+   * differ a lot (e.g. a species grid vs. a catch list) — without it, the
+   * sheet visibly grows/shrinks each time you switch tabs. */
+  fixedHeight?: boolean;
 }
 
 const SPRING = { type: "spring" as const, damping: 32, stiffness: 320 };
 const DISMISS_THRESHOLD = 60;
 
-export default function BottomSheet({ open, onClose, children }: BottomSheetProps) {
+export default function BottomSheet({ open, onClose, children, fixedHeight = false }: BottomSheetProps) {
   const dragControls = useDragControls();
   const y = useMotionValue(0);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -115,7 +120,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
           />
           <div className="sheet-wrap">
             <motion.div
-              className="sheet"
+              className={`sheet${fixedHeight ? " sheet-fixed-height" : ""}`}
               style={{ y }}
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
