@@ -63,14 +63,21 @@ export default function BottomSheet({ open, onClose, children, fixedHeight = fal
     if (!el || !open) return;
 
     let startY = 0;
-    let phase: "pending" | "dragging" | "scrolling" = "pending";
+    let phase: "pending" | "dragging" | "scrolling" | "ignored" = "pending";
 
     function onTouchStart(e: TouchEvent) {
       startY = e.touches[0].clientY;
-      phase = "pending";
+      // Leaflet (and anything else that owns its own pan/drag gestures, like
+      // a map) needs the raw touch stream to itself — if we also watch it
+      // for "pull to dismiss", our preventDefault fight with Leaflet's own
+      // handling and the map ends up panning the page behind it instead of
+      // itself.
+      const target = e.target as HTMLElement;
+      phase = target.closest(".leaflet-container") ? "ignored" : "pending";
     }
 
     function onTouchMove(e: TouchEvent) {
+      if (phase === "ignored") return;
       const deltaY = e.touches[0].clientY - startY;
 
       if (phase === "pending") {
