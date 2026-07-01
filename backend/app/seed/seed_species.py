@@ -73,7 +73,7 @@ SPECIES: list[dict] = [
         "regulation_notes": "Limit of 5 is in combination with Spotted and Barred Sand Bass.",
         "classifier_description": (
             "Thick, heavy bass body. CRITICAL FEATURES: Distinct 'checkerboard' pattern of square-ish "
-            "white and olive-brown blotches covering the body. If you see anything like this pattern at all, it is most likely a Calico Bass. It completely lacks vertical stripes or "
+            "white and olive-brown blotches covering the side of the body. If you see this pattern, it is CERTAINLY a Calico Bass. Sometimes the alignment is not exactly checkerboard, but medium bright white and dark spots along the side of the fish is DEFINITELY A CALICO. It completely lacks vertical stripes or "
             "solid bars. The third spine on the top fin is roughly the same length as the fourth and "
             "fifth spines. JUVENILE / SMALLER-FISH COLOR PHASE — READ THIS BEFORE COMPARING TO SCULPIN: "
             "small or young Calico Bass often do NOT show the adult olive-and-white checkerboard at "
