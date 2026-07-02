@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { Circle, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -28,6 +28,17 @@ interface NearbySpeciesResult {
 }
 
 const NEARBY_RADIUS_KM = 3;
+// Below this zoom, individual pins/clusters pile up densely enough to
+// cover most of the heatmap underneath, so they're hidden until you're
+// zoomed in past it — heat for the overview, pins for the close-up detail.
+const PIN_VISIBLE_ZOOM = 13;
+
+function ZoomTracker({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  const map = useMapEvents({
+    zoomend: () => onZoomChange(map.getZoom()),
+  });
+  return null;
+}
 
 function nearbySpeciesFrom(catches: MapCatch[], center: LatLng, radiusKm: number): NearbySpeciesResult[] {
   const bySpecies = new Map<number, NearbySpeciesResult>();
@@ -69,6 +80,7 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(focus ? 15 : 11);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
@@ -163,6 +175,10 @@ export default function MapPage() {
       : SAN_DIEGO;
 
   const heatPoints: [number, number][] = catches.map((c) => [c.latitude, c.longitude]);
+  // Always show pins once the map has zoomed in for a specific catch (via
+  // "View on map"), regardless of the gate — that flow's whole point is to
+  // see that one pin.
+  const showPins = !heatmapEnabled || Boolean(focus) || currentZoom >= PIN_VISIBLE_ZOOM;
 
   return (
     <div className="map-page">
@@ -174,50 +190,57 @@ export default function MapPage() {
         🔥 Heatmap
       </button>
       <div className="map-badge">
-        {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
+        {loading
+          ? "Loading..."
+          : error
+            ? error
+            : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map${showPins ? "" : " · zoom in for pins"}`}
       </div>
       <MapContainer center={center} zoom={focus ? 15 : 11} className="map-container">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <ZoomTracker onZoomChange={setCurrentZoom} />
         {heatmapEnabled && <HeatmapLayer points={heatPoints} />}
-        <MarkerClusterGroup
-          ref={clusterGroupRef}
-          showCoverageOnHover={false}
-          maxClusterRadius={40}
-          iconCreateFunction={createClusterIcon}
-        >
-          {catches.map((c) => (
-            <Marker
-              key={c.id}
-              position={[c.latitude, c.longitude]}
-              icon={catchMarkerIcon}
-              ref={(instance) => {
-                markerRefs.current[c.id] = instance;
-              }}
-            >
-              <Popup>
-                <strong>{c.species.common_name}</strong>
-                <br />
-                {c.display_name}
-                {c.weight != null && ` — ${c.weight} lb`}
-                <br />
-                {new Date(c.caught_at).toLocaleDateString()}
-                {c.photo_url && (
-                  <>
-                    <br />
-                    <img
-                      src={`${API_BASE}${c.photo_url}`}
-                      alt={c.species.common_name}
-                      style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
-                    />
-                  </>
-                )}
-              </Popup>
-            </Marker>
-          ))}
-        </MarkerClusterGroup>
+        {showPins && (
+          <MarkerClusterGroup
+            ref={clusterGroupRef}
+            showCoverageOnHover={false}
+            maxClusterRadius={40}
+            iconCreateFunction={createClusterIcon}
+          >
+            {catches.map((c) => (
+              <Marker
+                key={c.id}
+                position={[c.latitude, c.longitude]}
+                icon={catchMarkerIcon}
+                ref={(instance) => {
+                  markerRefs.current[c.id] = instance;
+                }}
+              >
+                <Popup>
+                  <strong>{c.species.common_name}</strong>
+                  <br />
+                  {c.display_name}
+                  {c.weight != null && ` — ${c.weight} lb`}
+                  <br />
+                  {new Date(c.caught_at).toLocaleDateString()}
+                  {c.photo_url && (
+                    <>
+                      <br />
+                      <img
+                        src={`${API_BASE}${c.photo_url}`}
+                        alt={c.species.common_name}
+                        style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
+                      />
+                    </>
+                  )}
+                </Popup>
+              </Marker>
+            ))}
+          </MarkerClusterGroup>
+        )}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}
