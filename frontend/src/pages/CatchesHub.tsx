@@ -14,11 +14,6 @@ export default function CatchesHub() {
     <div className="page">
       <div className="page-header">
         <h1>{tab === "dex" ? "Dex" : "My Catches"}</h1>
-        {tab === "catches" && (
-          <Link to="/log" className="button-link">
-            + Log a catch
-          </Link>
-        )}
       </div>
       <div className="tab-switch">
         <button type="button" className={tab === "dex" ? "" : "secondary-button"} onClick={() => setTab("dex")}>
@@ -33,6 +28,11 @@ export default function CatchesHub() {
         </button>
       </div>
       {tab === "dex" ? <Dex embedded /> : <MyCatches embedded />}
+      {tab === "catches" && (
+        <Link to="/log" className="fab-floating" aria-label="Log a catch">
+          +
+        </Link>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { parse as parseExif } from "exifr";
+import { gps as parseExifGps, parse as parseExif } from "exifr";
 import {
   createCatch,
   deleteCatchPhoto,
@@ -23,17 +23,24 @@ function toLocalDatetimeInputValue(date: Date) {
 }
 
 async function readPhotoExif(file: File) {
-  try {
-    const output = await parseExif(file, { gps: true, pick: ["DateTimeOriginal"] });
-    if (!output) return null;
-    const { latitude, longitude, DateTimeOriginal } = output;
-    return {
-      coords: typeof latitude === "number" && typeof longitude === "number" ? { lat: latitude, lng: longitude } : null,
-      caughtAt: DateTimeOriginal instanceof Date ? DateTimeOriginal : null,
-    };
-  } catch {
-    return null;
-  }
+  // These need separate calls: exifr's `pick` option filters every enabled
+  // segment down to just the picked tag names, so combining `pick:
+  // ["DateTimeOriginal"]` with `gps: true` in one parse() silently drops the
+  // GPS tags before they're merged into latitude/longitude. exifr.gps() uses
+  // its own dedicated, correct fast path for just the coordinates.
+  const [gpsResult, timeResult] = await Promise.allSettled([
+    parseExifGps(file),
+    parseExif(file, { pick: ["DateTimeOriginal"] }),
+  ]);
+  const gpsValue = gpsResult.status === "fulfilled" ? gpsResult.value : null;
+  const timeValue = timeResult.status === "fulfilled" ? timeResult.value : null;
+  return {
+    coords:
+      gpsValue && typeof gpsValue.latitude === "number" && typeof gpsValue.longitude === "number"
+        ? { lat: gpsValue.latitude, lng: gpsValue.longitude }
+        : null,
+    caughtAt: timeValue?.DateTimeOriginal instanceof Date ? timeValue.DateTimeOriginal : null,
+  };
 }
 
 interface DetectState {

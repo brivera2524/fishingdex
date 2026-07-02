@@ -162,6 +162,25 @@ main {
   text-decoration: none;
 }
 
+.fab-floating {
+  position: fixed;
+  right: max(24px, calc((100vw - 560px) / 2 + 24px));
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 20px);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  line-height: 1;
+  box-shadow: 0 6px 16px rgba(14, 124, 134, 0.4);
+  text-decoration: none;
+  z-index: 15;
+}
+
 .page {
   max-width: 560px;
   margin: 0 auto;
