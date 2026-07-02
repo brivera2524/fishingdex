@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import RequireAuth from "./components/RequireAuth";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import CatchesHub from "./pages/CatchesHub";
@@ -13,31 +14,33 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/detect"
-            element={
-              <RequireAuth>
-                <CameraDetect />
-              </RequireAuth>
-            }
-          />
-          <Route
-            element={
-              <RequireAuth>
-                <Layout />
-              </RequireAuth>
-            }
-          >
-            <Route path="/dex" element={<CatchesHub />} />
-            <Route path="/map" element={<MapPage />} />
-            <Route path="/anglers" element={<Anglers />} />
-            <Route path="/recent" element={<RecentCatches />} />
-            <Route path="/" element={<Navigate to="/dex" replace />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/detect"
+              element={
+                <RequireAuth>
+                  <CameraDetect />
+                </RequireAuth>
+              }
+            />
+            <Route
+              element={
+                <RequireAuth>
+                  <Layout />
+                </RequireAuth>
+              }
+            >
+              <Route path="/dex" element={<CatchesHub />} />
+              <Route path="/map" element={<MapPage />} />
+              <Route path="/anglers" element={<Anglers />} />
+              <Route path="/recent" element={<RecentCatches />} />
+              <Route path="/" element={<Navigate to="/dex" replace />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </AuthProvider>
   );

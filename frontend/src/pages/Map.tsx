@@ -38,16 +38,31 @@ export default function MapPage() {
     const marker = markerRefs.current[focus.focusCatchId];
     if (!marker) return;
     const clusterGroup = clusterGroupRef.current;
-    if (clusterGroup) {
-      // The marker may currently be hidden inside a cluster bubble —
-      // zoomToShowLayer zooms/pans (and spiderfies if still too close at
-      // max zoom) until it's actually on the map, then opens its popup.
-      // Calling openPopup() directly wouldn't do anything visible while
-      // the marker is still folded into a cluster.
-      clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
-    } else {
+    if (!clusterGroup) {
       marker.openPopup();
+      return;
     }
+    // react-leaflet-cluster buffers addLayer calls and flushes them via
+    // queueMicrotask instead of adding them synchronously on mount, so right
+    // after a marker mounts it may not be registered in the cluster group's
+    // internal tree yet (no `__parent` set). Calling zoomToShowLayer before
+    // that flush runs throws inside the library (reading a property off
+    // undefined) — queuing our own microtask lets that pending flush run
+    // first. Still guarded with try/catch as a fallback to a plain
+    // openPopup() rather than surfacing the app's error-boundary screen for
+    // what's just a missed zoom-to-pin nicety.
+    queueMicrotask(() => {
+      try {
+        // The marker may currently be hidden inside a cluster bubble —
+        // zoomToShowLayer zooms/pans (and spiderfies if still too close at
+        // max zoom) until it's actually on the map, then opens its popup.
+        // Calling openPopup() directly wouldn't do anything visible while
+        // the marker is still folded into a cluster.
+        clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+      } catch {
+        marker.openPopup();
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, loading, catches]);
 

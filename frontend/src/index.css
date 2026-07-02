@@ -481,6 +481,23 @@ button:disabled {
   font-size: 14px;
 }
 
+.error-boundary {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.error-boundary-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
 .catch-list,
 .species-list {
   list-style: none;
