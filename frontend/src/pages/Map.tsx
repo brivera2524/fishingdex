@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Circle, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -28,17 +28,6 @@ interface NearbySpeciesResult {
 }
 
 const NEARBY_RADIUS_KM = 3;
-// Below this zoom, individual pins/clusters pile up densely enough to
-// cover most of the heatmap underneath, so they're hidden until you're
-// zoomed in past it — heat for the overview, pins for the close-up detail.
-const PIN_VISIBLE_ZOOM = 15;
-
-function ZoomTracker({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
-  const map = useMapEvents({
-    zoomend: () => onZoomChange(map.getZoom()),
-  });
-  return null;
-}
 
 function nearbySpeciesFrom(catches: MapCatch[], center: LatLng, radiusKm: number): NearbySpeciesResult[] {
   const bySpecies = new Map<number, NearbySpeciesResult>();
@@ -78,9 +67,9 @@ export default function MapPage() {
   const [catches, setCatches] = useState<MapCatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [heatmapEnabled, setHeatmapEnabled] = useState(true);
+  const [pinsEnabled, setPinsEnabled] = useState(true);
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
-  const [currentZoom, setCurrentZoom] = useState(focus ? 15 : 11);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
@@ -176,32 +165,36 @@ export default function MapPage() {
 
   const heatPoints: [number, number][] = catches.map((c) => [c.latitude, c.longitude]);
   // Always show pins once the map has zoomed in for a specific catch (via
-  // "View on map"), regardless of the gate — that flow's whole point is to
-  // see that one pin.
-  const showPins = !heatmapEnabled || Boolean(focus) || currentZoom >= PIN_VISIBLE_ZOOM;
+  // "View on map"), regardless of the toggle — that flow's whole point is
+  // to see that one pin.
+  const showPins = pinsEnabled || Boolean(focus);
 
   return (
     <div className="map-page">
-      <button
-        type="button"
-        className={`map-heat-toggle${heatmapEnabled ? " active" : ""}`}
-        onClick={() => setHeatmapEnabled((v) => !v)}
-      >
-        🔥 Heatmap
-      </button>
+      <div className="map-layer-toggles">
+        <button
+          type="button"
+          className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
+          onClick={() => setPinsEnabled((v) => !v)}
+        >
+          📍 Pins
+        </button>
+        <button
+          type="button"
+          className={`map-layer-toggle${heatmapEnabled ? " active" : ""}`}
+          onClick={() => setHeatmapEnabled((v) => !v)}
+        >
+          🔥 Heatmap
+        </button>
+      </div>
       <div className="map-badge">
-        {loading
-          ? "Loading..."
-          : error
-            ? error
-            : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map${showPins ? "" : " · zoom in for pins"}`}
+        {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
       </div>
       <MapContainer center={center} zoom={focus ? 15 : 11} className="map-container">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <ZoomTracker onZoomChange={setCurrentZoom} />
         {heatmapEnabled && <HeatmapLayer points={heatPoints} />}
         {showPins && (
           <MarkerClusterGroup

@@ -1178,11 +1178,16 @@ button:disabled {
   box-shadow: var(--shadow-md);
 }
 
-.map-heat-toggle {
+.map-layer-toggles {
   position: absolute;
   bottom: 12px;
   left: 12px;
   z-index: 500;
+  display: flex;
+  gap: 8px;
+}
+
+.map-layer-toggle {
   background: var(--surface);
   color: var(--ink-soft);
   padding: 8px 14px;
@@ -1193,7 +1198,7 @@ button:disabled {
   min-height: auto;
 }
 
-.map-heat-toggle.active {
+.map-layer-toggle.active {
   background: var(--accent);
   color: var(--accent-ink);
 }
