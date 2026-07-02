@@ -334,12 +334,19 @@ main {
 
 .form input[type="date"],
 .form input[type="time"] {
-  /* Mobile Safari's date/time widgets have a wide internal layout that
-     doesn't always respect a narrower assigned width — trimming the padding
-     claws back a bit of room so they're less likely to render past the
-     field's box on small phones. */
-  padding-left: 8px;
-  padding-right: 8px;
+  /* Mobile browsers (notably iOS Safari) don't reliably stretch a
+     date/time input's internal segmented layout to a forced width:100% —
+     it paints at its own natural size regardless and the extra width just
+     gets clipped, which reads as the field being "cut off". Sizing to
+     content instead avoids fighting that: these are short by nature, so
+     auto-width comfortably fits without ever needing the full row. */
+  width: auto;
+  max-width: 100%;
+  /* Otherwise the label's flex column (align-items: stretch by default)
+     forces it back to full width regardless of the width: auto above. */
+  align-self: flex-start;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .photo-upload-field {
