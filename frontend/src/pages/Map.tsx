@@ -117,11 +117,14 @@ export default function MapPage() {
       <div className="map-badge">
         {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
       </div>
-      <MapContainer center={center} zoom={focus ? 15 : 11} className="map-container">
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+      <MapContainer
+        center={center}
+        zoom={focus ? 15 : 11}
+        className="map-container"
+        zoomControl={false}
+        attributionControl={false}
+      >
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {heatmapEnabled && <HeatmapLayer points={heatPoints} />}
         {showPins && (
           <MarkerClusterGroup
