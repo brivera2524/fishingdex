@@ -6,7 +6,7 @@ import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { SAN_DIEGO } from "../leafletSetup";
+import { catchMarkerIcon, createClusterIcon, SAN_DIEGO } from "../leafletSetup";
 import { getMapCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { MapCatch } from "../api/types";
@@ -64,11 +64,12 @@ export default function MapPage() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {focus && <FlyToFocus latitude={focus.latitude} longitude={focus.longitude} />}
-        <MarkerClusterGroup showCoverageOnHover={false}>
+        <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
           {catches.map((c) => (
             <Marker
               key={c.id}
               position={[c.latitude, c.longitude]}
+              icon={catchMarkerIcon}
               ref={(instance) => {
                 markerRefs.current[c.id] = instance;
               }}

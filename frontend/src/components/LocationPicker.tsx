@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { SAN_DIEGO } from "../leafletSetup";
+import { catchMarkerIcon, SAN_DIEGO } from "../leafletSetup";
 
 export interface LatLng {
   lat: number;
@@ -61,6 +61,7 @@ export default function LocationPicker({ value, onChange, interactive = true }: 
         {value && (
           <Marker
             position={[value.lat, value.lng]}
+            icon={catchMarkerIcon}
             draggable={interactive}
             eventHandlers={
               interactive

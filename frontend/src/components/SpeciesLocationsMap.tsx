@@ -4,7 +4,7 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { SAN_DIEGO } from "../leafletSetup";
+import { catchMarkerIcon, createClusterIcon, SAN_DIEGO } from "../leafletSetup";
 import { API_BASE } from "../api/client";
 import type { MapCatch } from "../api/types";
 
@@ -40,9 +40,9 @@ export default function SpeciesLocationsMap({ catches }: SpeciesLocationsMapProp
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitToMarkers points={points} />
-        <MarkerClusterGroup showCoverageOnHover={false}>
+        <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
           {catches.map((c) => (
-            <Marker key={c.id} position={[c.latitude, c.longitude]}>
+            <Marker key={c.id} position={[c.latitude, c.longitude]} icon={catchMarkerIcon}>
               <Popup>
                 {c.display_name}
                 {c.weight != null && ` — ${c.weight} lb`}
