@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -17,15 +17,6 @@ interface FocusState {
   longitude: number;
 }
 
-function FlyToFocus({ latitude, longitude }: { latitude: number; longitude: number }) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo([latitude, longitude], 15);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, longitude]);
-  return null;
-}
-
 export default function MapPage() {
   const location = useLocation();
   const focus = location.state as FocusState | null;
@@ -33,6 +24,7 @@ export default function MapPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
+  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
   useEffect(() => {
     getMapCatches()
@@ -43,7 +35,19 @@ export default function MapPage() {
 
   useEffect(() => {
     if (!focus || loading) return;
-    markerRefs.current[focus.focusCatchId]?.openPopup();
+    const marker = markerRefs.current[focus.focusCatchId];
+    if (!marker) return;
+    const clusterGroup = clusterGroupRef.current;
+    if (clusterGroup) {
+      // The marker may currently be hidden inside a cluster bubble —
+      // zoomToShowLayer zooms/pans (and spiderfies if still too close at
+      // max zoom) until it's actually on the map, then opens its popup.
+      // Calling openPopup() directly wouldn't do anything visible while
+      // the marker is still folded into a cluster.
+      clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+    } else {
+      marker.openPopup();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, loading, catches]);
 
@@ -63,8 +67,12 @@ export default function MapPage() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {focus && <FlyToFocus latitude={focus.latitude} longitude={focus.longitude} />}
-        <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
+        <MarkerClusterGroup
+          ref={clusterGroupRef}
+          showCoverageOnHover={false}
+          maxClusterRadius={40}
+          iconCreateFunction={createClusterIcon}
+        >
           {catches.map((c) => (
             <Marker
               key={c.id}
