@@ -1,8 +1,7 @@
-/// <reference types="leaflet.heat" />
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
-import "leaflet.heat";
+import simpleheat from "simpleheat";
 
 interface HeatmapLayerProps {
   points: [number, number][];
@@ -10,64 +9,86 @@ interface HeatmapLayerProps {
 
 const MILE_IN_METERS = 1609.34;
 const HEAT_RADIUS_METERS = 0.5 * MILE_IN_METERS;
+const CANVAS_LONG_SIDE = 1600;
+const BOUNDS_PADDING_RATIO = 0.2;
+const MIN_SPAN_DEG = 0.01; // ~1km, so a single catch (or several stacked at
+// the same spot) still gets a sensible-sized canvas instead of a zero-area one.
 
-// leaflet.heat's radius/blur are in screen pixels, which stay a fixed size
-// on screen but represent a shrinking real-world area as you zoom in — a
-// "hot" zone from several nearby catches would visually collapse down to
-// nothing once you zoomed in enough to tell which catches made it up.
-// Converting a fixed real-world radius (0.5 mile) to pixels at the current
-// zoom/latitude keeps the zone representing the same ground distance no
-// matter how far in or out you are.
-function metersPerPixel(latitudeDeg: number, zoom: number) {
-  return (156543.03392 * Math.cos((latitudeDeg * Math.PI) / 180)) / 2 ** zoom;
-}
-
-function radiusPxFor(map: L.Map) {
-  const { lat } = map.getCenter();
-  return HEAT_RADIUS_METERS / metersPerPixel(lat, map.getZoom());
-}
-
+// Baked once onto an offscreen canvas and placed as a plain image overlay
+// anchored to fixed lat/lng bounds, instead of leaflet.heat's approach of
+// redrawing a canvas continuously to track the map. An image overlay is
+// positioned and scaled by Leaflet's normal (smooth, native) layer
+// machinery — the same way a static photo pinned to the map would be — so
+// panning/zooming just moves and scales the already-computed picture rather
+// than recomputing anything, and the heat radius is baked in at a real-world
+// 0.5 mile since the canvas's own aspect ratio matches the bounds' real
+// aspect ratio. This only needs to redraw when the underlying catch points
+// change, not on every pan/zoom tick.
 export default function HeatmapLayer({ points }: HeatmapLayerProps) {
   const map = useMap();
-  useEffect(() => {
-    if (points.length === 0) return;
-    // Each point contributes a fraction of the max intensity rather than
-    // the full 1.0 — otherwise a single lone catch already renders at full
-    // strength (red), so "hot" stopped meaning anything. At 0.2, it takes
-    // about 5 catches overlapping within the blur radius to reach red;
-    // a single catch shows as a soft blue/cyan glow instead.
-    const weighted: L.HeatLatLngTuple[] = points.map(([lat, lng]) => [lat, lng, 0.2]);
-    const initialRadius = radiusPxFor(map);
-    // leaflet.heat also ramps point intensity up to full strength at
-    // `maxZoom` and fades it below that. Pinning it low means the map is
-    // basically always at or past it, so intensity is already at full
-    // strength across the whole realistic zoom range instead of visibly
-    // ramping as you zoom in.
-    const heat = L.heatLayer(weighted, {
-      radius: initialRadius,
-      blur: initialRadius * 0.6,
-      maxZoom: 8,
-      minOpacity: 0.25,
-    }).addTo(map);
+  const overlayRef = useRef<L.ImageOverlay | null>(null);
 
-    function updateRadius() {
-      const r = radiusPxFor(map);
-      heat.setOptions({ radius: r, blur: r * 0.6 });
+  useEffect(() => {
+    if (overlayRef.current) {
+      map.removeLayer(overlayRef.current);
+      overlayRef.current = null;
     }
-    // The plugin only recomputes/redraws its canvas on `moveend` by
-    // default, not continuously during a drag, so without this it visually
-    // freezes in place until you lift your finger and then snaps to the
-    // right spot. Redrawing on every `move`/`zoom` tick keeps both the
-    // position and the real-world-sized radius tracking live.
-    function handleMove() {
-      updateRadius();
-      heat.redraw();
+    if (points.length === 0) return;
+
+    let bounds = L.latLngBounds(points);
+    if (bounds.getNorth() - bounds.getSouth() < MIN_SPAN_DEG || bounds.getEast() - bounds.getWest() < MIN_SPAN_DEG) {
+      const center = bounds.getCenter();
+      bounds = L.latLngBounds(
+        [center.lat - MIN_SPAN_DEG / 2, center.lng - MIN_SPAN_DEG / 2],
+        [center.lat + MIN_SPAN_DEG / 2, center.lng + MIN_SPAN_DEG / 2]
+      );
     }
-    map.on("move zoom", handleMove);
+    bounds = bounds.pad(BOUNDS_PADDING_RATIO);
+
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const avgLat = (sw.lat + ne.lat) / 2;
+    const latSpanMeters = (ne.lat - sw.lat) * 111320;
+    const lngSpanMeters = (ne.lng - sw.lng) * 111320 * Math.cos((avgLat * Math.PI) / 180);
+
+    const wider = lngSpanMeters >= latSpanMeters;
+    const canvasWidth = wider ? CANVAS_LONG_SIDE : Math.round(CANVAS_LONG_SIDE * (lngSpanMeters / latSpanMeters));
+    const canvasHeight = wider ? Math.round(CANVAS_LONG_SIDE * (latSpanMeters / lngSpanMeters)) : CANVAS_LONG_SIDE;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    // Canvas aspect ratio matches the bounds' real-world meter aspect ratio
+    // (via the cos(lat) adjustment above), so this scale is the same along
+    // both axes — the blobs come out circular, not elliptical.
+    const metersPerPixel = lngSpanMeters / canvasWidth;
+    const radiusPx = HEAT_RADIUS_METERS / metersPerPixel;
+
+    const heat = simpleheat(canvas);
+    heat.radius(radiusPx, radiusPx * 0.6);
+    heat.data(
+      points.map(([lat, lng]) => {
+        const x = ((lng - sw.lng) / (ne.lng - sw.lng)) * canvasWidth;
+        // Canvas y grows downward; latitude grows northward — flip it.
+        const y = ((ne.lat - lat) / (ne.lat - sw.lat)) * canvasHeight;
+        // Each point contributes a fraction of the max (default 1) rather
+        // than the full weight, so a single lone catch reads as a soft
+        // blue/cyan glow instead of already being "hot" (red) on its own —
+        // it takes roughly 5 overlapping catches to reach full intensity.
+        return [x, y, 0.2] as [number, number, number];
+      })
+    );
+    heat.draw(0.25);
+
+    const overlay = L.imageOverlay(canvas.toDataURL(), bounds, { opacity: 0.85, interactive: false }).addTo(map);
+    overlayRef.current = overlay;
+
     return () => {
-      map.off("move zoom", handleMove);
-      map.removeLayer(heat);
+      map.removeLayer(overlay);
+      if (overlayRef.current === overlay) overlayRef.current = null;
     };
   }, [points, map]);
+
   return null;
 }
