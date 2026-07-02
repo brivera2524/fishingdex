@@ -8,7 +8,7 @@ interface HeatmapLayerProps {
 }
 
 const MILE_IN_METERS = 1609.34;
-const HEAT_RADIUS_METERS = 0.5 * MILE_IN_METERS;
+const HEAT_RADIUS_METERS = 0.1 * MILE_IN_METERS;
 const CANVAS_LONG_SIDE = 1600;
 const BOUNDS_PADDING_RATIO = 0.2;
 const MIN_SPAN_DEG = 0.01; // ~1km, so a single catch (or several stacked at
