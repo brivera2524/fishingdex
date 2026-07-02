@@ -54,14 +54,20 @@ export default function Dex({ embedded = false, userId }: DexProps) {
 
   const entries = useMemo<DexEntry[]>(() => {
     const mapped = species.map((s) => {
-      const myCatches = catches
-        .filter((c) => c.species_id === s.id)
-        .sort((a, b) => new Date(b.caught_at).getTime() - new Date(a.caught_at).getTime());
-      const withPhoto = myCatches.find((c) => c.photo_url);
+      const myCatches = catches.filter((c) => c.species_id === s.id);
+      // Biggest (by weight) catch with a photo, not just the most recent —
+      // ties (or catches with no weight recorded) fall back to most recent.
+      const biggestWithPhoto = [...myCatches]
+        .filter((c) => c.photo_url)
+        .sort((a, b) => {
+          const weightDiff = (b.weight ?? -Infinity) - (a.weight ?? -Infinity);
+          if (weightDiff !== 0) return weightDiff;
+          return new Date(b.caught_at).getTime() - new Date(a.caught_at).getTime();
+        })[0];
       return {
         species: s,
         caught: myCatches.length > 0,
-        photoUrl: withPhoto?.photo_url ?? null,
+        photoUrl: biggestWithPhoto?.photo_url ?? null,
         catchCount: myCatches.length,
       };
     });
