@@ -83,9 +83,12 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
   const [coords, setCoords] = useState<LatLng | null>(null);
   // Manual entry only: the camera-identify flow (detectState present) always
   // uses current location + now since both are guaranteed accurate there.
-  // Default is "manual" (no pin) until a photo's EXIF GPS resolves it to
-  // "photo" — see the effect below.
+  // Default is "manual" (no pin) until photo EXIF or geolocation resolves —
+  // see the priority effect below, which defaults photo > current > manual
+  // depending on what's available, unless the user has picked a mode
+  // themselves (userPickedLocationMode), in which case their choice sticks.
   const [locationMode, setLocationMode] = useState<LocationMode>("manual");
+  const [userPickedLocationMode, setUserPickedLocationMode] = useState(false);
   const [manualCoords, setManualCoords] = useState<LatLng | null>(null);
   const [photoCoords, setPhotoCoords] = useState<LatLng | null>(null);
   const [photoExifStatus, setPhotoExifStatus] = useState<"idle" | "loading" | "found" | "not-found">("idle");
@@ -99,7 +102,9 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
 
   useEffect(() => {
     if (isEdit || !navigator.geolocation) return;
-    if (!detectState && locationMode !== "current") return;
+    // Fetched proactively (not just when the user picks "Current") since
+    // it's also the fallback default when a photo has no location — see the
+    // priority effect below.
     navigator.geolocation.getCurrentPosition(
       (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => {
@@ -107,15 +112,21 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, locationMode]);
+  }, [isEdit]);
 
+  // Defaults the location mode to whatever's available, in priority order:
+  // photo EXIF > current location > manual (blank). Re-evaluates as each
+  // becomes available, but never overrides a mode the user picked themselves.
   useEffect(() => {
-    if (isEdit || detectState || photoFile) return;
-    setPhotoCoords(null);
-    setPhotoExifStatus("idle");
-    setLocationMode((prev) => (prev === "photo" ? "manual" : prev));
-  }, [photoFile, isEdit, detectState]);
+    if (isEdit || detectState || userPickedLocationMode) return;
+    if (photoExifStatus === "found") {
+      setLocationMode("photo");
+    } else if (photoExifStatus !== "loading" && coords) {
+      setLocationMode("current");
+    } else if (photoExifStatus === "not-found" && !coords) {
+      setLocationMode("manual");
+    }
+  }, [photoExifStatus, coords, isEdit, detectState, userPickedLocationMode]);
 
   useEffect(() => {
     listSpecies()
@@ -182,18 +193,15 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     setRemovePhoto(false);
 
     if (!isEdit && !detectState) {
-      setLocationMode("photo");
+      // Optimistically shows the "reading..." state under the photo pill
+      // immediately, but only if the user hasn't already picked a mode
+      // themselves — the priority effect takes it from here once the EXIF
+      // read resolves.
+      if (!userPickedLocationMode) setLocationMode("photo");
       setPhotoExifStatus("loading");
       const exifResult = await pendingCrop.exifPromise;
-      if (exifResult.coords) {
-        setPhotoCoords(exifResult.coords);
-        setPhotoExifStatus("found");
-        setLocationMode("photo");
-      } else {
-        setPhotoCoords(null);
-        setPhotoExifStatus("not-found");
-        setLocationMode((prev) => (prev === "photo" ? "manual" : prev));
-      }
+      setPhotoCoords(exifResult.coords);
+      setPhotoExifStatus(exifResult.coords ? "found" : "not-found");
       if (exifResult.caughtAt) {
         const split = splitLocalDateTime(exifResult.caughtAt);
         setCaughtDate(split.date);
@@ -280,7 +288,12 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       : null;
 
   const activeCoords = locationMode === "current" ? coords : locationMode === "manual" ? manualCoords : photoCoords;
+  function pickLocationMode(mode: LocationMode) {
+    setUserPickedLocationMode(true);
+    setLocationMode(mode);
+  }
   function setManualPin(next: LatLng) {
+    setUserPickedLocationMode(true);
     setLocationMode("manual");
     setManualCoords(next);
   }
@@ -319,12 +332,32 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
         </label>
         <div className="form-row">
           <label>
-            Weight (lb)
-            <input type="number" step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
+            Weight
+            <div className="input-suffix-field">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                placeholder="0"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+              />
+              <span className="input-suffix">lb</span>
+            </div>
           </label>
           <label>
-            Length (in)
-            <input type="number" step="0.01" value={length} onChange={(e) => setLength(e.target.value)} />
+            Length
+            <div className="input-suffix-field">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                placeholder="0"
+                value={length}
+                onChange={(e) => setLength(e.target.value)}
+              />
+              <span className="input-suffix">in</span>
+            </div>
           </label>
         </div>
         <label>
@@ -371,25 +404,25 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
               <div className="mode-pill-toggle">
                 <button
                   type="button"
+                  className={locationMode === "photo" ? "active" : ""}
+                  disabled={!photoFile}
+                  onClick={() => pickLocationMode("photo")}
+                >
+                  🖼️ Photo
+                </button>
+                <button
+                  type="button"
                   className={locationMode === "current" ? "active" : ""}
-                  onClick={() => setLocationMode("current")}
+                  onClick={() => pickLocationMode("current")}
                 >
                   📍 Current
                 </button>
                 <button
                   type="button"
                   className={locationMode === "manual" ? "active" : ""}
-                  onClick={() => setLocationMode("manual")}
+                  onClick={() => pickLocationMode("manual")}
                 >
                   🗺️ Manual
-                </button>
-                <button
-                  type="button"
-                  className={locationMode === "photo" ? "active" : ""}
-                  disabled={!photoFile}
-                  onClick={() => setLocationMode("photo")}
-                >
-                  🖼️ Photo
                 </button>
               </div>
 

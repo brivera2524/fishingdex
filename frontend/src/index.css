@@ -237,6 +237,7 @@ main {
 }
 
 .mode-pill-toggle button {
+  flex: 1;
   border: none;
   background: transparent;
   color: var(--ink-soft);
@@ -246,7 +247,7 @@ main {
   border-radius: 999px;
   min-height: auto;
   white-space: nowrap;
-  flex-shrink: 0;
+  text-align: center;
 }
 
 .mode-pill-toggle button.active {
@@ -331,6 +332,25 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+.input-suffix-field {
+  position: relative;
+}
+
+.input-suffix-field input {
+  padding-right: 38px;
+}
+
+.input-suffix {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  pointer-events: none;
 }
 
 .form input,
