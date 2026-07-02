@@ -14,8 +14,10 @@ import { API_BASE, ApiError } from "../api/client";
 import type { Species } from "../api/types";
 import DiscoveryReveal from "../components/DiscoveryReveal";
 import LocationPicker, { type LatLng } from "../components/LocationPicker";
+import PhotoCropModal from "../components/PhotoCropModal";
 
 type LocationMode = "current" | "manual" | "photo";
+type PhotoExif = { coords: LatLng | null; caughtAt: Date | null };
 
 function splitLocalDateTime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -25,7 +27,7 @@ function splitLocalDateTime(date: Date) {
   };
 }
 
-async function readPhotoExif(file: File) {
+async function readPhotoExif(file: File): Promise<PhotoExif> {
   // These need separate calls: exifr's `pick` option filters every enabled
   // segment down to just the picked tag names, so combining `pick:
   // ["DateTimeOriginal"]` with `gps: true` in one parse() silently drops the
@@ -84,6 +86,9 @@ export default function CatchForm() {
   const initialDateTime = splitLocalDateTime(new Date());
   const [caughtDate, setCaughtDate] = useState(initialDateTime.date);
   const [caughtTime, setCaughtTime] = useState(initialDateTime.time);
+  const [pendingCrop, setPendingCrop] = useState<{ objectUrl: string; exifPromise: Promise<PhotoExif> } | null>(
+    null
+  );
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -99,37 +104,12 @@ export default function CatchForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, locationMode]);
 
-  // Location defaults to whatever the attached photo's EXIF GPS says, since
-  // that's usually more accurate for a backfilled catch than "current
-  // location" (which reflects the phone right now, not where the fish was
-  // caught). Falls back to manual placement if the photo has no GPS tag.
   useEffect(() => {
-    if (isEdit || detectState) return;
-    if (!photoFile) {
-      setPhotoCoords(null);
-      setPhotoExifStatus("idle");
-      setLocationMode((prev) => (prev === "photo" ? "manual" : prev));
-      return;
-    }
-    setPhotoExifStatus("loading");
-    readPhotoExif(photoFile).then((result) => {
-      if (result.coords) {
-        setPhotoCoords(result.coords);
-        setPhotoExifStatus("found");
-        setLocationMode("photo");
-      } else {
-        setPhotoCoords(null);
-        setPhotoExifStatus("not-found");
-        setLocationMode("manual");
-      }
-      if (result.caughtAt) {
-        const split = splitLocalDateTime(result.caughtAt);
-        setCaughtDate(split.date);
-        setCaughtTime(split.time);
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoFile, isEdit]);
+    if (isEdit || detectState || photoFile) return;
+    setPhotoCoords(null);
+    setPhotoExifStatus("idle");
+    setLocationMode((prev) => (prev === "photo" ? "manual" : prev));
+  }, [photoFile, isEdit, detectState]);
 
   useEffect(() => {
     listSpecies()
@@ -173,8 +153,50 @@ export default function CatchForm() {
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    setPhotoFile(file);
-    if (file) setRemovePhoto(false);
+    // Reset the input so re-selecting the same file (e.g. after cancelling
+    // the crop) fires another change event.
+    e.target.value = "";
+    if (!file) return;
+    // Read EXIF from the original file now — cropping re-encodes through a
+    // canvas, which strips all metadata, so this has to happen before that.
+    const exifPromise = !isEdit && !detectState ? readPhotoExif(file) : Promise.resolve({ coords: null, caughtAt: null });
+    setPendingCrop({ objectUrl: URL.createObjectURL(file), exifPromise });
+  }
+
+  function handleCropCancel() {
+    if (!pendingCrop) return;
+    URL.revokeObjectURL(pendingCrop.objectUrl);
+    setPendingCrop(null);
+  }
+
+  async function handleCropConfirm(blob: Blob) {
+    if (!pendingCrop) return;
+    const croppedFile = new File([blob], "catch.jpg", { type: "image/jpeg" });
+    setPhotoFile(croppedFile);
+    setRemovePhoto(false);
+
+    if (!isEdit && !detectState) {
+      setLocationMode("photo");
+      setPhotoExifStatus("loading");
+      const exifResult = await pendingCrop.exifPromise;
+      if (exifResult.coords) {
+        setPhotoCoords(exifResult.coords);
+        setPhotoExifStatus("found");
+        setLocationMode("photo");
+      } else {
+        setPhotoCoords(null);
+        setPhotoExifStatus("not-found");
+        setLocationMode((prev) => (prev === "photo" ? "manual" : prev));
+      }
+      if (exifResult.caughtAt) {
+        const split = splitLocalDateTime(exifResult.caughtAt);
+        setCaughtDate(split.date);
+        setCaughtTime(split.time);
+      }
+    }
+
+    URL.revokeObjectURL(pendingCrop.objectUrl);
+    setPendingCrop(null);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -386,6 +408,9 @@ export default function CatchForm() {
           {loading ? "Saving..." : isEdit ? "Save changes" : "Save catch"}
         </button>
       </form>
+      {pendingCrop && (
+        <PhotoCropModal imageSrc={pendingCrop.objectUrl} onCancel={handleCropCancel} onConfirm={handleCropConfirm} />
+      )}
     </div>
   );
 }
