@@ -28,6 +28,15 @@ export const catchMarkerIcon = L.divIcon({
   popupAnchor: [0, -9],
 });
 
+// A small pulsing dot for "you are here" — deliberately a different color
+// from catchMarkerIcon's accent teal so it never reads as an actual catch.
+export const currentLocationIcon = L.divIcon({
+  className: "current-location-icon",
+  html: '<span class="current-location-pulse"></span><span class="current-location-dot"></span>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
 export function createClusterIcon(cluster: L.MarkerCluster) {
   const count = cluster.getChildCount();
   const size = count < 10 ? 32 : count < 100 ? 38 : 44;

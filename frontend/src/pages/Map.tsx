@@ -6,7 +6,7 @@ import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { catchMarkerIcon, createClusterIcon, SAN_DIEGO } from "../leafletSetup";
+import { catchMarkerIcon, createClusterIcon, currentLocationIcon, SAN_DIEGO } from "../leafletSetup";
 import { getMapCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { MapCatch, Species } from "../api/types";
@@ -20,8 +20,6 @@ interface FocusState {
   latitude: number;
   longitude: number;
 }
-
-type ViewMode = "pins" | "heat";
 
 interface NearbySpeciesResult {
   species: Species;
@@ -52,17 +50,14 @@ function NearMeOverlay({ center }: { center: LatLng }) {
     map.flyTo([center.lat, center.lng], 13);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center.lat, center.lng]);
+  // Just the search-radius circle — the persistent currentLocationIcon
+  // marker already marks "you are here" on the map at all times.
   return (
-    <>
-      <Circle
-        center={[center.lat, center.lng]}
-        radius={NEARBY_RADIUS_KM * 1000}
-        pathOptions={{ color: "#2dd4bf", fillColor: "#2dd4bf", fillOpacity: 0.08, weight: 1.5 }}
-      />
-      {/* Deliberately the classic default pin (not catchMarkerIcon) so "you
-          are here" reads as visually distinct from every actual catch dot. */}
-      <Marker position={[center.lat, center.lng]} />
-    </>
+    <Circle
+      center={[center.lat, center.lng]}
+      radius={NEARBY_RADIUS_KM * 1000}
+      pathOptions={{ color: "#2dd4bf", fillColor: "#2dd4bf", fillOpacity: 0.08, weight: 1.5 }}
+    />
   );
 }
 
@@ -72,7 +67,8 @@ export default function MapPage() {
   const [catches, setCatches] = useState<MapCatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>("pins");
+  const [heatmapEnabled, setHeatmapEnabled] = useState(true);
+  const [myLocation, setMyLocation] = useState<LatLng | null>(null);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
@@ -86,6 +82,17 @@ export default function MapPage() {
       .then(setCatches)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load map"))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {
+        /* No permission or unavailable — just don't show the indicator. */
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
   }, []);
 
   useEffect(() => {
@@ -159,14 +166,13 @@ export default function MapPage() {
 
   return (
     <div className="map-page">
-      <div className="map-view-toggle mode-pill-toggle">
-        <button type="button" className={viewMode === "pins" ? "active" : ""} onClick={() => setViewMode("pins")}>
-          📍 Pins
-        </button>
-        <button type="button" className={viewMode === "heat" ? "active" : ""} onClick={() => setViewMode("heat")}>
-          🔥 Heat
-        </button>
-      </div>
+      <button
+        type="button"
+        className={`map-heat-toggle${heatmapEnabled ? " active" : ""}`}
+        onClick={() => setHeatmapEnabled((v) => !v)}
+      >
+        🔥 Heatmap
+      </button>
       <div className="map-badge">
         {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
       </div>
@@ -175,7 +181,7 @@ export default function MapPage() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {viewMode === "heat" && <HeatmapLayer points={heatPoints} />}
+        {heatmapEnabled && <HeatmapLayer points={heatPoints} />}
         <MarkerClusterGroup
           ref={clusterGroupRef}
           showCoverageOnHover={false}
@@ -212,6 +218,9 @@ export default function MapPage() {
             </Marker>
           ))}
         </MarkerClusterGroup>
+        {myLocation && (
+          <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
+        )}
         {nearMeCenter && <NearMeOverlay center={nearMeCenter} />}
       </MapContainer>
       <button
