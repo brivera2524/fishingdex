@@ -5,6 +5,7 @@ import type { RecentCatch } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CommentThread from "../components/CommentThread";
 import AnglerDetail from "../components/AnglerDetail";
+import PullToRefresh from "../components/PullToRefresh";
 import ViewOnMapButton from "../components/ViewOnMapButton";
 
 interface SelectedAngler {
@@ -19,37 +20,44 @@ export default function RecentCatches() {
   const [selectedCatch, setSelectedCatch] = useState<RecentCatch | null>(null);
   const [selectedAngler, setSelectedAngler] = useState<SelectedAngler | null>(null);
 
-  useEffect(() => {
-    getRecentCatches()
+  function loadRecent() {
+    return getRecentCatches()
       .then(setRecent)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load recent catches"))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    loadRecent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="page">
-      <h1>Recent Catches</h1>
+      <PullToRefresh onRefresh={loadRecent}>
+        <h1>Recent Catches</h1>
 
-      {loading && <p>Loading...</p>}
-      {error && <p className="error">{error}</p>}
+        {loading && <p>Loading...</p>}
+        {error && <p className="error">{error}</p>}
 
-      <ul className="catch-list">
-        {recent.map((c) => (
-          <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
-            {c.photo_url && (
-              <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.species.common_name} />
-            )}
-            <div className="page-header">
-              <span className="card-title">{c.species.common_name}</span>
-              {c.weight != null && <span className="card-stat">{c.weight} lb</span>}
-            </div>
-            <span className="card-meta">
-              {c.display_name} · {new Date(c.caught_at).toLocaleString()}
-            </span>
-          </li>
-        ))}
-        {!loading && recent.length === 0 && <p>No catches logged yet.</p>}
-      </ul>
+        <ul className="catch-list">
+          {recent.map((c) => (
+            <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
+              {c.photo_url && (
+                <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.species.common_name} />
+              )}
+              <div className="page-header">
+                <span className="card-title">{c.species.common_name}</span>
+                {c.weight != null && <span className="card-stat">{c.weight} lb</span>}
+              </div>
+              <span className="card-meta">
+                {c.display_name} · {new Date(c.caught_at).toLocaleString()}
+              </span>
+            </li>
+          ))}
+          {!loading && recent.length === 0 && <p>No catches logged yet.</p>}
+        </ul>
+      </PullToRefresh>
 
       <BottomSheet open={selectedCatch != null} onClose={() => setSelectedCatch(null)}>
         {selectedCatch && (

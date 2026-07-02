@@ -4,6 +4,7 @@ import Dex from "./Dex";
 import MyCatches from "./MyCatches";
 import CatchForm, { type DetectState } from "./CatchForm";
 import BottomSheet from "../components/BottomSheet";
+import PullToRefresh from "../components/PullToRefresh";
 
 type Tab = "dex" | "catches";
 
@@ -42,28 +43,38 @@ export default function CatchesHub() {
     setRefreshKey((k) => k + 1);
   }
 
+  async function handlePullRefresh() {
+    setRefreshKey((k) => k + 1);
+    // Dex/MyCatches remount and show their own "Loading..." state — this
+    // just keeps the pull indicator visible briefly so the gesture feels
+    // like it did something, rather than snapping back instantly.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
   return (
     <div className="page">
-      <div className="page-header">
-        <h1>{tab === "dex" ? "Dex" : "My Catches"}</h1>
-      </div>
-      <div className="tab-switch">
-        <button type="button" className={tab === "dex" ? "" : "secondary-button"} onClick={() => setTab("dex")}>
-          Dex
-        </button>
-        <button
-          type="button"
-          className={tab === "catches" ? "" : "secondary-button"}
-          onClick={() => setTab("catches")}
-        >
-          My Catches
-        </button>
-      </div>
-      {tab === "dex" ? (
-        <Dex embedded key={refreshKey} />
-      ) : (
-        <MyCatches embedded key={refreshKey} onEdit={(catchId) => setLogSheet({ mode: "edit", catchId })} />
-      )}
+      <PullToRefresh onRefresh={handlePullRefresh}>
+        <div className="page-header">
+          <h1>{tab === "dex" ? "Dex" : "My Catches"}</h1>
+        </div>
+        <div className="tab-switch">
+          <button type="button" className={tab === "dex" ? "" : "secondary-button"} onClick={() => setTab("dex")}>
+            Dex
+          </button>
+          <button
+            type="button"
+            className={tab === "catches" ? "" : "secondary-button"}
+            onClick={() => setTab("catches")}
+          >
+            My Catches
+          </button>
+        </div>
+        {tab === "dex" ? (
+          <Dex embedded key={refreshKey} />
+        ) : (
+          <MyCatches embedded key={refreshKey} onEdit={(catchId) => setLogSheet({ mode: "edit", catchId })} />
+        )}
+      </PullToRefresh>
       <button type="button" className="fab-floating" aria-label="Log a catch" onClick={openNewCatch}>
         +
       </button>
