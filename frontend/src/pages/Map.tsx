@@ -14,6 +14,7 @@ import type { LatLng } from "../components/LocationPicker";
 import { haversineDistanceKm } from "../geo";
 import HeatmapLayer from "../components/HeatmapLayer";
 import BottomSheet from "../components/BottomSheet";
+import TideBadge from "../components/TideBadge";
 
 interface FocusState {
   focusCatchId: number;
@@ -187,6 +188,7 @@ export default function MapPage() {
           🔥 Heatmap
         </button>
       </div>
+      <TideBadge />
       <div className="map-badge">
         {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
       </div>
