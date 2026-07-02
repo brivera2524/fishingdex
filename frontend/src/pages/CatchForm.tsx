@@ -317,23 +317,25 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
             ))}
           </select>
         </label>
-        <label>
-          Weight (lb)
-          <input type="number" step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
-        </label>
-        <label>
-          Length (in)
-          <input type="number" step="0.01" value={length} onChange={(e) => setLength(e.target.value)} />
-        </label>
-        <label>
-          Notes
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
+        <div className="form-row">
+          <label>
+            Weight (lb)
+            <input type="number" step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          </label>
+          <label>
+            Length (in)
+            <input type="number" step="0.01" value={length} onChange={(e) => setLength(e.target.value)} />
+          </label>
+        </div>
         <label>
           Photo
           <div className="photo-upload-field">
             <div className="photo-upload-button">
-              <span className="photo-upload-icon">📷</span>
+              {previewUrl ? (
+                <img src={previewUrl} alt="" className="photo-upload-thumb" />
+              ) : (
+                <span className="photo-upload-icon">📷</span>
+              )}
               {previewUrl ? "Change photo" : "Add a photo"}
             </div>
             <input
@@ -345,30 +347,23 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
             />
           </div>
         </label>
-        {previewUrl && (
-          <div className="photo-preview">
-            <img src={previewUrl} alt="Catch preview" />
-            {isEdit && existingPhotoUrl && !photoFile && (
-              <button
-                type="button"
-                className="link-button"
-                onClick={() => setRemovePhoto(true)}
-              >
-                Remove photo
-              </button>
-            )}
-          </div>
+        {isEdit && existingPhotoUrl && previewUrl && !photoFile && (
+          <button type="button" className="link-button" onClick={() => setRemovePhoto(true)}>
+            Remove photo
+          </button>
         )}
         {!isEdit && !detectState && (
           <>
-            <label>
-              Date caught
-              <input type="date" value={caughtDate} onChange={(e) => setCaughtDate(e.target.value)} required />
-            </label>
-            <label>
-              Time caught
-              <input type="time" value={caughtTime} onChange={(e) => setCaughtTime(e.target.value)} required />
-            </label>
+            <div className="form-row-auto">
+              <label>
+                Date caught
+                <input type="date" value={caughtDate} onChange={(e) => setCaughtDate(e.target.value)} required />
+              </label>
+              <label>
+                Time caught
+                <input type="time" value={caughtTime} onChange={(e) => setCaughtTime(e.target.value)} required />
+              </label>
+            </div>
             <div>
               <p className="section-label" style={{ margin: "0 0 8px" }}>
                 Location
@@ -428,6 +423,10 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
             </div>
           </>
         )}
+        <label>
+          Notes
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={loading || species.length === 0}>
           {loading ? "Saving..." : isEdit ? "Save changes" : "Save catch"}
