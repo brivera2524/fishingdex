@@ -70,6 +70,8 @@ export interface LeaderboardCatch {
   photo_url: string | null;
   latitude: number | null;
   longitude: number | null;
+  tide_height_ft: number | null;
+  tide_direction: "rising" | "falling" | null;
 }
 
 export interface SpeciesRecord {
@@ -119,6 +121,8 @@ export interface RecentCatch {
   latitude: number | null;
   longitude: number | null;
   species: Species;
+  tide_height_ft: number | null;
+  tide_direction: "rising" | "falling" | null;
 }
 
 export interface UserStat {

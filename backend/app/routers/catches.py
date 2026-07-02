@@ -100,6 +100,8 @@ def list_recent_catches(
             latitude=c.latitude,
             longitude=c.longitude,
             species=c.species,
+            tide_height_ft=c.tide_height_ft,
+            tide_direction=c.tide_direction,
         )
         for c in catches
     ]

@@ -96,6 +96,11 @@ export default function MyCatches({ embedded = false, userId, readOnly = false, 
             <div className="card-stats" style={{ margin: "10px 0" }}>
               {selected.weight != null && <span className="card-stat">{selected.weight} lb</span>}
               {selected.length != null && <span className="card-stat">{selected.length} in</span>}
+              {selected.tide_height_ft != null && (
+                <span className="card-stat">
+                  {selected.tide_direction === "rising" ? "↑" : "↓"} {selected.tide_height_ft}ft tide
+                </span>
+              )}
             </div>
             {selected.notes && <p style={{ marginBottom: 14 }}>{selected.notes}</p>}
 

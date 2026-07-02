@@ -20,6 +20,8 @@ def _to_leaderboard_catch(catch: Catch) -> LeaderboardCatch:
         photo_url=catch.photo_url,
         latitude=catch.latitude,
         longitude=catch.longitude,
+        tide_height_ft=catch.tide_height_ft,
+        tide_direction=catch.tide_direction,
     )
 
 

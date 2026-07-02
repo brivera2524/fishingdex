@@ -213,6 +213,11 @@ export default function Dex({ embedded = false, userId }: DexProps) {
             <div className="card-stats" style={{ margin: "10px 0" }}>
               {selectedCatch.weight != null && <span className="card-stat">{selectedCatch.weight} lb</span>}
               {selectedCatch.length != null && <span className="card-stat">{selectedCatch.length} in</span>}
+              {selectedCatch.tide_height_ft != null && (
+                <span className="card-stat">
+                  {selectedCatch.tide_direction === "rising" ? "↑" : "↓"} {selectedCatch.tide_height_ft}ft tide
+                </span>
+              )}
             </div>
             <p className="card-meta">{new Date(selectedCatch.caught_at).toLocaleString()}</p>
             {selectedCatch.latitude != null && (

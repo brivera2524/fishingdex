@@ -113,6 +113,8 @@ class LeaderboardCatch(BaseModel):
     photo_url: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    tide_height_ft: float | None = None
+    tide_direction: str | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
 
@@ -146,6 +148,8 @@ class RecentCatch(BaseModel):
     photo_url: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    tide_height_ft: float | None = None
+    tide_direction: str | None = None
     species: SpeciesOut
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
