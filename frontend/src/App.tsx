@@ -4,7 +4,6 @@ import RequireAuth from "./components/RequireAuth";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import CatchesHub from "./pages/CatchesHub";
-import CatchForm from "./pages/CatchForm";
 import MapPage from "./pages/Map";
 import CameraDetect from "./pages/CameraDetect";
 import Anglers from "./pages/Anglers";
@@ -31,8 +30,6 @@ export default function App() {
               </RequireAuth>
             }
           >
-            <Route path="/log" element={<CatchForm />} />
-            <Route path="/catches/:id/edit" element={<CatchForm />} />
             <Route path="/dex" element={<CatchesHub />} />
             <Route path="/map" element={<MapPage />} />
             <Route path="/anglers" element={<Anglers />} />

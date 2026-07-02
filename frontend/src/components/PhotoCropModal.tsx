@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import Cropper, { type Area, type Point } from "react-easy-crop";
 
 interface PhotoCropModalProps {
@@ -50,7 +51,11 @@ export default function PhotoCropModal({ imageSrc, onCancel, onConfirm }: PhotoC
     }
   }
 
-  return (
+  // Portalled to the body for the same reason as DiscoveryReveal: this can be
+  // opened while CatchForm is rendered inside a BottomSheet, whose motion.div
+  // always has an inline transform applied, which would otherwise confine a
+  // `position: fixed` descendant to the sheet's box instead of the viewport.
+  return createPortal(
     <div className="photo-crop-overlay">
       <div className="photo-crop-stage">
         <Cropper
@@ -74,6 +79,7 @@ export default function PhotoCropModal({ imageSrc, onCancel, onConfirm }: PhotoC
           {saving ? "Cropping..." : "Use this photo"}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

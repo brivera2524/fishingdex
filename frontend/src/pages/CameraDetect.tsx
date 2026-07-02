@@ -213,11 +213,16 @@ export default function CameraDetect() {
   function goToLogForm(alreadyRevealed: boolean) {
     if (!capturedPhoto || confirmedSpeciesId == null) return;
     stopCamera();
-    navigate("/log", {
+    // The log form is now a sheet inside /dex (My Catches tab), not its own
+    // route — this asks CatchesHub to open it on mount.
+    navigate("/dex", {
       state: {
-        speciesId: confirmedSpeciesId,
-        photoBlob: capturedPhoto.blob,
-        alreadyRevealed,
+        tab: "catches",
+        openLog: {
+          speciesId: confirmedSpeciesId,
+          photoBlob: capturedPhoto.blob,
+          alreadyRevealed,
+        },
       },
     });
   }

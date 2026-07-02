@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { deleteCatch, getUserCatches, listMyCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { Catch } from "../api/types";
@@ -11,16 +10,16 @@ interface MyCatchesProps {
   embedded?: boolean;
   userId?: number;
   readOnly?: boolean;
+  onEdit?: (catchId: number) => void;
 }
 
-export default function MyCatches({ embedded = false, userId, readOnly = false }: MyCatchesProps) {
+export default function MyCatches({ embedded = false, userId, readOnly = false, onEdit }: MyCatchesProps) {
   const [catches, setCatches] = useState<Catch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [selected, setSelected] = useState<Catch | null>(null);
-  const navigate = useNavigate();
   const canEdit = !readOnly && userId == null;
 
   useEffect(() => {
@@ -54,9 +53,6 @@ export default function MyCatches({ embedded = false, userId, readOnly = false }
       {!embedded && (
         <div className="page-header">
           <h1>My catches</h1>
-          <Link to="/log" className="button-link">
-            + Log a catch
-          </Link>
         </div>
       )}
       {loading && <p>Loading...</p>}
@@ -127,7 +123,14 @@ export default function MyCatches({ embedded = false, userId, readOnly = false }
               ) : (
                 <div className="catch-actions">
                   <ViewOnMapButton catchId={selected.id} latitude={selected.latitude} longitude={selected.longitude} />
-                  <button type="button" onClick={() => navigate(`/catches/${selected.id}/edit`)}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const catchId = selected.id;
+                      closeSheet();
+                      onEdit?.(catchId);
+                    }}
+                  >
                     Edit
                   </button>
                   <button type="button" className="danger-button" onClick={() => setConfirming(true)}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import type { Species } from "../api/types";
 
@@ -22,7 +23,12 @@ export default function DiscoveryReveal({ species, photoSrc, onDone }: Discovery
     };
   }, []);
 
-  return (
+  // Portalled to the body since this can be rendered from inside a
+  // BottomSheet, whose motion.div always has an inline `transform` applied
+  // (even at rest) — that makes it the containing block for any `position:
+  // fixed` descendant, which would otherwise confine this overlay to the
+  // sheet's box instead of the full viewport.
+  return createPortal(
     <div className="discovery-overlay">
       <motion.div
         className="discovery-card"
@@ -66,6 +72,7 @@ export default function DiscoveryReveal({ species, photoSrc, onDone }: Discovery
           </button>
         </motion.div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

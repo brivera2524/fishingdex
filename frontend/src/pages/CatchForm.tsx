@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { gps as parseExifGps, parse as parseExif } from "exifr";
 import {
   createCatch,
@@ -48,18 +47,24 @@ async function readPhotoExif(file: File): Promise<PhotoExif> {
   };
 }
 
-interface DetectState {
+export interface DetectState {
   speciesId: number | null;
   photoBlob: Blob;
   /** True when the camera flow already showed the discovery reveal at confirm time. */
   alreadyRevealed?: boolean;
 }
 
-export default function CatchForm() {
-  const { id } = useParams();
-  const isEdit = Boolean(id);
-  const location = useLocation();
-  const detectState = location.state as DetectState | null;
+interface CatchFormProps {
+  /** Present when editing an existing catch; absent when logging a new one. */
+  catchId?: number;
+  /** Carried over from the camera-identify flow, if that's how we got here. */
+  detectState?: DetectState | null;
+  /** Called once the catch has been saved (or the discovery reveal dismissed). */
+  onDone: () => void;
+}
+
+export default function CatchForm({ catchId, detectState = null, onDone }: CatchFormProps) {
+  const isEdit = catchId != null;
 
   const [species, setSpecies] = useState<Species[]>([]);
   const [speciesId, setSpeciesId] = useState<number | "">("");
@@ -89,7 +94,6 @@ export default function CatchForm() {
   const [pendingCrop, setPendingCrop] = useState<{ objectUrl: string; exifPromise: Promise<PhotoExif> } | null>(
     null
   );
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (isEdit || !navigator.geolocation) return;
@@ -138,8 +142,8 @@ export default function CatchForm() {
   }, []);
 
   useEffect(() => {
-    if (!id) return;
-    getCatch(Number(id))
+    if (catchId == null) return;
+    getCatch(catchId)
       .then((c) => {
         setSpeciesId(c.species_id);
         setWeight(c.weight != null ? String(c.weight) : "");
@@ -149,7 +153,7 @@ export default function CatchForm() {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load catch"))
       .finally(() => setLoadingCatch(false));
-  }, [id]);
+  }, [catchId]);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -205,16 +209,16 @@ export default function CatchForm() {
     setError(null);
     setLoading(true);
     try {
-      let catchId: number;
+      let savedCatchId: number;
       const isNewSpecies =
         !isEdit &&
         !detectState?.alreadyRevealed &&
         priorSpeciesIds != null &&
         !priorSpeciesIds.has(speciesId);
 
-      if (isEdit) {
-        catchId = Number(id);
-        await updateCatch(catchId, {
+      if (isEdit && catchId != null) {
+        savedCatchId = catchId;
+        await updateCatch(savedCatchId, {
           species_id: speciesId,
           weight: weight ? Number(weight) : null,
           length: length ? Number(length) : null,
@@ -239,15 +243,15 @@ export default function CatchForm() {
           latitude: effectiveCoords?.lat ?? null,
           longitude: effectiveCoords?.lng ?? null,
         });
-        catchId = created.id;
+        savedCatchId = created.id;
       }
 
       let savedPhotoUrl: string | null = existingPhotoUrl;
       if (photoFile) {
-        const updated = await uploadCatchPhoto(catchId, photoFile);
+        const updated = await uploadCatchPhoto(savedCatchId, photoFile);
         savedPhotoUrl = updated.photo_url;
       } else if (isEdit && removePhoto && existingPhotoUrl) {
-        await deleteCatchPhoto(catchId);
+        await deleteCatchPhoto(savedCatchId);
         savedPhotoUrl = null;
       }
 
@@ -259,7 +263,7 @@ export default function CatchForm() {
         }
       }
 
-      navigate("/dex", { state: { tab: "catches" } });
+      onDone();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save catch");
     } finally {
@@ -278,21 +282,17 @@ export default function CatchForm() {
       <DiscoveryReveal
         species={discovery.species}
         photoSrc={discovery.photoUrl ? `${API_BASE}${discovery.photoUrl}` : null}
-        onDone={() => navigate("/dex")}
+        onDone={onDone}
       />
     );
   }
 
   if (loadingCatch) {
-    return (
-      <div className="page">
-        <p>Loading...</p>
-      </div>
-    );
+    return <p>Loading...</p>;
   }
 
   return (
-    <div className="page">
+    <>
       <h1>{isEdit ? "Edit catch" : "Log a catch"}</h1>
       <form onSubmit={handleSubmit} className="form">
         <label>
@@ -411,6 +411,6 @@ export default function CatchForm() {
       {pendingCrop && (
         <PhotoCropModal imageSrc={pendingCrop.objectUrl} onCancel={handleCropCancel} onConfirm={handleCropConfirm} />
       )}
-    </div>
+    </>
   );
 }
