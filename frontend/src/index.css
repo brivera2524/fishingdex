@@ -992,6 +992,12 @@ button:disabled {
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border);
+  /* Leaflet sets position:relative on this element but no z-index, so it
+     doesn't form its own stacking context — its internal panes/controls
+     (z-index up to 1000) then get compared directly against page chrome
+     like the fixed bottom nav (z-index 20) and can render above it. Setting
+     z-index here contains all of that inside this element's own context. */
+  z-index: 0;
 }
 
 .location-picker {
@@ -1004,4 +1010,5 @@ button:disabled {
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border);
+  z-index: 0; /* see .species-mini-map-container comment */
 }

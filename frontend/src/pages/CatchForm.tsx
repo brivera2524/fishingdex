@@ -17,9 +17,12 @@ import LocationPicker, { type LatLng } from "../components/LocationPicker";
 
 type LocationMode = "current" | "manual" | "photo";
 
-function toLocalDatetimeInputValue(date: Date) {
+function splitLocalDateTime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
 }
 
 async function readPhotoExif(file: File) {
@@ -72,11 +75,15 @@ export default function CatchForm() {
   const [coords, setCoords] = useState<LatLng | null>(null);
   // Manual entry only: the camera-identify flow (detectState present) always
   // uses current location + now since both are guaranteed accurate there.
-  const [locationMode, setLocationMode] = useState<LocationMode>("current");
+  // Default is "manual" (no pin) until a photo's EXIF GPS resolves it to
+  // "photo" — see the effect below.
+  const [locationMode, setLocationMode] = useState<LocationMode>("manual");
   const [manualCoords, setManualCoords] = useState<LatLng | null>(null);
   const [photoCoords, setPhotoCoords] = useState<LatLng | null>(null);
   const [photoExifStatus, setPhotoExifStatus] = useState<"idle" | "loading" | "found" | "not-found">("idle");
-  const [caughtAt, setCaughtAt] = useState(() => toLocalDatetimeInputValue(new Date()));
+  const initialDateTime = splitLocalDateTime(new Date());
+  const [caughtDate, setCaughtDate] = useState(initialDateTime.date);
+  const [caughtTime, setCaughtTime] = useState(initialDateTime.time);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -92,21 +99,37 @@ export default function CatchForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, locationMode]);
 
+  // Location defaults to whatever the attached photo's EXIF GPS says, since
+  // that's usually more accurate for a backfilled catch than "current
+  // location" (which reflects the phone right now, not where the fish was
+  // caught). Falls back to manual placement if the photo has no GPS tag.
   useEffect(() => {
-    if (isEdit || detectState || locationMode !== "photo") return;
+    if (isEdit || detectState) return;
     if (!photoFile) {
       setPhotoCoords(null);
       setPhotoExifStatus("idle");
+      setLocationMode((prev) => (prev === "photo" ? "manual" : prev));
       return;
     }
     setPhotoExifStatus("loading");
     readPhotoExif(photoFile).then((result) => {
-      setPhotoCoords(result?.coords ?? null);
-      setPhotoExifStatus(result?.coords ? "found" : "not-found");
-      if (result?.caughtAt) setCaughtAt(toLocalDatetimeInputValue(result.caughtAt));
+      if (result.coords) {
+        setPhotoCoords(result.coords);
+        setPhotoExifStatus("found");
+        setLocationMode("photo");
+      } else {
+        setPhotoCoords(null);
+        setPhotoExifStatus("not-found");
+        setLocationMode("manual");
+      }
+      if (result.caughtAt) {
+        const split = splitLocalDateTime(result.caughtAt);
+        setCaughtDate(split.date);
+        setCaughtTime(split.time);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoFile, locationMode]);
+  }, [photoFile, isEdit]);
 
   useEffect(() => {
     listSpecies()
@@ -183,7 +206,7 @@ export default function CatchForm() {
             : locationMode === "manual"
               ? manualCoords
               : photoCoords;
-        const effectiveCaughtAt = detectState ? new Date() : new Date(caughtAt);
+        const effectiveCaughtAt = detectState ? new Date() : new Date(`${caughtDate}T${caughtTime}`);
 
         const created = await createCatch({
           species_id: speciesId,
@@ -297,13 +320,12 @@ export default function CatchForm() {
         {!isEdit && !detectState && (
           <>
             <label>
-              Date &amp; time caught
-              <input
-                type="datetime-local"
-                value={caughtAt}
-                onChange={(e) => setCaughtAt(e.target.value)}
-                required
-              />
+              Date caught
+              <input type="date" value={caughtDate} onChange={(e) => setCaughtDate(e.target.value)} required />
+            </label>
+            <label>
+              Time caught
+              <input type="time" value={caughtTime} onChange={(e) => setCaughtTime(e.target.value)} required />
             </label>
             <div>
               <p className="section-label" style={{ margin: "0 0 8px" }}>
@@ -339,24 +361,23 @@ export default function CatchForm() {
                   {coords ? "📍 Location attached" : "Detecting location..."}
                 </p>
               )}
-              {locationMode === "manual" && <LocationPicker value={manualCoords} onChange={setManualCoords} />}
-              {locationMode === "photo" && (
-                <>
-                  {photoExifStatus === "loading" && (
-                    <p className="card-meta" style={{ marginTop: 8 }}>
-                      Reading photo location...
-                    </p>
-                  )}
-                  {photoExifStatus === "not-found" && (
-                    <p className="error" style={{ marginTop: 8 }}>
-                      No location found in this photo's metadata. Try current location or manual pin.
-                    </p>
-                  )}
-                  {photoExifStatus === "found" && (
-                    <LocationPicker value={photoCoords} onChange={setPhotoCoords} />
-                  )}
-                </>
+              {locationMode === "photo" && photoExifStatus === "loading" && (
+                <p className="card-meta" style={{ marginTop: 8 }}>
+                  Reading photo location...
+                </p>
               )}
+              {locationMode === "photo" && photoExifStatus === "not-found" && (
+                <p className="error" style={{ marginTop: 8 }}>
+                  No location found in this photo's metadata. Try current location or drop a pin below.
+                </p>
+              )}
+              <LocationPicker
+                value={locationMode === "current" ? coords : locationMode === "manual" ? manualCoords : photoCoords}
+                onChange={(next) => {
+                  setLocationMode("manual");
+                  setManualCoords(next);
+                }}
+              />
             </div>
           </>
         )}
