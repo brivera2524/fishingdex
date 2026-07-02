@@ -31,7 +31,7 @@ const NEARBY_RADIUS_KM = 3;
 // Below this zoom, individual pins/clusters pile up densely enough to
 // cover most of the heatmap underneath, so they're hidden until you're
 // zoomed in past it — heat for the overview, pins for the close-up detail.
-const PIN_VISIBLE_ZOOM = 13;
+const PIN_VISIBLE_ZOOM = 15;
 
 function ZoomTracker({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
   const map = useMapEvents({
@@ -207,7 +207,7 @@ export default function MapPage() {
           <MarkerClusterGroup
             ref={clusterGroupRef}
             showCoverageOnHover={false}
-            maxClusterRadius={40}
+            maxClusterRadius={20}
             iconCreateFunction={createClusterIcon}
           >
             {catches.map((c) => (

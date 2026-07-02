@@ -40,7 +40,7 @@ export default function SpeciesLocationsMap({ catches }: SpeciesLocationsMapProp
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitToMarkers points={points} />
-        <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
+        <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={20} iconCreateFunction={createClusterIcon}>
           {catches.map((c) => (
             <Marker key={c.id} position={[c.latitude, c.longitude]} icon={catchMarkerIcon}>
               <Popup>
