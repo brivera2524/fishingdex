@@ -398,9 +398,9 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                 </button>
               </div>
 
-              {locationMode === "current" && (
+              {locationMode === "current" && !coords && (
                 <p className="card-meta" style={{ marginTop: 8 }}>
-                  {coords ? "📍 Location attached" : "Detecting location..."}
+                  Detecting location...
                 </p>
               )}
               {locationMode === "photo" && photoExifStatus === "loading" && (
