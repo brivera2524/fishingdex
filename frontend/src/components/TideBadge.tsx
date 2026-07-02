@@ -29,8 +29,20 @@ function parseNoaaTime(t: string): Date {
   return new Date(t.replace(" ", "T"));
 }
 
+// NOAA's `range` parameter is hours from `begin_date` — without an explicit
+// begin_date it defaults to the start of today, so `range=24` only reliably
+// covers "today", not "the next 24 hours". Late in the day that window can
+// end before the next actual high/low, so fetchNextHiLo found nothing and
+// the badge silently never appeared. Passing an explicit begin_date anchored
+// to right now fixes that regardless of what time it is.
+function formatNoaaDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 async function fetchNextHiLo(): Promise<{ type: "H" | "L"; time: Date } | null> {
-  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=hilo&range=24`;
+  const beginDate = formatNoaaDateTime(new Date());
+  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=hilo&begin_date=${encodeURIComponent(beginDate)}&range=48`;
   const res = await fetch(url);
   const data: { predictions?: HiLoPrediction[] } = await res.json();
   const now = Date.now();
@@ -41,7 +53,8 @@ async function fetchNextHiLo(): Promise<{ type: "H" | "L"; time: Date } | null> 
 }
 
 async function fetchCurrentHeightFt(): Promise<number | null> {
-  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=6&range=2`;
+  const beginDate = formatNoaaDateTime(new Date(Date.now() - 60 * 60 * 1000));
+  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=6&begin_date=${encodeURIComponent(beginDate)}&range=2`;
   const res = await fetch(url);
   const data: { predictions?: PlainPrediction[] } = await res.json();
   const predictions = data.predictions ?? [];
