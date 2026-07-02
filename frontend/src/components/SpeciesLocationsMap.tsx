@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { SAN_DIEGO } from "../leafletSetup";
 import { API_BASE } from "../api/client";
 import type { MapCatch } from "../api/types";
@@ -37,26 +40,28 @@ export default function SpeciesLocationsMap({ catches }: SpeciesLocationsMapProp
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitToMarkers points={points} />
-        {catches.map((c) => (
-          <Marker key={c.id} position={[c.latitude, c.longitude]}>
-            <Popup>
-              {c.display_name}
-              {c.weight != null && ` — ${c.weight} lb`}
-              <br />
-              {new Date(c.caught_at).toLocaleDateString()}
-              {c.photo_url && (
-                <>
-                  <br />
-                  <img
-                    src={`${API_BASE}${c.photo_url}`}
-                    alt={c.species.common_name}
-                    style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
-                  />
-                </>
-              )}
-            </Popup>
-          </Marker>
-        ))}
+        <MarkerClusterGroup showCoverageOnHover={false}>
+          {catches.map((c) => (
+            <Marker key={c.id} position={[c.latitude, c.longitude]}>
+              <Popup>
+                {c.display_name}
+                {c.weight != null && ` — ${c.weight} lb`}
+                <br />
+                {new Date(c.caught_at).toLocaleDateString()}
+                {c.photo_url && (
+                  <>
+                    <br />
+                    <img
+                      src={`${API_BASE}${c.photo_url}`}
+                      alt={c.species.common_name}
+                      style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
+                    />
+                  </>
+                )}
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
     </div>
   );

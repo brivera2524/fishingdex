@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { SAN_DIEGO } from "../leafletSetup";
 import { getMapCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
@@ -61,34 +64,36 @@ export default function MapPage() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {focus && <FlyToFocus latitude={focus.latitude} longitude={focus.longitude} />}
-        {catches.map((c) => (
-          <Marker
-            key={c.id}
-            position={[c.latitude, c.longitude]}
-            ref={(instance) => {
-              markerRefs.current[c.id] = instance;
-            }}
-          >
-            <Popup>
-              <strong>{c.species.common_name}</strong>
-              <br />
-              {c.display_name}
-              {c.weight != null && ` — ${c.weight} lb`}
-              <br />
-              {new Date(c.caught_at).toLocaleDateString()}
-              {c.photo_url && (
-                <>
-                  <br />
-                  <img
-                    src={`${API_BASE}${c.photo_url}`}
-                    alt={c.species.common_name}
-                    style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
-                  />
-                </>
-              )}
-            </Popup>
-          </Marker>
-        ))}
+        <MarkerClusterGroup showCoverageOnHover={false}>
+          {catches.map((c) => (
+            <Marker
+              key={c.id}
+              position={[c.latitude, c.longitude]}
+              ref={(instance) => {
+                markerRefs.current[c.id] = instance;
+              }}
+            >
+              <Popup>
+                <strong>{c.species.common_name}</strong>
+                <br />
+                {c.display_name}
+                {c.weight != null && ` — ${c.weight} lb`}
+                <br />
+                {new Date(c.caught_at).toLocaleDateString()}
+                {c.photo_url && (
+                  <>
+                    <br />
+                    <img
+                      src={`${API_BASE}${c.photo_url}`}
+                      alt={c.species.common_name}
+                      style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
+                    />
+                  </>
+                )}
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
     </div>
   );
