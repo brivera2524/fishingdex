@@ -614,6 +614,60 @@ button:disabled {
   flex: 1;
 }
 
+.location-preview {
+  position: relative;
+  cursor: pointer;
+}
+
+.location-preview .location-picker-map {
+  cursor: pointer;
+}
+
+.location-preview-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 41, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.location-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0a0f14;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+
+.location-picker-modal-stage {
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+}
+
+.location-picker-modal-stage .location-picker {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.location-picker-modal-stage .location-picker-map {
+  flex: 1;
+  aspect-ratio: unset;
+}
+
+.location-picker-modal-actions {
+  padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+}
+
 /* Bottom sheet */
 .sheet-backdrop {
   position: fixed;

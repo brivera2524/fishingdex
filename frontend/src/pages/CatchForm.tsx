@@ -13,6 +13,7 @@ import { API_BASE, ApiError } from "../api/client";
 import type { Species } from "../api/types";
 import DiscoveryReveal from "../components/DiscoveryReveal";
 import LocationPicker, { type LatLng } from "../components/LocationPicker";
+import LocationPickerModal from "../components/LocationPickerModal";
 import PhotoCropModal from "../components/PhotoCropModal";
 
 type LocationMode = "current" | "manual" | "photo";
@@ -94,6 +95,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
   const [pendingCrop, setPendingCrop] = useState<{ objectUrl: string; exifPromise: Promise<PhotoExif> } | null>(
     null
   );
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
 
   useEffect(() => {
     if (isEdit || !navigator.geolocation) return;
@@ -277,6 +279,12 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       ? `${API_BASE}${existingPhotoUrl}`
       : null;
 
+  const activeCoords = locationMode === "current" ? coords : locationMode === "manual" ? manualCoords : photoCoords;
+  function setManualPin(next: LatLng) {
+    setLocationMode("manual");
+    setManualCoords(next);
+  }
+
   if (discovery) {
     return (
       <DiscoveryReveal
@@ -405,13 +413,18 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                   No location found in this photo's metadata. Try current location or drop a pin below.
                 </p>
               )}
-              <LocationPicker
-                value={locationMode === "current" ? coords : locationMode === "manual" ? manualCoords : photoCoords}
-                onChange={(next) => {
-                  setLocationMode("manual");
-                  setManualCoords(next);
+              <div
+                className="location-preview"
+                role="button"
+                tabIndex={0}
+                onClick={() => setLocationModalOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") setLocationModalOpen(true);
                 }}
-              />
+              >
+                <LocationPicker value={activeCoords} onChange={setManualPin} interactive={false} />
+                <span className="location-preview-hint">Tap to adjust</span>
+              </div>
             </div>
           </>
         )}
@@ -422,6 +435,13 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       </form>
       {pendingCrop && (
         <PhotoCropModal imageSrc={pendingCrop.objectUrl} onCancel={handleCropCancel} onConfirm={handleCropConfirm} />
+      )}
+      {locationModalOpen && (
+        <LocationPickerModal
+          value={activeCoords}
+          onChange={setManualPin}
+          onDone={() => setLocationModalOpen(false)}
+        />
       )}
     </>
   );

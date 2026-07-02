@@ -11,6 +11,8 @@ export interface LatLng {
 interface LocationPickerProps {
   value: LatLng | null;
   onChange: (coords: LatLng) => void;
+  /** False renders a flat, non-interactive preview (no pan/zoom/tap-to-set) — used for the collapsed preview that opens into the full picker. */
+  interactive?: boolean;
 }
 
 function ClickHandler({ onChange }: { onChange: (coords: LatLng) => void }) {
@@ -35,32 +37,49 @@ function RecenterOnChange({ value }: { value: LatLng | null }) {
   return null;
 }
 
-export default function LocationPicker({ value, onChange }: LocationPickerProps) {
+export default function LocationPicker({ value, onChange, interactive = true }: LocationPickerProps) {
   return (
     <div className="location-picker">
-      <MapContainer center={SAN_DIEGO} zoom={10} className="location-picker-map">
+      <MapContainer
+        center={SAN_DIEGO}
+        zoom={10}
+        className="location-picker-map"
+        dragging={interactive}
+        touchZoom={interactive}
+        scrollWheelZoom={interactive}
+        doubleClickZoom={interactive}
+        boxZoom={interactive}
+        keyboard={interactive}
+        zoomControl={interactive}
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <ClickHandler onChange={onChange} />
+        {interactive && <ClickHandler onChange={onChange} />}
         <RecenterOnChange value={value} />
         {value && (
           <Marker
             position={[value.lat, value.lng]}
-            draggable
-            eventHandlers={{
-              dragend: (e) => {
-                const pos = e.target.getLatLng();
-                onChange({ lat: pos.lat, lng: pos.lng });
-              },
-            }}
+            draggable={interactive}
+            eventHandlers={
+              interactive
+                ? {
+                    dragend: (e) => {
+                      const pos = e.target.getLatLng();
+                      onChange({ lat: pos.lat, lng: pos.lng });
+                    },
+                  }
+                : undefined
+            }
           />
         )}
       </MapContainer>
-      <p className="card-meta">
-        Tap the map to set the catch location{value ? " — drag the pin to adjust" : ""}.
-      </p>
+      {interactive && (
+        <p className="card-meta">
+          Tap the map to set the catch location{value ? " — drag the pin to adjust" : ""}.
+        </p>
+      )}
     </div>
   );
 }
