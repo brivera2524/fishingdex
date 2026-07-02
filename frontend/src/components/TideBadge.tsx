@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import TideDetailSheet from "./TideDetailSheet";
 
 // NOAA CO-OPS station 9410170 — San Diego, CA. Public API, no key required,
 // and it allows cross-origin requests, so this is called directly from the
@@ -89,6 +90,7 @@ function clamp01(n: number) {
 
 export default function TideBadge() {
   const [state, setState] = useState<TideState | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,29 +140,32 @@ export default function TideBadge() {
   const dashOffset = RING_CIRCUMFERENCE * (1 - state.percent);
 
   return (
-    <div className="tide-badge">
-      <div className="tide-ring-wrap">
-        <svg viewBox="0 0 44 44" className="tide-ring">
-          <circle className="tide-ring-track" cx="22" cy="22" r={RING_RADIUS} />
-          <circle
-            className="tide-ring-progress"
-            cx="22"
-            cy="22"
-            r={RING_RADIUS}
-            strokeDasharray={RING_CIRCUMFERENCE}
-            strokeDashoffset={dashOffset}
-            transform="rotate(-90 22 22)"
-          />
-        </svg>
-        <span className="tide-ring-arrow">{arrow}</span>
-      </div>
-      <div className="tide-badge-text">
-        <span className="tide-badge-label">Tide</span>
-        <span className="tide-badge-height">{state.heightFt.toFixed(1)}ft</span>
-        <span className="tide-badge-next">
-          {eventLabel} {timeLabel}
-        </span>
-      </div>
-    </div>
+    <>
+      <button type="button" className="tide-badge" onClick={() => setDetailOpen(true)}>
+        <div className="tide-ring-wrap">
+          <svg viewBox="0 0 44 44" className="tide-ring">
+            <circle className="tide-ring-track" cx="22" cy="22" r={RING_RADIUS} />
+            <circle
+              className="tide-ring-progress"
+              cx="22"
+              cy="22"
+              r={RING_RADIUS}
+              strokeDasharray={RING_CIRCUMFERENCE}
+              strokeDashoffset={dashOffset}
+              transform="rotate(-90 22 22)"
+            />
+          </svg>
+          <span className="tide-ring-arrow">{arrow}</span>
+        </div>
+        <div className="tide-badge-text">
+          <span className="tide-badge-label">Tide</span>
+          <span className="tide-badge-height">{state.heightFt.toFixed(1)}ft</span>
+          <span className="tide-badge-next">
+            {eventLabel} {timeLabel}
+          </span>
+        </div>
+      </button>
+      <TideDetailSheet open={detailOpen} onClose={() => setDetailOpen(false)} />
+    </>
   );
 }

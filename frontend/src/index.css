@@ -1190,6 +1190,8 @@ button:disabled {
   padding: 6px 14px 6px 6px;
   border-radius: 999px;
   box-shadow: var(--shadow-md);
+  min-height: auto;
+  text-align: left;
 }
 
 .tide-ring-wrap {
@@ -1254,6 +1256,38 @@ button:disabled {
   font-weight: 600;
   color: var(--ink-soft);
   text-transform: capitalize;
+}
+
+.tide-chart {
+  width: 100%;
+  height: auto;
+  margin: 14px 0;
+}
+
+.tide-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tide-chart-now {
+  stroke: var(--ink-soft);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.tide-chart-dot {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.tide-chart-dot-label {
+  font-size: 8px;
+  font-weight: 700;
+  fill: var(--ink-soft);
 }
 
 .map-layer-toggles {
