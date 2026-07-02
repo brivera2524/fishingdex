@@ -323,7 +323,19 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
         </label>
         <label>
           Photo
-          <input type="file" accept="image/*" onChange={handlePhotoChange} />
+          <div className="photo-upload-field">
+            <div className="photo-upload-button">
+              <span className="photo-upload-icon">📷</span>
+              {previewUrl ? "Change photo" : "Add a photo"}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoChange}
+              className="photo-upload-input"
+              aria-label="Photo"
+            />
+          </div>
         </label>
         {previewUrl && (
           <div className="photo-preview">
