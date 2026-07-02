@@ -4,6 +4,7 @@ import {
   createCatch,
   deleteCatchPhoto,
   getCatch,
+  identifyPhoto,
   listMyCatches,
   listSpecies,
   updateCatch,
@@ -99,6 +100,8 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     null
   );
   const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [identifying, setIdentifying] = useState(false);
+  const [autoDetected, setAutoDetected] = useState(false);
 
   useEffect(() => {
     if (isEdit || !navigator.geolocation) return;
@@ -132,9 +135,11 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     listSpecies()
       .then((list) => {
         setSpecies(list);
-        if (!isEdit) {
-          const preselect = detectState?.speciesId ?? list[0]?.id;
-          if (preselect != null) setSpeciesId(preselect);
+        // Only the camera-identify flow comes with a confirmed species —
+        // manual entry starts blank (no more defaulting to whatever's first
+        // alphabetically) until the user picks one or auto-detect resolves.
+        if (!isEdit && detectState?.speciesId != null) {
+          setSpeciesId(detectState.speciesId);
         }
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load species"));
@@ -199,6 +204,23 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       // read resolves.
       if (!userPickedLocationMode) setLocationMode("photo");
       setPhotoExifStatus("loading");
+
+      // Fire the species auto-detect alongside the EXIF read (not awaited
+      // here) so both run concurrently instead of one after the other.
+      setIdentifying(true);
+      setAutoDetected(false);
+      identifyPhoto(croppedFile)
+        .then((result) => {
+          if (result.species) {
+            setSpeciesId(result.species.id);
+            setAutoDetected(true);
+          }
+        })
+        .catch(() => {
+          /* Best-effort — the user can still pick a species manually. */
+        })
+        .finally(() => setIdentifying(false));
+
       const exifResult = await pendingCrop.exifPromise;
       setPhotoCoords(exifResult.coords);
       setPhotoExifStatus(exifResult.coords ? "found" : "not-found");
@@ -320,15 +342,25 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           Species
           <select
             value={speciesId}
-            onChange={(e) => setSpeciesId(Number(e.target.value))}
+            onChange={(e) => {
+              setSpeciesId(Number(e.target.value));
+              setAutoDetected(false);
+            }}
             required
           >
+            <option value="" disabled>
+              Select a species
+            </option>
             {species.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.common_name}
               </option>
             ))}
           </select>
+          {identifying && <p className="card-meta">🔍 Identifying species from photo...</p>}
+          {autoDetected && !identifying && (
+            <p className="card-meta">✨ Auto-detected from your photo — double check it's correct.</p>
+          )}
         </label>
         <div className="form-row">
           <label>
@@ -338,7 +370,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                 type="number"
                 inputMode="decimal"
                 step="0.1"
-                placeholder="0"
+                placeholder="Not recorded"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
               />
@@ -352,7 +384,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                 type="number"
                 inputMode="decimal"
                 step="0.1"
-                placeholder="0"
+                placeholder="Not recorded"
                 value={length}
                 onChange={(e) => setLength(e.target.value)}
               />
