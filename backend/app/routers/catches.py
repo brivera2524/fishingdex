@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import Catch, Species, User
 from app.schemas import CatchCreate, CatchOut, CatchUpdate, MapCatch, RecentCatch
+from app.tide import TideUnavailable, get_tide_at
 
 router = APIRouter(prefix="/catches", tags=["catches"])
 
@@ -51,6 +52,10 @@ def create_catch(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Species not found")
 
     catch = Catch(user_id=current_user.id, **payload.model_dump())
+    try:
+        catch.tide_height_ft, catch.tide_direction = get_tide_at(catch.caught_at)
+    except TideUnavailable:
+        pass  # best-effort — the catch still saves without tide data
     db.add(catch)
     db.commit()
     db.refresh(catch)
@@ -154,6 +159,12 @@ def update_catch(
 
     for field, value in updates.items():
         setattr(catch, field, value)
+
+    if "caught_at" in updates:
+        try:
+            catch.tide_height_ft, catch.tide_direction = get_tide_at(catch.caught_at)
+        except TideUnavailable:
+            pass
 
     db.commit()
     db.refresh(catch)

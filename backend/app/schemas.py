@@ -90,6 +90,8 @@ class CatchOut(BaseModel):
     notes: str | None = None
     created_at: datetime
     species: SpeciesOut
+    tide_height_ft: float | None = None
+    tide_direction: str | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)

@@ -62,6 +62,12 @@ class Catch(Base):
     photo_url: Mapped[str | None] = mapped_column(String(500))
     notes: Mapped[str | None] = mapped_column(Text)
 
+    # Computed server-side from NOAA's San Diego tide predictions at
+    # caught_at, not user-supplied. Nullable since older catches are
+    # backfilled separately and a NOAA hiccup shouldn't block saving a catch.
+    tide_height_ft: Mapped[float | None] = mapped_column(Float)
+    tide_direction: Mapped[str | None] = mapped_column(String(10))
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="catches")

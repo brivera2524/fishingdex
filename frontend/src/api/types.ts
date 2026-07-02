@@ -25,6 +25,9 @@ export interface Catch {
   notes: string | null;
   created_at: string;
   species: Species;
+  /** Computed server-side from NOAA predictions at caught_at — not user-supplied. */
+  tide_height_ft: number | null;
+  tide_direction: "rising" | "falling" | null;
 }
 
 export interface CatchInput {
