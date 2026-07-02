@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Dex from "./Dex";
 import MyCatches from "./MyCatches";
 
@@ -7,8 +7,16 @@ type Tab = "dex" | "catches";
 
 export default function CatchesHub() {
   const location = useLocation();
+  const navigate = useNavigate();
   const initialTab = (location.state as { tab?: Tab } | null)?.tab ?? "dex";
   const [tab, setTab] = useState<Tab>(initialTab);
+
+  function goLogCatch() {
+    // So that coming back without saving (e.g. hitting back) lands on My
+    // Catches rather than wherever the tab happened to be before.
+    setTab("catches");
+    navigate("/log");
+  }
 
   return (
     <div className="page">
@@ -28,11 +36,9 @@ export default function CatchesHub() {
         </button>
       </div>
       {tab === "dex" ? <Dex embedded /> : <MyCatches embedded />}
-      {tab === "catches" && (
-        <Link to="/log" className="fab-floating" aria-label="Log a catch">
-          +
-        </Link>
-      )}
+      <button type="button" className="fab-floating" aria-label="Log a catch" onClick={goLogCatch}>
+        +
+      </button>
     </div>
   );
 }
