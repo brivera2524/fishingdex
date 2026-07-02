@@ -222,7 +222,13 @@ main {
 }
 
 .mode-pill-toggle {
-  display: inline-flex;
+  display: flex;
+  max-width: 100%;
+  /* Scrolls internally instead of blowing out the whole sheet width when
+     there isn't room for every pill on one line (e.g. the 3-option location
+     toggle on narrow phones) — this is the intended contained overflow, not
+     the sheet's own overflow-x becoming scrollable. */
+  overflow-x: auto;
   background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -240,6 +246,7 @@ main {
   border-radius: 999px;
   min-height: auto;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .mode-pill-toggle button.active {
@@ -319,8 +326,20 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background: var(--surface);
   color: var(--ink);
+}
+
+.form input[type="date"],
+.form input[type="time"] {
+  /* Mobile Safari's date/time widgets have a wide internal layout that
+     doesn't always respect a narrower assigned width — trimming the padding
+     claws back a bit of room so they're less likely to render past the
+     field's box on small phones. */
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .form textarea {
@@ -603,6 +622,13 @@ button:disabled {
 .sheet-content {
   flex: 1;
   overflow-y: auto;
+  /* Explicit, not left to default: setting overflow-y alone makes the
+     browser compute overflow-x as "auto" too (per spec, since it can't stay
+     "visible" once the other axis isn't). Without this, any child wider
+     than the sheet — e.g. a pill-toggle row — turned the whole sheet into a
+     horizontally-scrollable, easy-to-get-stuck-in surface instead of just
+     clipping the overflow like the rest of the app already does. */
+  overflow-x: hidden;
   /* "none" (not just "contain") also suppresses the native rubber-band
      bounce-back at the top of the list — otherwise pulling down from the
      top flashes empty space before our own drag-to-dismiss handoff kicks

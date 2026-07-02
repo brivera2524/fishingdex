@@ -374,7 +374,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                   disabled={!photoFile}
                   onClick={() => setLocationMode("photo")}
                 >
-                  🖼️ From photo
+                  🖼️ Photo
                 </button>
               </div>
 
