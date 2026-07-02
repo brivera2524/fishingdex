@@ -974,3 +974,15 @@ button:disabled {
   overflow: hidden;
   border: 1px solid var(--border);
 }
+
+.location-picker {
+  margin-top: 4px;
+}
+
+.location-picker-map {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { parse as parseExif } from "exifr";
 import {
   createCatch,
   deleteCatchPhoto,
@@ -12,6 +13,28 @@ import {
 import { API_BASE, ApiError } from "../api/client";
 import type { Species } from "../api/types";
 import DiscoveryReveal from "../components/DiscoveryReveal";
+import LocationPicker, { type LatLng } from "../components/LocationPicker";
+
+type LocationMode = "current" | "manual" | "photo";
+
+function toLocalDatetimeInputValue(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+async function readPhotoExif(file: File) {
+  try {
+    const output = await parseExif(file, { gps: true, pick: ["DateTimeOriginal"] });
+    if (!output) return null;
+    const { latitude, longitude, DateTimeOriginal } = output;
+    return {
+      coords: typeof latitude === "number" && typeof longitude === "number" ? { lat: latitude, lng: longitude } : null,
+      caughtAt: DateTimeOriginal instanceof Date ? DateTimeOriginal : null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 interface DetectState {
   speciesId: number | null;
@@ -39,11 +62,19 @@ export default function CatchForm() {
   const [loadingCatch, setLoadingCatch] = useState(isEdit);
   const [priorSpeciesIds, setPriorSpeciesIds] = useState<Set<number> | null>(null);
   const [discovery, setDiscovery] = useState<{ species: Species; photoUrl: string | null } | null>(null);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [coords, setCoords] = useState<LatLng | null>(null);
+  // Manual entry only: the camera-identify flow (detectState present) always
+  // uses current location + now since both are guaranteed accurate there.
+  const [locationMode, setLocationMode] = useState<LocationMode>("current");
+  const [manualCoords, setManualCoords] = useState<LatLng | null>(null);
+  const [photoCoords, setPhotoCoords] = useState<LatLng | null>(null);
+  const [photoExifStatus, setPhotoExifStatus] = useState<"idle" | "loading" | "found" | "not-found">("idle");
+  const [caughtAt, setCaughtAt] = useState(() => toLocalDatetimeInputValue(new Date()));
   const navigate = useNavigate();
 
   useEffect(() => {
     if (isEdit || !navigator.geolocation) return;
+    if (!detectState && locationMode !== "current") return;
     navigator.geolocation.getCurrentPosition(
       (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => {
@@ -51,7 +82,24 @@ export default function CatchForm() {
       },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
-  }, [isEdit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, locationMode]);
+
+  useEffect(() => {
+    if (isEdit || detectState || locationMode !== "photo") return;
+    if (!photoFile) {
+      setPhotoCoords(null);
+      setPhotoExifStatus("idle");
+      return;
+    }
+    setPhotoExifStatus("loading");
+    readPhotoExif(photoFile).then((result) => {
+      setPhotoCoords(result?.coords ?? null);
+      setPhotoExifStatus(result?.coords ? "found" : "not-found");
+      if (result?.caughtAt) setCaughtAt(toLocalDatetimeInputValue(result.caughtAt));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoFile, locationMode]);
 
   useEffect(() => {
     listSpecies()
@@ -121,14 +169,23 @@ export default function CatchForm() {
           notes: notes || null,
         });
       } else {
+        const effectiveCoords = detectState
+          ? coords
+          : locationMode === "current"
+            ? coords
+            : locationMode === "manual"
+              ? manualCoords
+              : photoCoords;
+        const effectiveCaughtAt = detectState ? new Date() : new Date(caughtAt);
+
         const created = await createCatch({
           species_id: speciesId,
           weight: weight ? Number(weight) : null,
           length: length ? Number(length) : null,
-          caught_at: new Date().toISOString(),
+          caught_at: effectiveCaughtAt.toISOString(),
           notes: notes || null,
-          latitude: coords?.lat ?? null,
-          longitude: coords?.lng ?? null,
+          latitude: effectiveCoords?.lat ?? null,
+          longitude: effectiveCoords?.lng ?? null,
         });
         catchId = created.id;
       }
@@ -230,7 +287,72 @@ export default function CatchForm() {
             )}
           </div>
         )}
-        {!isEdit && coords && <p className="card-meta">📍 Location attached</p>}
+        {!isEdit && !detectState && (
+          <>
+            <label>
+              Date &amp; time caught
+              <input
+                type="datetime-local"
+                value={caughtAt}
+                onChange={(e) => setCaughtAt(e.target.value)}
+                required
+              />
+            </label>
+            <div>
+              <p className="section-label" style={{ margin: "0 0 8px" }}>
+                Location
+              </p>
+              <div className="mode-pill-toggle">
+                <button
+                  type="button"
+                  className={locationMode === "current" ? "active" : ""}
+                  onClick={() => setLocationMode("current")}
+                >
+                  📍 Current
+                </button>
+                <button
+                  type="button"
+                  className={locationMode === "manual" ? "active" : ""}
+                  onClick={() => setLocationMode("manual")}
+                >
+                  🗺️ Manual
+                </button>
+                <button
+                  type="button"
+                  className={locationMode === "photo" ? "active" : ""}
+                  disabled={!photoFile}
+                  onClick={() => setLocationMode("photo")}
+                >
+                  🖼️ From photo
+                </button>
+              </div>
+
+              {locationMode === "current" && (
+                <p className="card-meta" style={{ marginTop: 8 }}>
+                  {coords ? "📍 Location attached" : "Detecting location..."}
+                </p>
+              )}
+              {locationMode === "manual" && <LocationPicker value={manualCoords} onChange={setManualCoords} />}
+              {locationMode === "photo" && (
+                <>
+                  {photoExifStatus === "loading" && (
+                    <p className="card-meta" style={{ marginTop: 8 }}>
+                      Reading photo location...
+                    </p>
+                  )}
+                  {photoExifStatus === "not-found" && (
+                    <p className="error" style={{ marginTop: 8 }}>
+                      No location found in this photo's metadata. Try current location or manual pin.
+                    </p>
+                  )}
+                  {photoExifStatus === "found" && (
+                    <LocationPicker value={photoCoords} onChange={setPhotoCoords} />
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={loading || species.length === 0}>
           {loading ? "Saving..." : isEdit ? "Save changes" : "Save catch"}
