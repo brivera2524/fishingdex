@@ -155,6 +155,7 @@ export default function TideBadge() {
         <span className="tide-ring-arrow">{arrow}</span>
       </div>
       <div className="tide-badge-text">
+        <span className="tide-badge-label">Tide</span>
         <span className="tide-badge-height">{state.heightFt.toFixed(1)}ft</span>
         <span className="tide-badge-next">
           {eventLabel} {timeLabel}
