@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,12 +9,61 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { catchMarkerIcon, createClusterIcon, SAN_DIEGO } from "../leafletSetup";
 import { getMapCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
-import type { MapCatch } from "../api/types";
+import type { MapCatch, Species } from "../api/types";
+import type { LatLng } from "../components/LocationPicker";
+import { haversineDistanceKm } from "../geo";
+import HeatmapLayer from "../components/HeatmapLayer";
+import BottomSheet from "../components/BottomSheet";
 
 interface FocusState {
   focusCatchId: number;
   latitude: number;
   longitude: number;
+}
+
+type ViewMode = "pins" | "heat";
+
+interface NearbySpeciesResult {
+  species: Species;
+  count: number;
+  lastCaughtAt: string;
+}
+
+const NEARBY_RADIUS_KM = 3;
+
+function nearbySpeciesFrom(catches: MapCatch[], center: LatLng, radiusKm: number): NearbySpeciesResult[] {
+  const bySpecies = new Map<number, NearbySpeciesResult>();
+  for (const c of catches) {
+    if (haversineDistanceKm(center, { lat: c.latitude, lng: c.longitude }) > radiusKm) continue;
+    const existing = bySpecies.get(c.species.id);
+    if (existing) {
+      existing.count += 1;
+      if (new Date(c.caught_at) > new Date(existing.lastCaughtAt)) existing.lastCaughtAt = c.caught_at;
+    } else {
+      bySpecies.set(c.species.id, { species: c.species, count: 1, lastCaughtAt: c.caught_at });
+    }
+  }
+  return [...bySpecies.values()].sort((a, b) => b.count - a.count);
+}
+
+function NearMeOverlay({ center }: { center: LatLng }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo([center.lat, center.lng], 13);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center.lat, center.lng]);
+  return (
+    <>
+      <Circle
+        center={[center.lat, center.lng]}
+        radius={NEARBY_RADIUS_KM * 1000}
+        pathOptions={{ color: "#2dd4bf", fillColor: "#2dd4bf", fillOpacity: 0.08, weight: 1.5 }}
+      />
+      {/* Deliberately the classic default pin (not catchMarkerIcon) so "you
+          are here" reads as visually distinct from every actual catch dot. */}
+      <Marker position={[center.lat, center.lng]} />
+    </>
+  );
 }
 
 export default function MapPage() {
@@ -23,8 +72,14 @@ export default function MapPage() {
   const [catches, setCatches] = useState<MapCatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("pins");
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+
+  const [nearMeCenter, setNearMeCenter] = useState<LatLng | null>(null);
+  const [nearMeResults, setNearMeResults] = useState<NearbySpeciesResult[] | null>(null);
+  const [nearMeLoading, setNearMeLoading] = useState(false);
+  const [nearMeError, setNearMeError] = useState<string | null>(null);
 
   useEffect(() => {
     getMapCatches()
@@ -66,14 +121,52 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, loading, catches]);
 
+  function handleFindNearby() {
+    if (!navigator.geolocation) {
+      setNearMeError("Location isn't available on this device.");
+      return;
+    }
+    setNearMeLoading(true);
+    setNearMeError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const center = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setNearMeCenter(center);
+        setNearMeResults(nearbySpeciesFrom(catches, center, NEARBY_RADIUS_KM));
+        setNearMeLoading(false);
+      },
+      () => {
+        setNearMeError("Couldn't get your location.");
+        setNearMeLoading(false);
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
+  }
+
+  function closeNearMe() {
+    setNearMeCenter(null);
+    setNearMeResults(null);
+    setNearMeError(null);
+  }
+
   const center: [number, number] = focus
     ? [focus.latitude, focus.longitude]
     : catches.length > 0
       ? [catches[0].latitude, catches[0].longitude]
       : SAN_DIEGO;
 
+  const heatPoints: [number, number][] = catches.map((c) => [c.latitude, c.longitude]);
+
   return (
     <div className="map-page">
+      <div className="map-view-toggle mode-pill-toggle">
+        <button type="button" className={viewMode === "pins" ? "active" : ""} onClick={() => setViewMode("pins")}>
+          📍 Pins
+        </button>
+        <button type="button" className={viewMode === "heat" ? "active" : ""} onClick={() => setViewMode("heat")}>
+          🔥 Heat
+        </button>
+      </div>
       <div className="map-badge">
         {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
       </div>
@@ -82,6 +175,7 @@ export default function MapPage() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {viewMode === "heat" && <HeatmapLayer points={heatPoints} />}
         <MarkerClusterGroup
           ref={clusterGroupRef}
           showCoverageOnHover={false}
@@ -118,7 +212,42 @@ export default function MapPage() {
             </Marker>
           ))}
         </MarkerClusterGroup>
+        {nearMeCenter && <NearMeOverlay center={nearMeCenter} />}
       </MapContainer>
+      <button
+        type="button"
+        className="fab-floating"
+        aria-label="What's biting near me"
+        onClick={handleFindNearby}
+        disabled={nearMeLoading || loading}
+      >
+        {nearMeLoading ? "…" : "📍"}
+      </button>
+
+      <BottomSheet open={nearMeResults != null || nearMeError != null} onClose={closeNearMe}>
+        <div>
+          <h1>Near you</h1>
+          {nearMeError && <p className="error">{nearMeError}</p>}
+          {nearMeResults && nearMeResults.length === 0 && (
+            <p className="card-meta">No catches recorded within {NEARBY_RADIUS_KM} km of here yet.</p>
+          )}
+          {nearMeResults && nearMeResults.length > 0 && (
+            <ul className="catch-list">
+              {nearMeResults.map((r) => (
+                <li key={r.species.id} className="card">
+                  <div className="page-header">
+                    <span className="card-title">{r.species.common_name}</span>
+                    <span className="card-stat">
+                      {r.count} catch{r.count === 1 ? "" : "es"}
+                    </span>
+                  </div>
+                  <span className="card-meta">Last caught {new Date(r.lastCaughtAt).toLocaleDateString()}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </BottomSheet>
     </div>
   );
 }
