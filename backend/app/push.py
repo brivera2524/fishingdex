@@ -5,6 +5,7 @@ from pywebpush import WebPushException, webpush
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.database import SessionLocal
 from app.models import PushSubscription, User
 
 logger = logging.getLogger(__name__)
@@ -62,3 +63,18 @@ def notify_catch_event(
         subs = db.query(PushSubscription).filter(PushSubscription.user_id == user.id).all()
         for sub in subs:
             _send_one(db, sub, payload)
+
+
+def notify_catch_event_task(catcher_id: int, tier: str, title: str, body: str, url: str = "/leaderboard") -> None:
+    """FastAPI BackgroundTasks entry point — runs after the catch-save
+    response has already been sent, so however long it takes to reach every
+    recipient's push service (one HTTPS round trip each) never blocks the
+    client waiting on the save. Opens its own DB session rather than reusing
+    the request's, since that one is torn down once the response is sent."""
+    db = SessionLocal()
+    try:
+        notify_catch_event(db, catcher_id, tier, title, body, url)
+    except Exception:
+        logger.exception("Background push notification task failed for catcher %s", catcher_id)
+    finally:
+        db.close()

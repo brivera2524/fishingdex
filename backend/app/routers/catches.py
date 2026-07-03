@@ -2,7 +2,7 @@ import logging
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user
@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app.geo import find_spot_for_point
 from app.models import Catch, Species, User
-from app.push import notify_catch_event
+from app.push import notify_catch_event_task
 from app.records import check_leaderboard_record, check_personal_best
 from app.schemas import CatchCreate, CatchOut, CatchUpdate, MapCatch, RecentCatch
 from app.tide import TideUnavailable, get_tide_at
@@ -20,12 +20,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/catches", tags=["catches"])
 
 
-def _check_records_and_notify(db: Session, catch: Catch) -> CatchOut:
-    """Classifies the just-saved catch (record > pb > plain catch), pushes a
-    notification to every other user whose notification_mode covers that
-    tier, and returns a CatchOut carrying is_personal_best/is_leaderboard_record
-    so the catcher's own client can play a celebration animation — they never
-    get their own push, since recipients exclude the catcher."""
+def _check_records_and_notify(db: Session, catch: Catch, background_tasks: BackgroundTasks) -> CatchOut:
+    """Classifies the just-saved catch (record > pb > plain catch), returns a
+    CatchOut carrying is_personal_best/is_leaderboard_record so the catcher's
+    own client can play a celebration animation (they never get their own
+    push, since recipients exclude the catcher), and schedules the actual
+    push send as a background task.
+
+    The record/PB checks themselves are just a couple of fast SELECTs, so
+    they run inline. Sending, however, is a real HTTPS round trip per
+    subscribed recipient — doing that synchronously here would make the
+    client's save request wait on however long every recipient's push
+    service takes to respond, which on a slow mobile connection can make a
+    catch save look like it hung (or silently drop if the tab gets
+    backgrounded mid-request). Scheduling it as a background task lets the
+    response return immediately regardless."""
     is_pb = is_record = False
     try:
         pb = check_personal_best(db, catch)
@@ -33,23 +42,23 @@ def _check_records_and_notify(db: Session, catch: Catch) -> CatchOut:
         is_pb, is_record = pb.is_new, record.is_new
         if record.is_new:
             beat = "their own record" if record.previous_holder_name is None else f"{record.previous_holder_name}'s record"
-            notify_catch_event(
-                db, catch.user_id, "record", "🏆 New leaderboard record!",
+            background_tasks.add_task(
+                notify_catch_event_task, catch.user_id, "record", "🏆 New leaderboard record!",
                 f"{catch.user.display_name} just set the {catch.species.common_name} record "
                 f"({catch.weight} lb), beating {beat}!",
             )
         elif pb.is_new:
-            notify_catch_event(
-                db, catch.user_id, "pb", "🎣 New personal best!",
+            background_tasks.add_task(
+                notify_catch_event_task, catch.user_id, "pb", "🎣 New personal best!",
                 f"{catch.user.display_name} landed a personal best {catch.species.common_name}: {catch.weight} lb!",
             )
         else:
-            notify_catch_event(
-                db, catch.user_id, "catch", "New catch logged",
+            background_tasks.add_task(
+                notify_catch_event_task, catch.user_id, "catch", "New catch logged",
                 f"{catch.user.display_name} logged a {catch.species.common_name}",
             )
     except Exception:
-        logger.exception("Push notification failed for catch %s", catch.id)
+        logger.exception("Record check failed for catch %s", catch.id)
 
     return CatchOut.model_validate(catch).model_copy(
         update={"is_personal_best": is_pb, "is_leaderboard_record": is_record}
@@ -86,6 +95,7 @@ def _delete_photo_file(photo_url: str | None) -> None:
 @router.post("", response_model=CatchOut, status_code=status.HTTP_201_CREATED)
 def create_catch(
     payload: CatchCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -103,7 +113,7 @@ def create_catch(
     db.add(catch)
     db.commit()
     db.refresh(catch)
-    return _check_records_and_notify(db, catch)
+    return _check_records_and_notify(db, catch, background_tasks)
 
 
 @router.get("/me", response_model=list[CatchOut])
@@ -194,6 +204,7 @@ def get_catch(
 def update_catch(
     catch_id: int,
     payload: CatchUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -225,7 +236,7 @@ def update_catch(
     db.refresh(catch)
 
     if "weight" in updates or "species_id" in updates:
-        return _check_records_and_notify(db, catch)
+        return _check_records_and_notify(db, catch, background_tasks)
     return catch
 
 
