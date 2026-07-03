@@ -36,11 +36,13 @@ def _check_records_and_notify(db: Session, catch: Catch, background_tasks: Backg
     backgrounded mid-request). Scheduling it as a background task lets the
     response return immediately regardless."""
     is_pb = is_record = False
+    previous_best_weight: float | None = None
     try:
         pb = check_personal_best(db, catch)
         record = check_leaderboard_record(db, catch)
         is_pb, is_record = pb.is_new, record.is_new
         if record.is_new:
+            previous_best_weight = record.previous_weight
             beat = "their own record" if record.previous_holder_name is None else f"{record.previous_holder_name}'s record"
             background_tasks.add_task(
                 notify_catch_event_task, catch.user_id, "record", "🏆 New leaderboard record!",
@@ -48,6 +50,7 @@ def _check_records_and_notify(db: Session, catch: Catch, background_tasks: Backg
                 f"({catch.weight} lb), beating {beat}!",
             )
         elif pb.is_new:
+            previous_best_weight = pb.previous_weight
             background_tasks.add_task(
                 notify_catch_event_task, catch.user_id, "pb", "🎣 New personal best!",
                 f"{catch.user.display_name} landed a personal best {catch.species.common_name}: {catch.weight} lb!",
@@ -61,7 +64,11 @@ def _check_records_and_notify(db: Session, catch: Catch, background_tasks: Backg
         logger.exception("Record check failed for catch %s", catch.id)
 
     return CatchOut.model_validate(catch).model_copy(
-        update={"is_personal_best": is_pb, "is_leaderboard_record": is_record}
+        update={
+            "is_personal_best": is_pb,
+            "is_leaderboard_record": is_record,
+            "previous_best_weight": previous_best_weight,
+        }
     )
 
 ALLOWED_PHOTO_TYPES = {

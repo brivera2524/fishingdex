@@ -53,6 +53,8 @@ export interface Catch {
   /** Response-only, only meaningful right after a create/update save — used to trigger a celebration animation. */
   is_personal_best: boolean;
   is_leaderboard_record: boolean;
+  /** The weight this catch just beat, whenever is_personal_best or is_leaderboard_record is true. */
+  previous_best_weight: number | null;
 }
 
 export type NotificationMode = "all" | "pb_and_record" | "record_only" | "off";

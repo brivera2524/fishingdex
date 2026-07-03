@@ -12,6 +12,7 @@ import {
 } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { Species } from "../api/types";
+import type { CelebrationDetails } from "../components/CatchCelebration";
 import DiscoveryReveal from "../components/DiscoveryReveal";
 import LocationPicker, { type LatLng } from "../components/LocationPicker";
 import LocationPickerModal from "../components/LocationPickerModal";
@@ -65,7 +66,7 @@ interface CatchFormProps {
    * Carries which celebration animation (if any) the caller should play —
    * omitted entirely when a new-species DiscoveryReveal was shown instead,
    * to keep the two celebratory moments from stacking on top of each other. */
-  onDone: (celebration?: "catch" | "pb" | "record") => void;
+  onDone: (celebration?: CelebrationDetails) => void;
 }
 
 export default function CatchForm({ catchId, detectState = null, onDone }: CatchFormProps) {
@@ -249,7 +250,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       // re-saving notes on an old catch shouldn't replay "you caught a
       // fish!". A brand-new catch always celebrates, at least at the basic
       // tier, since logging any catch is the moment worth marking.
-      let celebrationTier: "catch" | "pb" | "record" | undefined;
+      let celebration: CelebrationDetails | undefined;
       const isNewSpecies =
         !isEdit &&
         !detectState?.alreadyRevealed &&
@@ -264,7 +265,15 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           length: length ? Number(length) : null,
           notes: notes || null,
         });
-        celebrationTier = updated.is_leaderboard_record ? "record" : updated.is_personal_best ? "pb" : undefined;
+        const tier = updated.is_leaderboard_record ? "record" : updated.is_personal_best ? "pb" : null;
+        if (tier) {
+          celebration = {
+            tier,
+            speciesName: updated.species.common_name,
+            weight: updated.weight,
+            previousWeight: updated.previous_best_weight,
+          };
+        }
       } else {
         const effectiveCoords = detectState
           ? coords
@@ -285,7 +294,12 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           longitude: effectiveCoords?.lng ?? null,
         });
         savedCatchId = created.id;
-        celebrationTier = created.is_leaderboard_record ? "record" : created.is_personal_best ? "pb" : "catch";
+        celebration = {
+          tier: created.is_leaderboard_record ? "record" : created.is_personal_best ? "pb" : "catch",
+          speciesName: created.species.common_name,
+          weight: created.weight,
+          previousWeight: created.previous_best_weight,
+        };
       }
 
       let savedPhotoUrl: string | null = existingPhotoUrl;
@@ -305,7 +319,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
         }
       }
 
-      onDone(celebrationTier);
+      onDone(celebration);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save catch");
     } finally {

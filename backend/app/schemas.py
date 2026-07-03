@@ -139,6 +139,10 @@ class CatchOut(BaseModel):
     # persisted on the Catch model.
     is_personal_best: bool = False
     is_leaderboard_record: bool = False
+    # The weight this catch just beat, whenever is_personal_best or
+    # is_leaderboard_record is true — lets the client show "beat previous by
+    # X lb" instead of a bare congratulations.
+    previous_best_weight: float | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)

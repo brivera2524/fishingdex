@@ -1227,28 +1227,48 @@ button:disabled {
 
 .celebration-badge {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 320px;
   background: var(--surface);
   color: var(--ink);
-  font-weight: 800;
-  font-size: 20px;
-  padding: 16px 28px;
-  border-radius: 999px;
+  padding: 16px 26px;
+  border-radius: 20px;
   box-shadow: var(--shadow-md);
   text-align: center;
 }
 
+.celebration-badge-title {
+  font-weight: 800;
+  font-size: 19px;
+}
+
+.celebration-badge-subtitle {
+  font-weight: 600;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
 .celebration-badge-pb {
-  font-size: 22px;
   background: linear-gradient(135deg, #60a5fa, #818cf8);
   color: #0b1330;
   box-shadow: 0 8px 24px rgba(96, 165, 250, 0.45);
 }
 
+.celebration-badge-pb .celebration-badge-title {
+  font-size: 21px;
+}
+
 .celebration-badge-record {
-  font-size: 26px;
   background: linear-gradient(135deg, #facc15, #fb923c);
   color: #1a1200;
   box-shadow: 0 8px 30px rgba(250, 204, 21, 0.5);
+}
+
+.celebration-badge-record .celebration-badge-title {
+  font-size: 23px;
 }
 
 .celebration-glow {

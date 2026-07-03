@@ -4,8 +4,16 @@ import { motion } from "framer-motion";
 
 export type CelebrationTier = "catch" | "pb" | "record";
 
-interface CatchCelebrationProps {
+export interface CelebrationDetails {
   tier: CelebrationTier;
+  speciesName: string;
+  weight: number | null;
+  /** The weight this catch just beat — present for "pb"/"record" tiers. */
+  previousWeight: number | null;
+}
+
+interface CatchCelebrationProps {
+  details: CelebrationDetails;
   onDone: () => void;
 }
 
@@ -21,7 +29,6 @@ interface TierConfig {
   colors: string[];
   particleCount: number;
   particleDuration: number;
-  badgeText: string;
   badgeClass: string;
   overlayClass: string;
   flash: boolean;
@@ -39,7 +46,6 @@ const TIERS: Record<CelebrationTier, TierConfig> = {
     colors: ["#5eead4", "#2dd4bf", "#0f9d8f"],
     particleCount: 10,
     particleDuration: 0.6,
-    badgeText: "🎣 Nice catch!",
     badgeClass: "",
     overlayClass: "",
     flash: false,
@@ -51,24 +57,22 @@ const TIERS: Record<CelebrationTier, TierConfig> = {
     colors: ["#60a5fa", "#38bdf8", "#818cf8"],
     particleCount: 26,
     particleDuration: 0.9,
-    badgeText: "🎣 New Personal Best!",
     badgeClass: "celebration-badge-pb",
     overlayClass: "",
     flash: false,
     glow: false,
-    durationMs: 2000,
+    durationMs: 2200,
     vibration: [40, 60, 40],
   },
   record: {
     colors: ["#facc15", "#fb923c", "#f87171", "#c084fc", "#60a5fa"],
     particleCount: 56,
     particleDuration: 1.3,
-    badgeText: "🏆 LEGENDARY CATCH!",
     badgeClass: "celebration-badge-record",
     overlayClass: "celebration-overlay-record",
     flash: true,
     glow: true,
-    durationMs: 3500,
+    durationMs: 3800,
     vibration: [60, 40, 60, 40, 140],
   },
 };
@@ -83,11 +87,43 @@ function buildParticles(count: number, colors: string[]): Particle[] {
   }));
 }
 
+function formatLb(n: number): string {
+  return `${n.toFixed(1)} lb`;
+}
+
+// Builds the badge's headline + detail line from the actual catch data,
+// rather than a generic "LEGENDARY CATCH!" — a specific "beat previous by
+// X lb" reads as a real accomplishment instead of just a canned label.
+function buildBadgeText(details: CelebrationDetails): { title: string; subtitle: string | null } {
+  const { tier, speciesName, weight, previousWeight } = details;
+
+  if (tier === "record") {
+    const title = `🏆 New ${speciesName} Record!`;
+    if (weight != null && previousWeight != null) {
+      const margin = weight - previousWeight;
+      return { title, subtitle: `${formatLb(weight)} — beat previous by ${formatLb(margin)}` };
+    }
+    return { title, subtitle: weight != null ? formatLb(weight) : null };
+  }
+
+  if (tier === "pb") {
+    const title = "🎣 New Personal Best!";
+    if (weight != null && previousWeight != null) {
+      const margin = weight - previousWeight;
+      return { title, subtitle: `${speciesName} · ${formatLb(weight)} (+${formatLb(margin)})` };
+    }
+    return { title, subtitle: weight != null ? `${speciesName} · ${formatLb(weight)}` : speciesName };
+  }
+
+  return { title: "🎣 Nice catch!", subtitle: weight != null ? `${speciesName} · ${formatLb(weight)}` : speciesName };
+}
+
 // Portalled to the body for the same reason as DiscoveryReveal — a
 // BottomSheet's motion.div always carries an inline transform, which would
 // otherwise confine this full-screen overlay to the sheet's own box.
-export default function CatchCelebration({ tier, onDone }: CatchCelebrationProps) {
-  const config = TIERS[tier];
+export default function CatchCelebration({ details, onDone }: CatchCelebrationProps) {
+  const config = TIERS[details.tier];
+  const { title, subtitle } = buildBadgeText(details);
   const particles = useMemo(() => buildParticles(config.particleCount, config.colors), [config]);
 
   useEffect(() => {
@@ -95,7 +131,7 @@ export default function CatchCelebration({ tier, onDone }: CatchCelebrationProps
     const timeout = setTimeout(onDone, config.durationMs);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tier]);
+  }, [details.tier]);
 
   return createPortal(
     <div className={`celebration-overlay ${config.overlayClass}`} onClick={onDone}>
@@ -139,7 +175,8 @@ export default function CatchCelebration({ tier, onDone }: CatchCelebrationProps
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", damping: 12, stiffness: 220, delay: 0.1 }}
       >
-        {config.badgeText}
+        <span className="celebration-badge-title">{title}</span>
+        {subtitle && <span className="celebration-badge-subtitle">{subtitle}</span>}
       </motion.div>
     </div>,
     document.body
