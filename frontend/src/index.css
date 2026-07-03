@@ -1318,7 +1318,7 @@ button:disabled {
 
 .map-layer-toggles {
   position: absolute;
-  bottom: 12px;
+  bottom: 104px;
   left: 12px;
   z-index: 5;
   display: flex;
@@ -1342,6 +1342,119 @@ button:disabled {
 .map-layer-toggle.active {
   background: var(--accent);
   color: var(--accent-ink);
+}
+
+.map-time-panel {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 5;
+  background: var(--surface);
+  padding: 10px 14px 4px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.map-time-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.map-time-panel-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.map-time-presets {
+  display: flex;
+  gap: 4px;
+}
+
+.map-time-preset {
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  min-height: auto;
+  border: 1px solid var(--border);
+}
+
+.map-time-preset:active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.time-slider {
+  position: relative;
+  height: 28px;
+}
+
+.time-slider-track {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.time-slider-track-fill {
+  position: absolute;
+  top: 12px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.time-slider input[type="range"] {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  height: 20px;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.time-slider input[type="range"]::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.time-slider input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.time-slider input[type="range"]::-webkit-slider-runnable-track,
+.time-slider input[type="range"]::-moz-range-track {
+  background: transparent;
 }
 
 .comment-thread {

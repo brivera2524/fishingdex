@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
@@ -13,11 +13,33 @@ import type { MapCatch } from "../api/types";
 import type { LatLng } from "../components/LocationPicker";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
+import TimeRangeSlider from "../components/TimeRangeSlider";
 
 interface FocusState {
   focusCatchId: number;
   latitude: number;
   longitude: number;
+}
+
+const DAY_MS = 86_400_000;
+const DEFAULT_WINDOW_DAYS = 30;
+
+// Slider domain runs 0..maxDaysSpan where 0 = the oldest catch on record and
+// maxDaysSpan = right now — so the left thumb reads as the "start" of the
+// window and the right thumb as its "end", matching a left-to-right timeline.
+function daysAgoToValue(daysAgo: number, maxDaysSpan: number) {
+  return maxDaysSpan - daysAgo;
+}
+
+function valueToDaysAgo(value: number, maxDaysSpan: number) {
+  return maxDaysSpan - value;
+}
+
+function formatRangeLabel(startDaysAgo: number, endDaysAgo: number) {
+  const now = Date.now();
+  const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const from = fmt(new Date(now - startDaysAgo * DAY_MS));
+  return endDaysAgo < 0.5 ? `${from} – Today` : `${from} – ${fmt(new Date(now - endDaysAgo * DAY_MS))}`;
 }
 
 export default function MapPage() {
@@ -29,12 +51,24 @@ export default function MapPage() {
   const [pinsEnabled, setPinsEnabled] = useState(true);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
+  const [maxDaysSpan, setMaxDaysSpan] = useState(DEFAULT_WINDOW_DAYS);
+  const [range, setRange] = useState({ low: 0, high: DEFAULT_WINDOW_DAYS });
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
   useEffect(() => {
     getMapCatches()
-      .then(setCatches)
+      .then((data) => {
+        setCatches(data);
+        const now = Date.now();
+        const oldestAgeDays = data.reduce((max, c) => {
+          const ageDays = (now - new Date(c.caught_at).getTime()) / DAY_MS;
+          return ageDays > max ? ageDays : max;
+        }, DEFAULT_WINDOW_DAYS);
+        const span = Math.ceil(oldestAgeDays) + 1;
+        setMaxDaysSpan(span);
+        setRange({ low: Math.max(0, daysAgoToValue(DEFAULT_WINDOW_DAYS, span)), high: span });
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load map"))
       .finally(() => setLoading(false));
   }, []);
@@ -83,13 +117,31 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, loading, catches]);
 
+  const startDaysAgo = valueToDaysAgo(range.low, maxDaysSpan);
+  const endDaysAgo = valueToDaysAgo(range.high, maxDaysSpan);
+
+  const visibleCatches = useMemo(() => {
+    const now = Date.now();
+    let list = catches.filter((c) => {
+      const ageDays = (now - new Date(c.caught_at).getTime()) / DAY_MS;
+      return ageDays <= startDaysAgo + 0.001 && ageDays >= endDaysAgo - 0.001;
+    });
+    // "View on map" should always be able to find its target pin, even if it
+    // falls outside the currently selected time window.
+    if (focus && !list.some((c) => c.id === focus.focusCatchId)) {
+      const target = catches.find((c) => c.id === focus.focusCatchId);
+      if (target) list = [...list, target];
+    }
+    return list;
+  }, [catches, startDaysAgo, endDaysAgo, focus]);
+
   const center: [number, number] = focus
     ? [focus.latitude, focus.longitude]
-    : catches.length > 0
-      ? [catches[0].latitude, catches[0].longitude]
+    : visibleCatches.length > 0
+      ? [visibleCatches[0].latitude, visibleCatches[0].longitude]
       : SAN_DIEGO;
 
-  const heatPoints: [number, number][] = catches.map((c) => [c.latitude, c.longitude]);
+  const heatPoints: [number, number][] = visibleCatches.map((c) => [c.latitude, c.longitude]);
   // Always show pins once the map has zoomed in for a specific catch (via
   // "View on map"), regardless of the toggle — that flow's whole point is
   // to see that one pin.
@@ -115,7 +167,42 @@ export default function MapPage() {
       </div>
       <TideBadge />
       <div className="map-badge">
-        {loading ? "Loading..." : error ? error : `${catches.length} catch${catches.length === 1 ? "" : "es"} on the map`}
+        {loading
+          ? "Loading..."
+          : error
+            ? error
+            : `${visibleCatches.length} catch${visibleCatches.length === 1 ? "" : "es"} on the map`}
+      </div>
+      <div className="map-time-panel">
+        <div className="map-time-panel-header">
+          <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
+          <div className="map-time-presets">
+            {[
+              { label: "1W", days: 7 },
+              { label: "1M", days: 30 },
+              { label: "3M", days: 90 },
+              { label: "All", days: maxDaysSpan },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="map-time-preset"
+                onClick={() =>
+                  setRange({ low: Math.max(0, daysAgoToValue(preset.days, maxDaysSpan)), high: maxDaysSpan })
+                }
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <TimeRangeSlider
+          min={0}
+          max={maxDaysSpan}
+          low={range.low}
+          high={range.high}
+          onChange={(low, high) => setRange({ low, high })}
+        />
       </div>
       <MapContainer
         center={center}
@@ -133,7 +220,7 @@ export default function MapPage() {
             maxClusterRadius={20}
             iconCreateFunction={createClusterIcon}
           >
-            {catches.map((c) => (
+            {visibleCatches.map((c) => (
               <Marker
                 key={c.id}
                 position={[c.latitude, c.longitude]}
