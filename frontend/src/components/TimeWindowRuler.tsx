@@ -16,6 +16,11 @@ const PPD = 8; // pixels per day
 const PADDING_DAYS = 5;
 const MIN_GAP_DAYS = 1;
 const DAY_MS = 86_400_000;
+// While dragging, getting within this many px of either edge of the visible
+// ruler starts auto-scrolling it (faster the closer to the edge), so the
+// user can pan to reveal older/newer catches without releasing and re-grabbing.
+const EDGE_ZONE_PX = 42;
+const MAX_AUTO_SCROLL_PX_PER_FRAME = 14;
 
 // Vertical layout of the ruler, top to bottom — kept as named constants so
 // the tick labels (top) and bookmark date labels (bottom) never fight for
@@ -37,6 +42,10 @@ function clamp(v: number, min: number, max: number) {
   return Math.min(Math.max(v, min), max);
 }
 
+function clamp01(v: number) {
+  return Math.min(Math.max(v, 0), 1);
+}
+
 type DragEdge = "start" | "end" | "both";
 
 export default function TimeWindowRuler({
@@ -48,6 +57,8 @@ export default function TimeWindowRuler({
 }: TimeWindowRulerProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ edge: DragEdge; startX: number; startStart: number; startEnd: number } | null>(null);
+  const lastClientXRef = useRef(0);
+  const autoScrollFrameRef = useRef<number | null>(null);
   const [draggingEdge, setDraggingEdge] = useState<DragEdge | null>(null);
 
   const totalWidth = (maxDaysSpan + PADDING_DAYS * 2) * PPD;
@@ -79,19 +90,23 @@ export default function TimeWindowRuler({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToken, maxDaysSpan]);
 
-  function beginDrag(edge: DragEdge) {
-    return (e: React.PointerEvent<HTMLElement>) => {
-      e.stopPropagation();
-      e.currentTarget.setPointerCapture(e.pointerId);
-      dragRef.current = { edge, startX: e.clientX, startStart: startDaysAgo, startEnd: endDaysAgo };
-      setDraggingEdge(edge);
+  // Stop any in-flight auto-scroll loop if the ruler unmounts mid-drag.
+  useEffect(() => {
+    return () => {
+      if (autoScrollFrameRef.current != null) cancelAnimationFrame(autoScrollFrameRef.current);
     };
+  }, []);
+
+  // Content-space x (independent of scroll position) so the drag math stays
+  // correct even while the container is auto-scrolling underneath the finger.
+  function toContentX(clientX: number) {
+    return clientX + (scrollRef.current?.scrollLeft ?? 0);
   }
 
-  function handlePointerMove(e: React.PointerEvent) {
+  function applyDrag(clientX: number) {
     const drag = dragRef.current;
     if (!drag) return;
-    const deltaDays = (e.clientX - drag.startX) / PPD;
+    const deltaDays = (toContentX(clientX) - drag.startX) / PPD;
     if (drag.edge === "both") {
       const span = drag.startStart - drag.startEnd;
       const newEnd = clamp(drag.startEnd - deltaDays, 0, maxDaysSpan - span);
@@ -103,8 +118,57 @@ export default function TimeWindowRuler({
     }
   }
 
+  function startAutoScrollLoop() {
+    if (autoScrollFrameRef.current != null) return;
+    const tick = () => {
+      if (!dragRef.current) {
+        autoScrollFrameRef.current = null;
+        return;
+      }
+      const el = scrollRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const clientX = lastClientXRef.current;
+        let speed = 0;
+        if (clientX < rect.left + EDGE_ZONE_PX) {
+          speed = -MAX_AUTO_SCROLL_PX_PER_FRAME * clamp01((rect.left + EDGE_ZONE_PX - clientX) / EDGE_ZONE_PX);
+        } else if (clientX > rect.right - EDGE_ZONE_PX) {
+          speed = MAX_AUTO_SCROLL_PX_PER_FRAME * clamp01((clientX - (rect.right - EDGE_ZONE_PX)) / EDGE_ZONE_PX);
+        }
+        if (speed !== 0) {
+          const maxScroll = el.scrollWidth - el.clientWidth;
+          el.scrollLeft = clamp(el.scrollLeft + speed, 0, maxScroll);
+          applyDrag(clientX);
+        }
+      }
+      autoScrollFrameRef.current = requestAnimationFrame(tick);
+    };
+    autoScrollFrameRef.current = requestAnimationFrame(tick);
+  }
+
+  function beginDrag(edge: DragEdge) {
+    return (e: React.PointerEvent<HTMLElement>) => {
+      e.stopPropagation();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      lastClientXRef.current = e.clientX;
+      dragRef.current = { edge, startX: toContentX(e.clientX), startStart: startDaysAgo, startEnd: endDaysAgo };
+      setDraggingEdge(edge);
+      startAutoScrollLoop();
+    };
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!dragRef.current) return;
+    lastClientXRef.current = e.clientX;
+    applyDrag(e.clientX);
+  }
+
   function endDrag() {
     dragRef.current = null;
+    if (autoScrollFrameRef.current != null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
     setDraggingEdge(null);
   }
 
