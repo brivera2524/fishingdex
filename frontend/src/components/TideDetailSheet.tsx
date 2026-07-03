@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import BottomSheet from "./BottomSheet";
+import { cachedFetch } from "../lib/ttlCache";
 
 const STATION_ID = "9410170";
 const NOAA_BASE = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter";
+
+// The curve/events barely shift minute to minute, so a longer TTL here is
+// fine — this data is only fetched at all when the sheet is opened, unlike
+// TideBadge's fetches which run continuously in the background.
+const DETAIL_TTL_MS = 15 * 60 * 1000;
 
 interface HiLoPrediction {
   t: string;
@@ -38,22 +44,26 @@ function formatNoaaDateTime(d: Date): string {
 // Hourly points over a ~2 day window centered a bit before now — enough to
 // draw a smooth curve and show "now" comfortably inside it rather than
 // right at the edge.
-async function fetchCurve(): Promise<CurvePoint[]> {
-  const beginDate = formatNoaaDateTime(new Date(Date.now() - 6 * 60 * 60 * 1000));
-  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=h&begin_date=${encodeURIComponent(beginDate)}&range=42`;
-  const res = await fetch(url);
-  const data: { predictions?: PlainPrediction[] } = await res.json();
-  return (data.predictions ?? []).map((p) => ({ time: parseNoaaTime(p.t), heightFt: Number.parseFloat(p.v) }));
+function fetchCurve(): Promise<CurvePoint[]> {
+  return cachedFetch("tide:detail-curve", DETAIL_TTL_MS, async () => {
+    const beginDate = formatNoaaDateTime(new Date(Date.now() - 6 * 60 * 60 * 1000));
+    const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=h&begin_date=${encodeURIComponent(beginDate)}&range=42`;
+    const res = await fetch(url);
+    const data: { predictions?: PlainPrediction[] } = await res.json();
+    return (data.predictions ?? []).map((p) => ({ time: parseNoaaTime(p.t), heightFt: Number.parseFloat(p.v) }));
+  });
 }
 
-async function fetchEvents(): Promise<HiLoEvent[]> {
-  const beginDate = formatNoaaDateTime(new Date(Date.now() - 6 * 60 * 60 * 1000));
-  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=hilo&begin_date=${encodeURIComponent(beginDate)}&range=42`;
-  const res = await fetch(url);
-  const data: { predictions?: HiLoPrediction[] } = await res.json();
-  return (data.predictions ?? [])
-    .map((p) => ({ time: parseNoaaTime(p.t), type: p.type, heightFt: Number.parseFloat(p.v) }))
-    .sort((a, b) => a.time.getTime() - b.time.getTime());
+function fetchEvents(): Promise<HiLoEvent[]> {
+  return cachedFetch("tide:detail-events", DETAIL_TTL_MS, async () => {
+    const beginDate = formatNoaaDateTime(new Date(Date.now() - 6 * 60 * 60 * 1000));
+    const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=hilo&begin_date=${encodeURIComponent(beginDate)}&range=42`;
+    const res = await fetch(url);
+    const data: { predictions?: HiLoPrediction[] } = await res.json();
+    return (data.predictions ?? [])
+      .map((p) => ({ time: parseNoaaTime(p.t), type: p.type, heightFt: Number.parseFloat(p.v) }))
+      .sort((a, b) => a.time.getTime() - b.time.getTime());
+  });
 }
 
 function dayLabel(d: Date): string {

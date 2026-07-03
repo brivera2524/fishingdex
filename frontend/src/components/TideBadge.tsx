@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import TideDetailSheet from "./TideDetailSheet";
+import { cachedFetch } from "../lib/ttlCache";
 
 // NOAA CO-OPS station 9410170 — San Diego, CA. Public API, no key required,
 // and it allows cross-origin requests, so this is called directly from the
@@ -9,6 +10,12 @@ const NOAA_BASE = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter";
 
 const RING_RADIUS = 18;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+// The hi/lo window barely changes minute to minute (the next event's time is
+// static for hours), so it can sit longer than the fine-grained current
+// height reading, which is the one thing meant to feel "live".
+const HILO_TTL_MS = 15 * 60 * 1000;
+const CURRENT_HEIGHT_TTL_MS = 5 * 60 * 1000;
 
 interface HiLoPrediction {
   t: string;
@@ -54,34 +61,38 @@ function formatNoaaDateTime(d: Date): string {
 // A 24-hour window centered 12 hours back from now comfortably contains both
 // the most recent high/low and the next one, since they're roughly 6-7 hours
 // apart.
-async function fetchHiLoWindow(): Promise<HiLoEvent[]> {
-  const beginDate = formatNoaaDateTime(new Date(Date.now() - 12 * 60 * 60 * 1000));
-  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=hilo&begin_date=${encodeURIComponent(beginDate)}&range=24`;
-  const res = await fetch(url);
-  const data: { predictions?: HiLoPrediction[] } = await res.json();
-  return (data.predictions ?? [])
-    .map((p) => ({ time: parseNoaaTime(p.t), type: p.type, heightFt: Number.parseFloat(p.v) }))
-    .sort((a, b) => a.time.getTime() - b.time.getTime());
+function fetchHiLoWindow(): Promise<HiLoEvent[]> {
+  return cachedFetch("tide:hilo-window", HILO_TTL_MS, async () => {
+    const beginDate = formatNoaaDateTime(new Date(Date.now() - 12 * 60 * 60 * 1000));
+    const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=hilo&begin_date=${encodeURIComponent(beginDate)}&range=24`;
+    const res = await fetch(url);
+    const data: { predictions?: HiLoPrediction[] } = await res.json();
+    return (data.predictions ?? [])
+      .map((p) => ({ time: parseNoaaTime(p.t), type: p.type, heightFt: Number.parseFloat(p.v) }))
+      .sort((a, b) => a.time.getTime() - b.time.getTime());
+  });
 }
 
-async function fetchCurrentHeightFt(): Promise<number | null> {
-  const beginDate = formatNoaaDateTime(new Date(Date.now() - 60 * 60 * 1000));
-  const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=6&begin_date=${encodeURIComponent(beginDate)}&range=2`;
-  const res = await fetch(url);
-  const data: { predictions?: PlainPrediction[] } = await res.json();
-  const predictions = data.predictions ?? [];
-  if (predictions.length === 0) return null;
-  const now = Date.now();
-  let closest = predictions[0];
-  let closestDiff = Infinity;
-  for (const p of predictions) {
-    const diff = Math.abs(parseNoaaTime(p.t).getTime() - now);
-    if (diff < closestDiff) {
-      closestDiff = diff;
-      closest = p;
+function fetchCurrentHeightFt(): Promise<number | null> {
+  return cachedFetch("tide:current-height", CURRENT_HEIGHT_TTL_MS, async () => {
+    const beginDate = formatNoaaDateTime(new Date(Date.now() - 60 * 60 * 1000));
+    const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=6&begin_date=${encodeURIComponent(beginDate)}&range=2`;
+    const res = await fetch(url);
+    const data: { predictions?: PlainPrediction[] } = await res.json();
+    const predictions = data.predictions ?? [];
+    if (predictions.length === 0) return null;
+    const now = Date.now();
+    let closest = predictions[0];
+    let closestDiff = Infinity;
+    for (const p of predictions) {
+      const diff = Math.abs(parseNoaaTime(p.t).getTime() - now);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closest = p;
+      }
     }
-  }
-  return Number.parseFloat(closest.v);
+    return Number.parseFloat(closest.v);
+  });
 }
 
 function clamp01(n: number) {

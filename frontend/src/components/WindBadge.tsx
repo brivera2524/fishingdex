@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Marker } from "react-leaflet";
 import L from "leaflet";
 import type { Spot } from "../api/types";
+import { cachedFetch } from "../lib/ttlCache";
 
 export interface WindState {
   speedMph: number;
@@ -10,21 +11,30 @@ export interface WindState {
   directionDeg: number;
 }
 
+// Wind moves faster than tide but Open-Meteo's underlying model doesn't
+// update every second either — a short TTL keeps the badge and its detail
+// sheet (and repeated re-renders/re-mounts in between) from all re-hitting
+// the network for the same spot within a few minutes of each other.
+const WIND_TTL_MS = 5 * 60 * 1000;
+
 // Open-Meteo: free, no API key, permissive CORS — same direct-from-browser
 // pattern already used for NOAA tide data in TideBadge/TideDetailSheet.
-export async function fetchWind(lat: number, lng: number): Promise<WindState | null> {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=mph`;
-  const res = await fetch(url);
-  const data: {
-    current?: { wind_speed_10m?: number; wind_direction_10m?: number; wind_gusts_10m?: number };
-  } = await res.json();
-  const current = data.current;
-  if (!current || current.wind_speed_10m == null || current.wind_direction_10m == null) return null;
-  return {
-    speedMph: current.wind_speed_10m,
-    gustMph: current.wind_gusts_10m ?? null,
-    directionDeg: current.wind_direction_10m,
-  };
+export function fetchWind(lat: number, lng: number): Promise<WindState | null> {
+  const key = `wind:${lat.toFixed(4)},${lng.toFixed(4)}`;
+  return cachedFetch(key, WIND_TTL_MS, async () => {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=mph`;
+    const res = await fetch(url);
+    const data: {
+      current?: { wind_speed_10m?: number; wind_direction_10m?: number; wind_gusts_10m?: number };
+    } = await res.json();
+    const current = data.current;
+    if (!current || current.wind_speed_10m == null || current.wind_direction_10m == null) return null;
+    return {
+      speedMph: current.wind_speed_10m,
+      gustMph: current.wind_gusts_10m ?? null,
+      directionDeg: current.wind_direction_10m,
+    };
+  });
 }
 
 // Rotating a divIcon's raw HTML by hand (like createClusterIcon in
