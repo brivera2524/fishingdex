@@ -28,6 +28,10 @@ const WIND_TTL_MS = 15 * 60 * 1000;
 // all — this just makes sure the *displayed* value doesn't stay frozen at
 // whatever it was the moment the map was opened if the tab sits open a while.
 const WIND_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+// Used instead of the normal cadence right after a failed/empty fetch (e.g.
+// a transient Open-Meteo outage) — waiting the full 5 minutes to try again
+// would make a brief blip look stuck far longer than it actually is.
+const WIND_RETRY_INTERVAL_MS = 30 * 1000;
 
 // Open-Meteo: free, no API key, permissive CORS — same direct-from-browser
 // pattern already used for NOAA tide data in TideBadge/TideDetailSheet.
@@ -101,20 +105,31 @@ export default function WindBadge({ spot, showLabel, onSelect, onWindLoaded, mar
 
   useEffect(() => {
     let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    function scheduleNext(delayMs: number) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(refresh, delayMs);
+    }
+
+    // A self-rescheduling timeout (rather than a fixed setInterval) so a
+    // failed/empty fetch can retry sooner than a healthy one — otherwise a
+    // transient outage looks stuck for the full refresh interval even
+    // though we're perfectly able to try again much sooner.
     function refresh() {
       fetchWind(spot.centroid_lat, spot.centroid_lng)
         .then((w) => {
-          if (!cancelled) {
-            setWind(w);
-            onWindLoaded?.();
-          }
+          if (cancelled) return;
+          setWind(w);
+          onWindLoaded?.();
+          scheduleNext(w == null ? WIND_RETRY_INTERVAL_MS : WIND_REFRESH_INTERVAL_MS);
         })
         .catch(() => {
           /* Open-Meteo unreachable — badge just shows a dash for speed. */
+          if (!cancelled) scheduleNext(WIND_RETRY_INTERVAL_MS);
         });
     }
     refresh();
-    const interval = setInterval(refresh, WIND_REFRESH_INTERVAL_MS);
     // A plain interval alone can leave a long-backgrounded tab showing
     // whatever was current when it was last foregrounded, since throttled
     // background timers can fall well behind — refreshing the moment the
@@ -126,7 +141,7 @@ export default function WindBadge({ spot, showLabel, onSelect, onWindLoaded, mar
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      clearTimeout(timeoutId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
