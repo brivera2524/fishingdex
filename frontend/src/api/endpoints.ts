@@ -17,6 +17,7 @@ import type {
   SpeciesRecord,
   Spot,
   SpotInput,
+  SpotUpdateInput,
   TokenResponse,
   UserStat,
 } from "./types";
@@ -148,6 +149,13 @@ export function listSpots() {
 export function createSpot(input: SpotInput) {
   return apiFetch<Spot>("/spots", {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateSpot(spotId: number, input: SpotUpdateInput) {
+  return apiFetch<Spot>(`/spots/${spotId}`, {
+    method: "PUT",
     body: JSON.stringify(input),
   });
 }

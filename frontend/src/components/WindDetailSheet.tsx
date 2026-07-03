@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import BottomSheet from "./BottomSheet";
 import { API_BASE } from "../api/client";
+import { getDirectionsUrl } from "../lib/directions";
 import type { MapCatch, Spot } from "../api/types";
 import { fetchWind, type WindState } from "./WindBadge";
 
@@ -49,6 +50,16 @@ export default function WindDetailSheet({ spot, catches, open, onClose }: WindDe
       {spot && (
         <div>
           <h1>{spot.name}</h1>
+          <div className="catch-actions" style={{ marginBottom: 14 }}>
+            <a
+              className="button-link secondary-button"
+              href={getDirectionsUrl(spot.parking_lat ?? spot.centroid_lat, spot.parking_lng ?? spot.centroid_lng)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              🧭 Directions
+            </a>
+          </div>
           <p className="card-meta" style={{ marginBottom: 14 }}>
             Wind conditions
           </p>

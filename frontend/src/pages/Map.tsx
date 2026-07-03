@@ -7,9 +7,10 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { catchMarkerIcon, createClusterIcon, createWindClusterIcon, currentLocationIcon, SAN_DIEGO } from "../leafletSetup";
-import { createSpot, deleteSpot, getMapCatches, listSpots } from "../api/endpoints";
+import { createSpot, deleteSpot, getMapCatches, listSpots, updateSpot } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { MapCatch, Spot } from "../api/types";
+import LocationPickerModal from "../components/LocationPickerModal";
 import type { LatLng } from "../components/LocationPicker";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
@@ -91,7 +92,13 @@ export default function MapPage() {
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [nameSheetOpen, setNameSheetOpen] = useState(false);
   const [savingSpot, setSavingSpot] = useState(false);
+  const [spotActionTarget, setSpotActionTarget] = useState<Spot | null>(null);
   const [deleteConfirmSpot, setDeleteConfirmSpot] = useState<Spot | null>(null);
+  const [renamingSpot, setRenamingSpot] = useState<Spot | null>(null);
+  const [savingRename, setSavingRename] = useState(false);
+  const [parkingPickerSpot, setParkingPickerSpot] = useState<Spot | null>(null);
+  const [parkingDraft, setParkingDraft] = useState<LatLng | null>(null);
+  const [savingParking, setSavingParking] = useState(false);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [unclusteredSpotIds, setUnclusteredSpotIds] = useState<Set<number>>(new Set());
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
@@ -161,7 +168,10 @@ export default function MapPage() {
   function toggleDrawMode() {
     setDrawMode((v) => !v);
     setDrawPoints([]);
+    setSpotActionTarget(null);
     setDeleteConfirmSpot(null);
+    setRenamingSpot(null);
+    setParkingPickerSpot(null);
   }
 
   function undoLastPoint() {
@@ -195,6 +205,45 @@ export default function MapPage() {
       refreshSpots();
     } finally {
       setDeleteConfirmSpot(null);
+    }
+  }
+
+  async function saveRename(name: string) {
+    if (!renamingSpot) return;
+    setSavingRename(true);
+    try {
+      await updateSpot(renamingSpot.id, { name });
+      refreshSpots();
+      setRenamingSpot(null);
+    } catch {
+      /* Leave the sheet open so the admin can retry rather than losing the edit. */
+    } finally {
+      setSavingRename(false);
+    }
+  }
+
+  function openParkingPicker(spot: Spot) {
+    setParkingDraft({
+      lat: spot.parking_lat ?? spot.centroid_lat,
+      lng: spot.parking_lng ?? spot.centroid_lng,
+    });
+    setParkingPickerSpot(spot);
+  }
+
+  async function saveParkingLocation() {
+    if (!parkingPickerSpot || !parkingDraft || savingParking) {
+      if (!savingParking) setParkingPickerSpot(null);
+      return;
+    }
+    setSavingParking(true);
+    try {
+      await updateSpot(parkingPickerSpot.id, { parking_lat: parkingDraft.lat, parking_lng: parkingDraft.lng });
+      refreshSpots();
+    } catch {
+      /* Best-effort — the spot just keeps its previous parking location (or the centroid fallback). */
+    } finally {
+      setSavingParking(false);
+      setParkingPickerSpot(null);
     }
   }
 
@@ -296,12 +345,51 @@ export default function MapPage() {
                 </button>
               </div>
             </>
+          ) : spotActionTarget ? (
+            <>
+              <span className="map-draw-toolbar-label">{spotActionTarget.name}</span>
+              <div className="map-draw-toolbar-actions map-draw-toolbar-actions-wrap">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    openParkingPicker(spotActionTarget);
+                    setSpotActionTarget(null);
+                  }}
+                >
+                  📍 Parking
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    setRenamingSpot(spotActionTarget);
+                    setSpotActionTarget(null);
+                  }}
+                >
+                  ✏️ Rename
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => {
+                    setDeleteConfirmSpot(spotActionTarget);
+                    setSpotActionTarget(null);
+                  }}
+                >
+                  Delete
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setSpotActionTarget(null)}>
+                  Cancel
+                </button>
+              </div>
+            </>
           ) : (
             <>
               <span className="map-draw-toolbar-label">
                 {drawPoints.length < MIN_SPOT_POINTS
                   ? `Tap the map to outline a spot (${drawPoints.length} pt${drawPoints.length === 1 ? "" : "s"})`
-                  : "Tap existing spots to delete them"}
+                  : "Tap existing spots to edit them"}
               </span>
               <div className="map-draw-toolbar-actions">
                 <button
@@ -472,7 +560,7 @@ export default function MapPage() {
           )}
         {/* Zone borders stay invisible to regular users — people already know
             these spots, so all they need is the wind reading. Only the admin
-            sees the outline, and only while editing (to tap a spot for delete). */}
+            sees the outline, and only while editing (to tap a spot and act on it). */}
         {drawMode &&
           spots.map((spot) => (
             <Polygon
@@ -483,7 +571,7 @@ export default function MapPage() {
               eventHandlers={{
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                  setDeleteConfirmSpot(spot);
+                  setSpotActionTarget(spot);
                 },
               }}
             />
@@ -521,6 +609,17 @@ export default function MapPage() {
         onCancel={() => setNameSheetOpen(false)}
         onSave={saveSpot}
       />
+      <SpotNameSheet
+        open={renamingSpot != null}
+        saving={savingRename}
+        initialValue={renamingSpot?.name ?? ""}
+        title="Rename spot"
+        onCancel={() => setRenamingSpot(null)}
+        onSave={saveRename}
+      />
+      {parkingPickerSpot && (
+        <LocationPickerModal value={parkingDraft} onChange={setParkingDraft} onDone={saveParkingLocation} />
+      )}
       <WindDetailSheet
         spot={selectedSpot}
         catches={catches}

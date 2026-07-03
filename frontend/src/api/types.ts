@@ -24,12 +24,22 @@ export interface Spot {
   polygon: [number, number][];
   centroid_lat: number;
   centroid_lng: number;
+  /** Manually pinned by the admin (e.g. the parking lot) — where to actually
+   * send someone who wants to drive there. Falls back to the centroid when null. */
+  parking_lat: number | null;
+  parking_lng: number | null;
   created_at: string;
 }
 
 export interface SpotInput {
   name: string;
   polygon: [number, number][];
+}
+
+export interface SpotUpdateInput {
+  name?: string;
+  parking_lat?: number;
+  parking_lng?: number;
 }
 
 export interface Catch {

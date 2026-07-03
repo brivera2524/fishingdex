@@ -82,6 +82,12 @@ class SpotCreate(BaseModel):
     polygon: list[list[float]] = Field(min_length=3)
 
 
+class SpotUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    parking_lat: float | None = None
+    parking_lng: float | None = None
+
+
 class SpotOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -90,6 +96,8 @@ class SpotOut(BaseModel):
     polygon: list[list[float]]
     centroid_lat: float
     centroid_lng: float
+    parking_lat: float | None = None
+    parking_lng: float | None = None
     created_at: datetime
 
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)

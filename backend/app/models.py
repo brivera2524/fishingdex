@@ -66,6 +66,12 @@ class Spot(Base):
     # vertex average, so a lopsided hand-drawn shape doesn't drift off-center.
     centroid_lat: Mapped[float] = mapped_column(Float, nullable=False)
     centroid_lng: Mapped[float] = mapped_column(Float, nullable=False)
+    # Manually pinned by the admin — where to actually send someone who wants
+    # to drive there (e.g. the parking lot), which often isn't the polygon's
+    # centroid (that can land in the water for a shoreline/pier spot). Falls
+    # back to the centroid when unset.
+    parking_lat: Mapped[float | None] = mapped_column(Float)
+    parking_lng: Mapped[float | None] = mapped_column(Float)
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 

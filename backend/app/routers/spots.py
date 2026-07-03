@@ -5,7 +5,7 @@ from app.auth import get_current_user, require_admin
 from app.database import get_db
 from app.geo import polygon_centroid
 from app.models import Catch, Spot, User
-from app.schemas import SpotCreate, SpotOut
+from app.schemas import SpotCreate, SpotOut, SpotUpdate
 
 router = APIRouter(prefix="/spots", tags=["spots"])
 
@@ -31,6 +31,27 @@ def create_spot(
         created_by_user_id=current_user.id,
     )
     db.add(spot)
+    db.commit()
+    db.refresh(spot)
+    return spot
+
+
+@router.put("/{spot_id}", response_model=SpotOut)
+def update_spot(
+    spot_id: int,
+    payload: SpotUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    spot = db.get(Spot, spot_id)
+    if not spot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spot not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(spot, field, value)
+
     db.commit()
     db.refresh(spot)
     return spot

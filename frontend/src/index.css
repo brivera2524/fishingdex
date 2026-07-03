@@ -1561,6 +1561,20 @@ button:disabled {
   flex: 1;
 }
 
+/* The spot action menu (Parking/Rename/Delete/Cancel) has one more button
+   than the other toolbar variants above it fit comfortably in a single
+   row — this wraps it into a 2x2 grid instead of squeezing four labels
+   into an unreadable width. */
+.map-draw-toolbar-actions-wrap {
+  flex-wrap: wrap;
+}
+
+.map-draw-toolbar-actions-wrap button {
+  flex: 1 1 calc(50% - 4px);
+  font-size: 13px;
+  padding: 10px 8px;
+}
+
 .wind-badge-wrap {
   display: flex;
   flex-direction: column;
