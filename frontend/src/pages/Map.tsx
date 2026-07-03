@@ -154,22 +154,6 @@ export default function MapPage() {
 
   return (
     <div className="map-page">
-      <div className="map-layer-toggles">
-        <button
-          type="button"
-          className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
-          onClick={() => setPinsEnabled((v) => !v)}
-        >
-          📍 Pins
-        </button>
-        <button
-          type="button"
-          className={`map-layer-toggle${heatmapEnabled ? " active" : ""}`}
-          onClick={() => setHeatmapEnabled((v) => !v)}
-        >
-          🔥 Heatmap
-        </button>
-      </div>
       <TideBadge />
       <div className="map-badge">
         {loading
@@ -178,50 +162,72 @@ export default function MapPage() {
             ? error
             : `${visibleCatches.length} catch${visibleCatches.length === 1 ? "" : "es"} on the map`}
       </div>
-      {timeExpanded ? (
-        <div className="map-time-panel">
-          <div className="map-time-expanded-content">
-            <div className="map-time-panel-header">
-              <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
-              <div className="map-time-presets">
-                {WINDOW_PRESETS.map((preset) => {
-                  const days = Math.min(preset.days, maxDaysSpan);
-                  const active = startDaysAgo === days && endDaysAgo === 0;
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      className={`map-time-preset${active ? " active" : ""}`}
-                      onClick={() => {
-                        setWindowRange({ start: days, end: 0 });
-                        setScrollToken((t) => t + 1);
-                        setTimeExpanded(true);
-                      }}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <TimeWindowRuler
-              maxDaysSpan={maxDaysSpan}
-              startDaysAgo={startDaysAgo}
-              endDaysAgo={endDaysAgo}
-              onChange={(start, end) => {
-                setWindowRange({ start, end });
-                setTimeExpanded(true);
-              }}
-              scrollToken={scrollToken}
-            />
-          </div>
+      {/* Stacked as a single flex column, bottom-anchored, so the layer
+          toggles stay pinned directly above the time panel and shift up or
+          down with it as it expands/collapses, instead of both being pinned
+          to independent fixed pixel offsets that drift apart. */}
+      <div className="map-bottom-stack">
+        <div className="map-layer-toggles">
+          <button
+            type="button"
+            className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
+            onClick={() => setPinsEnabled((v) => !v)}
+          >
+            📍 Pins
+          </button>
+          <button
+            type="button"
+            className={`map-layer-toggle${heatmapEnabled ? " active" : ""}`}
+            onClick={() => setHeatmapEnabled((v) => !v)}
+          >
+            🔥 Heatmap
+          </button>
         </div>
-      ) : (
-        <button type="button" className="map-time-panel collapsed" onClick={() => setTimeExpanded(true)}>
-          <span className="map-time-panel-label">🕐 {formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
-          <span className="map-time-collapsed-chevron">›</span>
-        </button>
-      )}
+        {timeExpanded ? (
+          <div className="map-time-panel">
+            <div className="map-time-expanded-content">
+              <div className="map-time-panel-header">
+                <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
+                <div className="map-time-presets">
+                  {WINDOW_PRESETS.map((preset) => {
+                    const days = Math.min(preset.days, maxDaysSpan);
+                    const active = startDaysAgo === days && endDaysAgo === 0;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        className={`map-time-preset${active ? " active" : ""}`}
+                        onClick={() => {
+                          setWindowRange({ start: days, end: 0 });
+                          setScrollToken((t) => t + 1);
+                          setTimeExpanded(true);
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <TimeWindowRuler
+                maxDaysSpan={maxDaysSpan}
+                startDaysAgo={startDaysAgo}
+                endDaysAgo={endDaysAgo}
+                onChange={(start, end) => {
+                  setWindowRange({ start, end });
+                  setTimeExpanded(true);
+                }}
+                scrollToken={scrollToken}
+              />
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="map-time-panel collapsed" onClick={() => setTimeExpanded(true)}>
+            <span className="map-time-panel-label">🕐 {formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
+            <span className="map-time-collapsed-chevron">›</span>
+          </button>
+        )}
+      </div>
       <MapContainer
         center={center}
         zoom={focus ? 15 : 11}
