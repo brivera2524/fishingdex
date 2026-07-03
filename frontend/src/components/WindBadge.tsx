@@ -44,11 +44,11 @@ function buildWindIcon(wind: WindState | null): L.DivIcon {
         <svg viewBox="0 0 32 32" class="wind-badge-arrow" style="transform: rotate(${rotation}deg)">
           <path d="M16 4 L22 20 L16 16 L10 20 Z" />
         </svg>
-        <span class="wind-badge-speed">${speedLabel}</span>
+        <span class="wind-badge-speed">${speedLabel}<span class="wind-badge-unit">mph</span></span>
       </div>
     `,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 

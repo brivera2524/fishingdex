@@ -275,39 +275,11 @@ export default function MapPage() {
           )}
         </div>
       ) : (
-        // Stacked as a single flex column, bottom-anchored, so the layer
-        // toggles stay pinned directly above the time panel and shift up or
-        // down with it as it expands/collapses, instead of both being pinned
-        // to independent fixed pixel offsets that drift apart.
+        // Stacked as a single flex column, bottom-anchored, so the time
+        // panel and layer toggles shift together as the time panel
+        // expands/collapses, instead of both being pinned to independent
+        // fixed pixel offsets that drift apart.
         <div className="map-bottom-stack">
-          <div className="map-layer-toggles">
-            <button
-              type="button"
-              className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
-              onClick={() => setPinsEnabled((v) => !v)}
-            >
-              📍 Pins
-            </button>
-            <button
-              type="button"
-              className={`map-layer-toggle${heatmapEnabled ? " active" : ""}`}
-              onClick={() => setHeatmapEnabled((v) => !v)}
-            >
-              🔥 Heatmap
-            </button>
-            <button
-              type="button"
-              className={`map-layer-toggle${spotsEnabled ? " active" : ""}`}
-              onClick={() => setSpotsEnabled((v) => !v)}
-            >
-              🧭 Spots
-            </button>
-            {currentUser?.is_admin && (
-              <button type="button" className="map-layer-toggle" onClick={toggleDrawMode}>
-                ✏️ Edit
-              </button>
-            )}
-          </div>
           {timeExpanded ? (
             <div className="map-time-panel">
               <div className="map-time-expanded-content">
@@ -352,6 +324,34 @@ export default function MapPage() {
               <span className="map-time-collapsed-chevron">›</span>
             </button>
           )}
+          <div className="map-layer-toggles">
+            <button
+              type="button"
+              className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
+              onClick={() => setPinsEnabled((v) => !v)}
+            >
+              🎣 Catches
+            </button>
+            <button
+              type="button"
+              className={`map-layer-toggle${heatmapEnabled ? " active" : ""}`}
+              onClick={() => setHeatmapEnabled((v) => !v)}
+            >
+              🔥 Heatmap
+            </button>
+            <button
+              type="button"
+              className={`map-layer-toggle${spotsEnabled ? " active" : ""}`}
+              onClick={() => setSpotsEnabled((v) => !v)}
+            >
+              💨 Wind
+            </button>
+            {currentUser?.is_admin && (
+              <button type="button" className="map-layer-toggle" onClick={toggleDrawMode}>
+                ✏️ Edit
+              </button>
+            )}
+          </div>
         </div>
       )}
       <MapContainer
@@ -412,23 +412,22 @@ export default function MapPage() {
               ))}
             </MarkerClusterGroup>
           )}
-        {(spotsEnabled || drawMode) &&
+        {/* Zone borders stay invisible to regular users — people already know
+            these spots, so all they need is the wind reading. Only the admin
+            sees the outline, and only while editing (to tap a spot for delete). */}
+        {drawMode &&
           spots.map((spot) => (
             <Polygon
               key={spot.id}
               positions={spot.polygon}
               pathOptions={{ color: "#0f9d8f", weight: 1.5, fillOpacity: 0.08 }}
-              interactive={drawMode}
-              eventHandlers={
-                drawMode
-                  ? {
-                      click: (e) => {
-                        L.DomEvent.stopPropagation(e);
-                        setDeleteConfirmSpot(spot);
-                      },
-                    }
-                  : undefined
-              }
+              interactive
+              eventHandlers={{
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  setDeleteConfirmSpot(spot);
+                },
+              }}
             />
           ))}
         {!drawMode && spotsEnabled && spots.map((spot) => <WindBadge key={spot.id} spot={spot} catches={catches} />)}
