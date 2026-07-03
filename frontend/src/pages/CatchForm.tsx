@@ -65,7 +65,7 @@ interface CatchFormProps {
    * Carries which celebration animation (if any) the caller should play —
    * omitted entirely when a new-species DiscoveryReveal was shown instead,
    * to keep the two celebratory moments from stacking on top of each other. */
-  onDone: (celebration?: "pb" | "record") => void;
+  onDone: (celebration?: "catch" | "pb" | "record") => void;
 }
 
 export default function CatchForm({ catchId, detectState = null, onDone }: CatchFormProps) {
@@ -245,7 +245,11 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     setLoading(true);
     try {
       let savedCatchId: number;
-      let celebrationTier: "pb" | "record" | undefined;
+      // Editing an existing catch only celebrates if it's now a PB/record —
+      // re-saving notes on an old catch shouldn't replay "you caught a
+      // fish!". A brand-new catch always celebrates, at least at the basic
+      // tier, since logging any catch is the moment worth marking.
+      let celebrationTier: "catch" | "pb" | "record" | undefined;
       const isNewSpecies =
         !isEdit &&
         !detectState?.alreadyRevealed &&
@@ -281,7 +285,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           longitude: effectiveCoords?.lng ?? null,
         });
         savedCatchId = created.id;
-        celebrationTier = created.is_leaderboard_record ? "record" : created.is_personal_best ? "pb" : undefined;
+        celebrationTier = created.is_leaderboard_record ? "record" : created.is_personal_best ? "pb" : "catch";
       }
 
       let savedPhotoUrl: string | null = existingPhotoUrl;
