@@ -1356,6 +1356,38 @@ button:disabled {
   box-shadow: var(--shadow-md);
 }
 
+.map-time-panel.collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  min-height: auto;
+}
+
+.map-time-collapsed-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+@keyframes timePanelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.map-time-expanded-content {
+  animation: timePanelFadeIn 0.18s ease;
+}
+
 .map-time-panel-header {
   display: flex;
   align-items: center;

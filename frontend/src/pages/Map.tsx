@@ -23,6 +23,7 @@ interface FocusState {
 
 const DAY_MS = 86_400_000;
 const DEFAULT_WINDOW_DAYS = 30;
+const COLLAPSE_AFTER_IDLE_MS = 4000;
 
 const WINDOW_PRESETS = [
   { label: "1W", days: 7 },
@@ -51,8 +52,25 @@ export default function MapPage() {
   const [maxDaysSpan, setMaxDaysSpan] = useState(DEFAULT_WINDOW_DAYS);
   const [windowRange, setWindowRange] = useState({ start: DEFAULT_WINDOW_DAYS, end: 0 });
   const [scrollToken, setScrollToken] = useState(0);
+  const [timeExpanded, setTimeExpanded] = useState(false);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const collapseTimerRef = useRef<number | null>(null);
+
+  // The time-range panel starts collapsed and only opens when the user
+  // actually touches it, then folds itself back up after a few idle seconds
+  // so it doesn't permanently take up space over the map.
+  function markTimeInteraction() {
+    setTimeExpanded(true);
+    if (collapseTimerRef.current != null) window.clearTimeout(collapseTimerRef.current);
+    collapseTimerRef.current = window.setTimeout(() => setTimeExpanded(false), COLLAPSE_AFTER_IDLE_MS);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (collapseTimerRef.current != null) window.clearTimeout(collapseTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     getMapCatches()
@@ -169,37 +187,50 @@ export default function MapPage() {
             ? error
             : `${visibleCatches.length} catch${visibleCatches.length === 1 ? "" : "es"} on the map`}
       </div>
-      <div className="map-time-panel">
-        <div className="map-time-panel-header">
-          <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
-          <div className="map-time-presets">
-            {WINDOW_PRESETS.map((preset) => {
-              const days = Math.min(preset.days, maxDaysSpan);
-              const active = startDaysAgo === days && endDaysAgo === 0;
-              return (
-                <button
-                  key={preset.label}
-                  type="button"
-                  className={`map-time-preset${active ? " active" : ""}`}
-                  onClick={() => {
-                    setWindowRange({ start: days, end: 0 });
-                    setScrollToken((t) => t + 1);
-                  }}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
+      {timeExpanded ? (
+        <div className="map-time-panel">
+          <div className="map-time-expanded-content">
+            <div className="map-time-panel-header">
+              <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
+              <div className="map-time-presets">
+                {WINDOW_PRESETS.map((preset) => {
+                  const days = Math.min(preset.days, maxDaysSpan);
+                  const active = startDaysAgo === days && endDaysAgo === 0;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      className={`map-time-preset${active ? " active" : ""}`}
+                      onClick={() => {
+                        setWindowRange({ start: days, end: 0 });
+                        setScrollToken((t) => t + 1);
+                        markTimeInteraction();
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <TimeWindowRuler
+              maxDaysSpan={maxDaysSpan}
+              startDaysAgo={startDaysAgo}
+              endDaysAgo={endDaysAgo}
+              onChange={(start, end) => {
+                setWindowRange({ start, end });
+                markTimeInteraction();
+              }}
+              scrollToken={scrollToken}
+            />
           </div>
         </div>
-        <TimeWindowRuler
-          maxDaysSpan={maxDaysSpan}
-          startDaysAgo={startDaysAgo}
-          endDaysAgo={endDaysAgo}
-          onChange={(start, end) => setWindowRange({ start, end })}
-          scrollToken={scrollToken}
-        />
-      </div>
+      ) : (
+        <button type="button" className="map-time-panel collapsed" onClick={markTimeInteraction}>
+          <span className="map-time-panel-label">🕐 {formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
+          <span className="map-time-collapsed-hint">Tap to adjust</span>
+        </button>
+      )}
       <MapContainer
         center={center}
         zoom={focus ? 15 : 11}
