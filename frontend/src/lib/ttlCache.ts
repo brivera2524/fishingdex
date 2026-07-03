@@ -22,7 +22,15 @@ export function cachedFetch<T>(key: string, ttlMs: number, fetchFn: () => Promis
 
   const promise = fetchFn()
     .then((value) => {
-      cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+      // A null/undefined result usually means "couldn't get real data" (a
+      // transient API hiccup, a parse failure, etc.), not a legitimate
+      // answer worth remembering — caching it for the full TTL would make
+      // one bad fetch look like an outage for however long that TTL is,
+      // since every refresh attempt in the meantime would just get served
+      // the same cached failure instead of actually retrying.
+      if (value != null) {
+        cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+      }
       return value;
     })
     .finally(() => {
