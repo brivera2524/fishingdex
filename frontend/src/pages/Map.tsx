@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -23,7 +23,6 @@ interface FocusState {
 
 const DAY_MS = 86_400_000;
 const DEFAULT_WINDOW_DAYS = 30;
-const COLLAPSE_AFTER_IDLE_MS = 4000;
 
 const WINDOW_PRESETS = [
   { label: "1W", days: 7 },
@@ -38,6 +37,14 @@ function formatRangeLabel(startDaysAgo: number, endDaysAgo: number) {
   const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const from = fmt(new Date(now - startDaysAgo * DAY_MS));
   return endDaysAgo < 0.5 ? `${from} – Today` : `${from} – ${fmt(new Date(now - endDaysAgo * DAY_MS))}`;
+}
+
+// Collapses the time panel as soon as the user starts panning the map —
+// rendered inside MapContainer since Leaflet's event bus is only reachable
+// from a descendant via useMapEvents.
+function MapDragCollapse({ onDragStart }: { onDragStart: () => void }) {
+  useMapEvents({ dragstart: onDragStart });
+  return null;
 }
 
 export default function MapPage() {
@@ -55,22 +62,6 @@ export default function MapPage() {
   const [timeExpanded, setTimeExpanded] = useState(false);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
-  const collapseTimerRef = useRef<number | null>(null);
-
-  // The time-range panel starts collapsed and only opens when the user
-  // actually touches it, then folds itself back up after a few idle seconds
-  // so it doesn't permanently take up space over the map.
-  function markTimeInteraction() {
-    setTimeExpanded(true);
-    if (collapseTimerRef.current != null) window.clearTimeout(collapseTimerRef.current);
-    collapseTimerRef.current = window.setTimeout(() => setTimeExpanded(false), COLLAPSE_AFTER_IDLE_MS);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (collapseTimerRef.current != null) window.clearTimeout(collapseTimerRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     getMapCatches()
@@ -204,7 +195,7 @@ export default function MapPage() {
                       onClick={() => {
                         setWindowRange({ start: days, end: 0 });
                         setScrollToken((t) => t + 1);
-                        markTimeInteraction();
+                        setTimeExpanded(true);
                       }}
                     >
                       {preset.label}
@@ -219,16 +210,16 @@ export default function MapPage() {
               endDaysAgo={endDaysAgo}
               onChange={(start, end) => {
                 setWindowRange({ start, end });
-                markTimeInteraction();
+                setTimeExpanded(true);
               }}
               scrollToken={scrollToken}
             />
           </div>
         </div>
       ) : (
-        <button type="button" className="map-time-panel collapsed" onClick={markTimeInteraction}>
+        <button type="button" className="map-time-panel collapsed" onClick={() => setTimeExpanded(true)}>
           <span className="map-time-panel-label">🕐 {formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
-          <span className="map-time-collapsed-hint">Tap to adjust</span>
+          <span className="map-time-collapsed-chevron">›</span>
         </button>
       )}
       <MapContainer
@@ -239,6 +230,7 @@ export default function MapPage() {
         attributionControl={false}
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <MapDragCollapse onDragStart={() => setTimeExpanded(false)} />
         {heatmapEnabled && <HeatmapLayer points={heatPoints} />}
         {showPins && (
           <MarkerClusterGroup
