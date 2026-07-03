@@ -410,9 +410,15 @@ export default function MapPage() {
         attributionControl={false}
         doubleClickZoom={!drawMode}
       >
+        {/* Leaflet defaults updateWhenIdle to true on mobile, which defers
+            loading newly-panned-into-view tiles until the drag gesture ends
+            — the same "doesn't render until you let go" symptom the marker
+            clusters had. Forcing it off makes tiles load continuously
+            during a drag, same as desktop. */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           detectRetina
+          updateWhenIdle={false}
         />
         <MapDragCollapse onDragStart={() => setTimeExpanded(false)} />
         {drawMode && <SpotDrawLayer onAddPoint={(pt) => setDrawPoints((pts) => [...pts, pt])} />}
