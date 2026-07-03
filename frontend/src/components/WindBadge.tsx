@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Marker } from "react-leaflet";
 import L from "leaflet";
-import type { MapCatch, Spot } from "../api/types";
-import WindDetailSheet from "./WindDetailSheet";
+import type { Spot } from "../api/types";
 
 export interface WindState {
   speedMph: number;
@@ -54,12 +53,17 @@ function buildWindIcon(wind: WindState | null): L.DivIcon {
 
 interface WindBadgeProps {
   spot: Spot;
-  catches: MapCatch[];
+  onSelect: (spot: Spot) => void;
 }
 
-export default function WindBadge({ spot, catches }: WindBadgeProps) {
+// Only the Marker itself lives inside MapContainer — its detail sheet is
+// rendered by the parent page, outside the map. A BottomSheet nested inside
+// MapContainer would sit inside .map-container's own stacking context (it's
+// given z-index:0 specifically to contain Leaflet's internal panes, which
+// otherwise render above page chrome), trapping the sheet behind the map
+// instead of over it.
+export default function WindBadge({ spot, onSelect }: WindBadgeProps) {
   const [wind, setWind] = useState<WindState | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,13 +80,10 @@ export default function WindBadge({ spot, catches }: WindBadgeProps) {
   }, [spot.centroid_lat, spot.centroid_lng]);
 
   return (
-    <>
-      <Marker
-        position={[spot.centroid_lat, spot.centroid_lng]}
-        icon={buildWindIcon(wind)}
-        eventHandlers={{ click: () => setDetailOpen(true) }}
-      />
-      <WindDetailSheet spot={spot} catches={catches} open={detailOpen} onClose={() => setDetailOpen(false)} />
-    </>
+    <Marker
+      position={[spot.centroid_lat, spot.centroid_lng]}
+      icon={buildWindIcon(wind)}
+      eventHandlers={{ click: () => onSelect(spot) }}
+    />
   );
 }

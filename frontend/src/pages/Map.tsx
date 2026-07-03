@@ -15,6 +15,7 @@ import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
 import TimeWindowRuler from "../components/TimeWindowRuler";
 import WindBadge from "../components/WindBadge";
+import WindDetailSheet from "../components/WindDetailSheet";
 import SpotNameSheet from "../components/SpotNameSheet";
 import { useAuth } from "../auth/AuthContext";
 
@@ -83,6 +84,7 @@ export default function MapPage() {
   const [nameSheetOpen, setNameSheetOpen] = useState(false);
   const [savingSpot, setSavingSpot] = useState(false);
   const [deleteConfirmSpot, setDeleteConfirmSpot] = useState<Spot | null>(null);
+  const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
@@ -430,7 +432,9 @@ export default function MapPage() {
               }}
             />
           ))}
-        {!drawMode && spotsEnabled && spots.map((spot) => <WindBadge key={spot.id} spot={spot} catches={catches} />)}
+        {!drawMode &&
+          spotsEnabled &&
+          spots.map((spot) => <WindBadge key={spot.id} spot={spot} onSelect={setSelectedSpot} />)}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}
@@ -440,6 +444,12 @@ export default function MapPage() {
         saving={savingSpot}
         onCancel={() => setNameSheetOpen(false)}
         onSave={saveSpot}
+      />
+      <WindDetailSheet
+        spot={selectedSpot}
+        catches={catches}
+        open={selectedSpot != null}
+        onClose={() => setSelectedSpot(null)}
       />
     </div>
   );
