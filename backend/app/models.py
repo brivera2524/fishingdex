@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -44,6 +44,28 @@ class Species(Base):
     catches: Mapped[list["Catch"]] = relationship(back_populates="species")
 
 
+class Spot(Base):
+    """A named, hand-drawn fishing location (e.g. "Harbor Island"), curated
+    by the admin. Catches inside its polygon are auto-attributed to it."""
+
+    __tablename__ = "spots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # [[lat, lng], ...] in drawn order — the polygon implicitly closes from
+    # the last point back to the first.
+    polygon: Mapped[list] = mapped_column(JSON, nullable=False)
+    # Stored (not recomputed on read) since the wind lookup needs a stable
+    # point on every page load — an area-weighted centroid, not a naive
+    # vertex average, so a lopsided hand-drawn shape doesn't drift off-center.
+    centroid_lat: Mapped[float] = mapped_column(Float, nullable=False)
+    centroid_lng: Mapped[float] = mapped_column(Float, nullable=False)
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    catches: Mapped[list["Catch"]] = relationship(back_populates="spot")
+
+
 class Catch(Base):
     __tablename__ = "catches"
 
@@ -68,10 +90,16 @@ class Catch(Base):
     tide_height_ft: Mapped[float | None] = mapped_column(Float)
     tide_direction: Mapped[str | None] = mapped_column(String(10))
 
+    # Computed server-side by testing (latitude, longitude) against each
+    # spot's drawn polygon at save time. Nullable — most catches aren't
+    # inside any curated spot, and older catches are backfilled separately.
+    spot_id: Mapped[int | None] = mapped_column(ForeignKey("spots.id"), index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="catches")
     species: Mapped["Species"] = relationship(back_populates="catches")
+    spot: Mapped["Spot | None"] = relationship(back_populates="catches")
     comments: Mapped[list["Comment"]] = relationship(back_populates="catch", cascade="all, delete-orphan")
 
 

@@ -13,6 +13,8 @@ import type {
   RecentCatch,
   Species,
   SpeciesRecord,
+  Spot,
+  SpotInput,
   TokenResponse,
   UserStat,
 } from "./types";
@@ -135,6 +137,21 @@ export function listUsers() {
 
 export function getUserCatches(userId: number) {
   return apiFetch<Catch[]>(`/users/${userId}/catches`);
+}
+
+export function listSpots() {
+  return apiFetch<Spot[]>("/spots");
+}
+
+export function createSpot(input: SpotInput) {
+  return apiFetch<Spot>("/spots", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteSpot(spotId: number) {
+  return apiFetch<void>(`/spots/${spotId}`, { method: "DELETE" });
 }
 
 export function getAdminSettings() {

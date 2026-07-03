@@ -1421,6 +1421,110 @@ button:disabled {
   line-height: 1;
 }
 
+.map-draw-toolbar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.map-draw-toolbar-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.map-draw-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.map-draw-toolbar-actions button {
+  flex: 1;
+}
+
+.wind-badge-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.wind-badge-arrow {
+  width: 20px;
+  height: 20px;
+  fill: var(--accent);
+  position: absolute;
+  top: 2px;
+}
+
+.wind-badge-speed {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink);
+  position: absolute;
+  bottom: 3px;
+}
+
+.wind-detail-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 8px;
+}
+
+.wind-detail-compass {
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+}
+
+.wind-detail-compass-ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 2;
+}
+
+.wind-detail-compass-arrow {
+  fill: var(--accent);
+}
+
+.wind-detail-compass-label {
+  font-size: 8px;
+  font-weight: 700;
+  fill: var(--ink-soft);
+}
+
+.wind-detail-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wind-detail-speed {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.wind-detail-meta {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
 @keyframes timePanelFadeIn {
   from {
     opacity: 0;
@@ -1650,7 +1754,8 @@ button:disabled {
    .leaflet-div-icon (white box, grey border) is reset here since it still
    applies alongside these custom classNames. */
 .catch-marker-icon,
-.catch-cluster-icon {
+.catch-cluster-icon,
+.wind-badge-icon {
   background: none !important;
   border: none !important;
 }

@@ -12,6 +12,26 @@ export interface Species {
   regulation_notes: string | null;
 }
 
+export interface SpotSummary {
+  id: number;
+  name: string;
+}
+
+export interface Spot {
+  id: number;
+  name: string;
+  /** [[lat, lng], ...] in drawn order; implicitly closes last -> first. */
+  polygon: [number, number][];
+  centroid_lat: number;
+  centroid_lng: number;
+  created_at: string;
+}
+
+export interface SpotInput {
+  name: string;
+  polygon: [number, number][];
+}
+
 export interface Catch {
   id: number;
   user_id: number;
@@ -28,6 +48,8 @@ export interface Catch {
   /** Computed server-side from NOAA predictions at caught_at — not user-supplied. */
   tide_height_ft: number | null;
   tide_direction: "rising" | "falling" | null;
+  /** Computed server-side from whether (latitude, longitude) falls inside a curated spot's polygon. */
+  spot: SpotSummary | null;
 }
 
 export interface CatchInput {
@@ -72,6 +94,7 @@ export interface LeaderboardCatch {
   longitude: number | null;
   tide_height_ft: number | null;
   tide_direction: "rising" | "falling" | null;
+  spot: SpotSummary | null;
 }
 
 export interface SpeciesRecord {
@@ -96,6 +119,7 @@ export interface MapCatch {
   longitude: number;
   photo_url: string | null;
   species: Species;
+  spot: SpotSummary | null;
 }
 
 export interface CurrentUser {
@@ -123,6 +147,7 @@ export interface RecentCatch {
   species: Species;
   tide_height_ft: number | null;
   tide_direction: "rising" | "falling" | null;
+  spot: SpotSummary | null;
 }
 
 export interface UserStat {

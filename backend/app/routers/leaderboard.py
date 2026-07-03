@@ -22,6 +22,7 @@ def _to_leaderboard_catch(catch: Catch) -> LeaderboardCatch:
         longitude=catch.longitude,
         tide_height_ft=catch.tide_height_ft,
         tide_direction=catch.tide_direction,
+        spot=catch.spot,
     )
 
 
@@ -36,7 +37,7 @@ def species_leaderboard(
         catch_count = db.query(Catch).filter(Catch.species_id == sp.id).count()
         top_catch = (
             db.query(Catch)
-            .options(joinedload(Catch.user))
+            .options(joinedload(Catch.user), joinedload(Catch.spot))
             .filter(Catch.species_id == sp.id, Catch.weight.isnot(None))
             .order_by(Catch.weight.desc())
             .first()

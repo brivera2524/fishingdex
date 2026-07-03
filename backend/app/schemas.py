@@ -54,6 +54,31 @@ class SpeciesOut(BaseModel):
     regulation_notes: str | None = None
 
 
+class SpotSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+
+
+class SpotCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    polygon: list[list[float]] = Field(min_length=3)
+
+
+class SpotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    polygon: list[list[float]]
+    centroid_lat: float
+    centroid_lng: float
+    created_at: datetime
+
+    _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)
+
+
 class CatchCreate(BaseModel):
     species_id: int
     weight: float | None = None
@@ -92,6 +117,7 @@ class CatchOut(BaseModel):
     species: SpeciesOut
     tide_height_ft: float | None = None
     tide_direction: str | None = None
+    spot: SpotSummary | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)
@@ -115,6 +141,7 @@ class LeaderboardCatch(BaseModel):
     longitude: float | None = None
     tide_height_ft: float | None = None
     tide_direction: str | None = None
+    spot: SpotSummary | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
 
@@ -151,6 +178,7 @@ class RecentCatch(BaseModel):
     tide_height_ft: float | None = None
     tide_direction: str | None = None
     species: SpeciesOut
+    spot: SpotSummary | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
 
@@ -165,6 +193,7 @@ class MapCatch(BaseModel):
     longitude: float
     photo_url: str | None = None
     species: SpeciesOut
+    spot: SpotSummary | None = None
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
 

@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Polygon, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
-import type L from "leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { catchMarkerIcon, createClusterIcon, currentLocationIcon, SAN_DIEGO } from "../leafletSetup";
-import { getMapCatches } from "../api/endpoints";
+import { createSpot, deleteSpot, getMapCatches, listSpots } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
-import type { MapCatch } from "../api/types";
+import type { MapCatch, Spot } from "../api/types";
 import type { LatLng } from "../components/LocationPicker";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
 import TimeWindowRuler from "../components/TimeWindowRuler";
+import WindBadge from "../components/WindBadge";
+import SpotNameSheet from "../components/SpotNameSheet";
+import { useAuth } from "../auth/AuthContext";
 
 interface FocusState {
   focusCatchId: number;
@@ -47,21 +50,49 @@ function MapDragCollapse({ onDragStart }: { onDragStart: () => void }) {
   return null;
 }
 
+const MIN_SPOT_POINTS = 3;
+
+// Lightweight tap-to-add-vertex polygon drawing — there's no leaflet-draw/
+// leaflet-geoman in this app, so admin spot-drawing is built directly on
+// react-leaflet's own click event plumbing (same useMapEvents hook family as
+// MapDragCollapse above) rather than pulling in a whole drawing library for
+// one feature.
+function SpotDrawLayer({ onAddPoint }: { onAddPoint: (latlng: [number, number]) => void }) {
+  useMapEvents({ click: (e) => onAddPoint([e.latlng.lat, e.latlng.lng]) });
+  return null;
+}
+
 export default function MapPage() {
   const location = useLocation();
   const focus = location.state as FocusState | null;
+  const { currentUser } = useAuth();
   const [catches, setCatches] = useState<MapCatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pinsEnabled, setPinsEnabled] = useState(true);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [spotsEnabled, setSpotsEnabled] = useState(true);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
   const [maxDaysSpan, setMaxDaysSpan] = useState(DEFAULT_WINDOW_DAYS);
   const [windowRange, setWindowRange] = useState({ start: DEFAULT_WINDOW_DAYS, end: 0 });
   const [scrollToken, setScrollToken] = useState(0);
   const [timeExpanded, setTimeExpanded] = useState(false);
+  const [spots, setSpots] = useState<Spot[]>([]);
+  const [drawMode, setDrawMode] = useState(false);
+  const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
+  const [nameSheetOpen, setNameSheetOpen] = useState(false);
+  const [savingSpot, setSavingSpot] = useState(false);
+  const [deleteConfirmSpot, setDeleteConfirmSpot] = useState<Spot | null>(null);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+
+  function refreshSpots() {
+    listSpots()
+      .then(setSpots)
+      .catch(() => {
+        /* Spots are a nice-to-have overlay — a failed fetch just means none show. */
+      });
+  }
 
   useEffect(() => {
     getMapCatches()
@@ -76,7 +107,48 @@ export default function MapPage() {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load map"))
       .finally(() => setLoading(false));
+    refreshSpots();
   }, []);
+
+  function toggleDrawMode() {
+    setDrawMode((v) => !v);
+    setDrawPoints([]);
+    setDeleteConfirmSpot(null);
+  }
+
+  function undoLastPoint() {
+    setDrawPoints((pts) => pts.slice(0, -1));
+  }
+
+  function finishDrawing() {
+    if (drawPoints.length < MIN_SPOT_POINTS) return;
+    setNameSheetOpen(true);
+  }
+
+  async function saveSpot(name: string) {
+    setSavingSpot(true);
+    try {
+      await createSpot({ name, polygon: drawPoints });
+      refreshSpots();
+      setNameSheetOpen(false);
+      setDrawMode(false);
+      setDrawPoints([]);
+    } catch {
+      /* Leave the sheet open so the admin can retry rather than losing the drawn shape. */
+    } finally {
+      setSavingSpot(false);
+    }
+  }
+
+  async function confirmDeleteSpot() {
+    if (!deleteConfirmSpot) return;
+    try {
+      await deleteSpot(deleteConfirmSpot.id);
+      refreshSpots();
+    } finally {
+      setDeleteConfirmSpot(null);
+    }
+  }
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -162,124 +234,214 @@ export default function MapPage() {
             ? error
             : `${visibleCatches.length} catch${visibleCatches.length === 1 ? "" : "es"} on the map`}
       </div>
-      {/* Stacked as a single flex column, bottom-anchored, so the layer
-          toggles stay pinned directly above the time panel and shift up or
-          down with it as it expands/collapses, instead of both being pinned
-          to independent fixed pixel offsets that drift apart. */}
-      <div className="map-bottom-stack">
-        <div className="map-layer-toggles">
-          <button
-            type="button"
-            className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
-            onClick={() => setPinsEnabled((v) => !v)}
-          >
-            📍 Pins
-          </button>
-          <button
-            type="button"
-            className={`map-layer-toggle${heatmapEnabled ? " active" : ""}`}
-            onClick={() => setHeatmapEnabled((v) => !v)}
-          >
-            🔥 Heatmap
-          </button>
-        </div>
-        {timeExpanded ? (
-          <div className="map-time-panel">
-            <div className="map-time-expanded-content">
-              <div className="map-time-panel-header">
-                <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
-                <div className="map-time-presets">
-                  {WINDOW_PRESETS.map((preset) => {
-                    const days = Math.min(preset.days, maxDaysSpan);
-                    const active = startDaysAgo === days && endDaysAgo === 0;
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        className={`map-time-preset${active ? " active" : ""}`}
-                        onClick={() => {
-                          setWindowRange({ start: days, end: 0 });
-                          setScrollToken((t) => t + 1);
-                          setTimeExpanded(true);
-                        }}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-                </div>
+      {drawMode ? (
+        <div className="map-draw-toolbar">
+          {deleteConfirmSpot ? (
+            <>
+              <span className="map-draw-toolbar-label">Delete "{deleteConfirmSpot.name}"?</span>
+              <div className="map-draw-toolbar-actions">
+                <button type="button" className="secondary-button" onClick={() => setDeleteConfirmSpot(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="danger-button" onClick={confirmDeleteSpot}>
+                  Delete
+                </button>
               </div>
-              <TimeWindowRuler
-                maxDaysSpan={maxDaysSpan}
-                startDaysAgo={startDaysAgo}
-                endDaysAgo={endDaysAgo}
-                onChange={(start, end) => {
-                  setWindowRange({ start, end });
-                  setTimeExpanded(true);
-                }}
-                scrollToken={scrollToken}
-              />
-            </div>
+            </>
+          ) : (
+            <>
+              <span className="map-draw-toolbar-label">
+                {drawPoints.length < MIN_SPOT_POINTS
+                  ? `Tap the map to outline a spot (${drawPoints.length} pt${drawPoints.length === 1 ? "" : "s"})`
+                  : "Tap existing spots to delete them"}
+              </span>
+              <div className="map-draw-toolbar-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={undoLastPoint}
+                  disabled={drawPoints.length === 0}
+                >
+                  Undo
+                </button>
+                <button type="button" onClick={finishDrawing} disabled={drawPoints.length < MIN_SPOT_POINTS}>
+                  Finish
+                </button>
+                <button type="button" className="danger-button" onClick={toggleDrawMode}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        // Stacked as a single flex column, bottom-anchored, so the layer
+        // toggles stay pinned directly above the time panel and shift up or
+        // down with it as it expands/collapses, instead of both being pinned
+        // to independent fixed pixel offsets that drift apart.
+        <div className="map-bottom-stack">
+          <div className="map-layer-toggles">
+            <button
+              type="button"
+              className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
+              onClick={() => setPinsEnabled((v) => !v)}
+            >
+              📍 Pins
+            </button>
+            <button
+              type="button"
+              className={`map-layer-toggle${heatmapEnabled ? " active" : ""}`}
+              onClick={() => setHeatmapEnabled((v) => !v)}
+            >
+              🔥 Heatmap
+            </button>
+            <button
+              type="button"
+              className={`map-layer-toggle${spotsEnabled ? " active" : ""}`}
+              onClick={() => setSpotsEnabled((v) => !v)}
+            >
+              🧭 Spots
+            </button>
+            {currentUser?.is_admin && (
+              <button type="button" className="map-layer-toggle" onClick={toggleDrawMode}>
+                ✏️ Edit
+              </button>
+            )}
           </div>
-        ) : (
-          <button type="button" className="map-time-panel collapsed" onClick={() => setTimeExpanded(true)}>
-            <span className="map-time-panel-label">🕐 {formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
-            <span className="map-time-collapsed-chevron">›</span>
-          </button>
-        )}
-      </div>
+          {timeExpanded ? (
+            <div className="map-time-panel">
+              <div className="map-time-expanded-content">
+                <div className="map-time-panel-header">
+                  <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
+                  <div className="map-time-presets">
+                    {WINDOW_PRESETS.map((preset) => {
+                      const days = Math.min(preset.days, maxDaysSpan);
+                      const active = startDaysAgo === days && endDaysAgo === 0;
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          className={`map-time-preset${active ? " active" : ""}`}
+                          onClick={() => {
+                            setWindowRange({ start: days, end: 0 });
+                            setScrollToken((t) => t + 1);
+                            setTimeExpanded(true);
+                          }}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <TimeWindowRuler
+                  maxDaysSpan={maxDaysSpan}
+                  startDaysAgo={startDaysAgo}
+                  endDaysAgo={endDaysAgo}
+                  onChange={(start, end) => {
+                    setWindowRange({ start, end });
+                    setTimeExpanded(true);
+                  }}
+                  scrollToken={scrollToken}
+                />
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="map-time-panel collapsed" onClick={() => setTimeExpanded(true)}>
+              <span className="map-time-panel-label">🕐 {formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
+              <span className="map-time-collapsed-chevron">›</span>
+            </button>
+          )}
+        </div>
+      )}
       <MapContainer
         center={center}
         zoom={focus ? 15 : 11}
         className="map-container"
         zoomControl={false}
         attributionControl={false}
+        doubleClickZoom={!drawMode}
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <MapDragCollapse onDragStart={() => setTimeExpanded(false)} />
-        {heatmapEnabled && <HeatmapLayer points={heatPoints} />}
-        {showPins && (
-          <MarkerClusterGroup
-            ref={clusterGroupRef}
-            showCoverageOnHover={false}
-            maxClusterRadius={20}
-            iconCreateFunction={createClusterIcon}
-          >
-            {visibleCatches.map((c) => (
-              <Marker
-                key={c.id}
-                position={[c.latitude, c.longitude]}
-                icon={catchMarkerIcon}
-                ref={(instance) => {
-                  markerRefs.current[c.id] = instance;
-                }}
-              >
-                <Popup>
-                  <strong>{c.species.common_name}</strong>
-                  <br />
-                  {c.display_name}
-                  {c.weight != null && ` — ${c.weight} lb`}
-                  <br />
-                  {new Date(c.caught_at).toLocaleDateString()}
-                  {c.photo_url && (
-                    <>
-                      <br />
-                      <img
-                        src={`${API_BASE}${c.photo_url}`}
-                        alt={c.species.common_name}
-                        style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
-                      />
-                    </>
-                  )}
-                </Popup>
-              </Marker>
-            ))}
-          </MarkerClusterGroup>
+        {drawMode && <SpotDrawLayer onAddPoint={(pt) => setDrawPoints((pts) => [...pts, pt])} />}
+        {drawMode && drawPoints.length > 0 && (
+          <Polygon positions={drawPoints} pathOptions={{ color: "#0f9d8f", weight: 2, dashArray: "6 4" }} interactive={false} />
         )}
+        {/* Pins, heatmap, and wind badges are hidden while drawing so every
+            tap lands as a polygon vertex instead of hitting a pin or badge
+            underneath it. Spot outlines stay visible (and become tappable)
+            so the admin can delete an existing one without leaving draw mode. */}
+        {!drawMode && heatmapEnabled && <HeatmapLayer points={heatPoints} />}
+        {!drawMode &&
+          showPins && (
+            <MarkerClusterGroup
+              ref={clusterGroupRef}
+              showCoverageOnHover={false}
+              maxClusterRadius={20}
+              iconCreateFunction={createClusterIcon}
+            >
+              {visibleCatches.map((c) => (
+                <Marker
+                  key={c.id}
+                  position={[c.latitude, c.longitude]}
+                  icon={catchMarkerIcon}
+                  ref={(instance) => {
+                    markerRefs.current[c.id] = instance;
+                  }}
+                >
+                  <Popup>
+                    <strong>{c.species.common_name}</strong>
+                    <br />
+                    {c.display_name}
+                    {c.weight != null && ` — ${c.weight} lb`}
+                    <br />
+                    {new Date(c.caught_at).toLocaleDateString()}
+                    {c.photo_url && (
+                      <>
+                        <br />
+                        <img
+                          src={`${API_BASE}${c.photo_url}`}
+                          alt={c.species.common_name}
+                          style={{ width: "100%", borderRadius: 8, marginTop: 6 }}
+                        />
+                      </>
+                    )}
+                  </Popup>
+                </Marker>
+              ))}
+            </MarkerClusterGroup>
+          )}
+        {(spotsEnabled || drawMode) &&
+          spots.map((spot) => (
+            <Polygon
+              key={spot.id}
+              positions={spot.polygon}
+              pathOptions={{ color: "#0f9d8f", weight: 1.5, fillOpacity: 0.08 }}
+              interactive={drawMode}
+              eventHandlers={
+                drawMode
+                  ? {
+                      click: (e) => {
+                        L.DomEvent.stopPropagation(e);
+                        setDeleteConfirmSpot(spot);
+                      },
+                    }
+                  : undefined
+              }
+            />
+          ))}
+        {!drawMode && spotsEnabled && spots.map((spot) => <WindBadge key={spot.id} spot={spot} catches={catches} />)}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}
       </MapContainer>
+      <SpotNameSheet
+        open={nameSheetOpen}
+        saving={savingSpot}
+        onCancel={() => setNameSheetOpen(false)}
+        onSave={saveSpot}
+      />
     </div>
   );
 }

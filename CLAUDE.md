@@ -20,8 +20,17 @@ Future (not this phase, but design the schema to support it without migration):
 - Keep `weight`, `length`, and `caught_at` as plain indexed numeric/timestamp columns on `catches` so these are simple aggregate queries later (MAX/GROUP BY) — no schema redesign needed when we add this.
 
 Later phases (see docs/roadmap.md for full detail, not needed for this session):
-- Geolocation-based "nearby likely species" — a manually curated spots↔species table, no ML
+- Geolocation-based "nearby likely species" — a manually curated spots↔species (`spot_species`) matching table, no ML. Still deferred — distinct from the `spots` table below, which is already built.
 - Camera-based species ID — a separate track, starts with calling a vision API rather than training a custom model. Don't build this yet.
+
+## Spots (added post-Phase-1)
+Admin-curated named fishing locations (e.g. "Harbor Island"), drawn as a
+polygon directly on the Map page. Any catch logged with lat/lng inside a
+spot's boundary is auto-attributed to it (point-in-polygon, no geo
+dependency — see `backend/app/geo.py`). Every user sees each spot's outline
+plus a tappable wind badge (current speed/direction via Open-Meteo, fetched
+client-side) and its recent catches. This is unrelated to the deferred
+`spot_species` matching table above.
 
 ## Data model (Phase 1)
 
@@ -35,10 +44,14 @@ species
 
 catches
   id, user_id (FK), species_id (FK), weight, length, caught_at,
-  latitude, longitude, photo_url, notes
+  latitude, longitude, photo_url, notes, spot_id (FK, nullable)
+
+spots
+  id, name, polygon (JSON [[lat,lng],...]), centroid_lat, centroid_lng,
+  created_by_user_id (FK), created_at
 ```
 
-(`spots` / `spot_species` tables come in a later phase — don't add yet.)
+(`spot_species` — the ML-free nearby-species-matching table — is still a later phase, not built.)
 
 ## Conventions
 - Keep the vision/ML feature fully decoupled — nothing in Phase 1 should assume it exists.

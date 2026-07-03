@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db
+from app.geo import find_spot_for_point
 from app.models import Catch, Species, User
 from app.schemas import CatchCreate, CatchOut, CatchUpdate, MapCatch, RecentCatch
 from app.tide import TideUnavailable, get_tide_at
@@ -24,7 +25,7 @@ ALLOWED_PHOTO_TYPES = {
 def _get_owned_catch(catch_id: int, db: Session, current_user: User) -> Catch:
     catch = (
         db.query(Catch)
-        .options(joinedload(Catch.species))
+        .options(joinedload(Catch.species), joinedload(Catch.spot))
         .filter(Catch.id == catch_id)
         .first()
     )
@@ -56,6 +57,8 @@ def create_catch(
         catch.tide_height_ft, catch.tide_direction = get_tide_at(catch.caught_at)
     except TideUnavailable:
         pass  # best-effort — the catch still saves without tide data
+    if catch.latitude is not None and catch.longitude is not None:
+        catch.spot_id = find_spot_for_point(db, catch.latitude, catch.longitude)
     db.add(catch)
     db.commit()
     db.refresh(catch)
@@ -69,7 +72,7 @@ def list_my_catches(
 ):
     return (
         db.query(Catch)
-        .options(joinedload(Catch.species))
+        .options(joinedload(Catch.species), joinedload(Catch.spot))
         .filter(Catch.user_id == current_user.id)
         .order_by(Catch.caught_at.desc())
         .all()
@@ -83,7 +86,7 @@ def list_recent_catches(
 ):
     catches = (
         db.query(Catch)
-        .options(joinedload(Catch.species), joinedload(Catch.user))
+        .options(joinedload(Catch.species), joinedload(Catch.user), joinedload(Catch.spot))
         .order_by(Catch.caught_at.desc())
         .limit(100)
         .all()
@@ -102,6 +105,7 @@ def list_recent_catches(
             species=c.species,
             tide_height_ft=c.tide_height_ft,
             tide_direction=c.tide_direction,
+            spot=c.spot,
         )
         for c in catches
     ]
@@ -114,7 +118,7 @@ def list_map_catches(
 ):
     catches = (
         db.query(Catch)
-        .options(joinedload(Catch.species), joinedload(Catch.user))
+        .options(joinedload(Catch.species), joinedload(Catch.user), joinedload(Catch.spot))
         .filter(Catch.latitude.isnot(None), Catch.longitude.isnot(None))
         .order_by(Catch.caught_at.desc())
         .all()
@@ -130,6 +134,7 @@ def list_map_catches(
             longitude=c.longitude,
             photo_url=c.photo_url,
             species=c.species,
+            spot=c.spot,
         )
         for c in catches
     ]
@@ -167,6 +172,13 @@ def update_catch(
             catch.tide_height_ft, catch.tide_direction = get_tide_at(catch.caught_at)
         except TideUnavailable:
             pass
+
+    if "latitude" in updates or "longitude" in updates:
+        catch.spot_id = (
+            find_spot_for_point(db, catch.latitude, catch.longitude)
+            if catch.latitude is not None and catch.longitude is not None
+            else None
+        )
 
     db.commit()
     db.refresh(catch)
