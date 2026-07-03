@@ -63,18 +63,11 @@ function SpotDrawLayer({ onAddPoint }: { onAddPoint: (latlng: [number, number]) 
   return null;
 }
 
-// Wind badges only show their spot's name once zoomed in enough that the
-// cluster group has naturally spread them apart — showing labels while still
-// clustered would just add more clutter on top of the one thing clustering
-// was meant to fix.
-const LABEL_MIN_ZOOM = 14;
-
-function ZoomTracker({ onZoom }: { onZoom: (zoom: number) => void }) {
-  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
-  useEffect(() => {
-    onZoom(map.getZoom());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+// Re-checks which wind badges are currently standalone (vs. folded into a
+// cluster bubble) whenever the map finishes a zoom, so name labels can be
+// gated on actual cluster membership rather than a fixed zoom threshold.
+function WindClusterZoomSync({ onZoomEnd }: { onZoomEnd: () => void }) {
+  useMapEvents({ zoomend: onZoomEnd });
   return null;
 }
 
@@ -100,10 +93,11 @@ export default function MapPage() {
   const [savingSpot, setSavingSpot] = useState(false);
   const [deleteConfirmSpot, setDeleteConfirmSpot] = useState<Spot | null>(null);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
-  const [mapZoom, setMapZoom] = useState(focus ? 15 : 11);
+  const [unclusteredSpotIds, setUnclusteredSpotIds] = useState<Set<number>>(new Set());
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
   const windClusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const spotMarkerRefs = useRef<Record<number, L.Marker | null>>({});
 
   function refreshSpots() {
     listSpots()
@@ -112,6 +106,41 @@ export default function MapPage() {
         /* Spots are a nice-to-have overlay — a failed fetch just means none show. */
       });
   }
+
+  // A wind badge's name label should only show once there's actually room
+  // for it — i.e. once the cluster group has spread it out into its own
+  // standalone marker rather than folding it into a cluster bubble.
+  // Leaflet.markercluster's getVisibleParent(marker) returns the marker
+  // itself when it's currently shown standalone, or the cluster bubble
+  // representing it otherwise.
+  function refreshUnclusteredSpots() {
+    const group = windClusterGroupRef.current;
+    if (!group) return;
+    const next = new Set<number>();
+    for (const spot of spots) {
+      const marker = spotMarkerRefs.current[spot.id];
+      if (!marker) continue;
+      const parent = group.getVisibleParent(marker);
+      if (!parent || parent === marker) next.add(spot.id);
+    }
+    setUnclusteredSpotIds(next);
+  }
+
+  useEffect(() => {
+    const group = windClusterGroupRef.current;
+    if (!group) return;
+    group.on("animationend", refreshUnclusteredSpots);
+    // react-leaflet-cluster buffers addLayer calls via queueMicrotask instead
+    // of adding them synchronously on mount (same quirk the catch-marker
+    // zoomToShowLayer fix above works around) — queuing this call too lets
+    // that pending flush finish first, so getVisibleParent() sees markers
+    // that have actually been registered in the cluster's tree.
+    queueMicrotask(refreshUnclusteredSpots);
+    return () => {
+      group.off("animationend", refreshUnclusteredSpots);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spots, spotsEnabled, drawMode]);
 
   useEffect(() => {
     getMapCatches()
@@ -449,7 +478,7 @@ export default function MapPage() {
               }}
             />
           ))}
-        {!drawMode && spotsEnabled && <ZoomTracker onZoom={setMapZoom} />}
+        {!drawMode && spotsEnabled && <WindClusterZoomSync onZoomEnd={refreshUnclusteredSpots} />}
         {!drawMode && spotsEnabled && (
           <MarkerClusterGroup
             ref={windClusterGroupRef}
@@ -461,9 +490,12 @@ export default function MapPage() {
               <WindBadge
                 key={spot.id}
                 spot={spot}
-                showLabel={mapZoom >= LABEL_MIN_ZOOM}
+                showLabel={unclusteredSpotIds.has(spot.id)}
                 onSelect={setSelectedSpot}
                 onWindLoaded={() => windClusterGroupRef.current?.refreshClusters()}
+                markerRef={(instance) => {
+                  spotMarkerRefs.current[spot.id] = instance;
+                }}
               />
             ))}
           </MarkerClusterGroup>

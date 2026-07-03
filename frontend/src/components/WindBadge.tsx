@@ -79,6 +79,10 @@ interface WindBadgeProps {
    * recompute its aggregate icon — Leaflet.markercluster doesn't do this on
    * its own just because a child marker's icon changed underneath it. */
   onWindLoaded?: () => void;
+  /** Gives the parent page access to the underlying marker instance, so it
+   * can ask the cluster group whether this spot is currently standalone
+   * (via getVisibleParent) to decide whether to show its name label. */
+  markerRef?: (instance: L.Marker | null) => void;
 }
 
 // Only the Marker itself lives inside MapContainer — its detail sheet is
@@ -87,7 +91,7 @@ interface WindBadgeProps {
 // given z-index:0 specifically to contain Leaflet's internal panes, which
 // otherwise render above page chrome), trapping the sheet behind the map
 // instead of over it.
-export default function WindBadge({ spot, showLabel, onSelect, onWindLoaded }: WindBadgeProps) {
+export default function WindBadge({ spot, showLabel, onSelect, onWindLoaded, markerRef }: WindBadgeProps) {
   const [wind, setWind] = useState<WindState | null>(null);
 
   useEffect(() => {
@@ -115,6 +119,7 @@ export default function WindBadge({ spot, showLabel, onSelect, onWindLoaded }: W
       eventHandlers={{ click: () => onSelect(spot) }}
       ref={(instance) => {
         if (instance) (instance as WindMarker).windData = wind;
+        markerRef?.(instance);
       }}
     />
   );
