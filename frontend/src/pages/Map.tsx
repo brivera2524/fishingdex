@@ -13,7 +13,7 @@ import type { MapCatch } from "../api/types";
 import type { LatLng } from "../components/LocationPicker";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
-import TimeWindowSlider from "../components/TimeWindowSlider";
+import TimeWindowRuler from "../components/TimeWindowRuler";
 
 interface FocusState {
   focusCatchId: number;
@@ -49,8 +49,8 @@ export default function MapPage() {
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
   const [maxDaysSpan, setMaxDaysSpan] = useState(DEFAULT_WINDOW_DAYS);
-  const [windowDays, setWindowDays] = useState(DEFAULT_WINDOW_DAYS);
-  const [endDaysAgo, setEndDaysAgo] = useState(0);
+  const [windowRange, setWindowRange] = useState({ start: DEFAULT_WINDOW_DAYS, end: 0 });
+  const [scrollToken, setScrollToken] = useState(0);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
@@ -113,8 +113,8 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, loading, catches]);
 
-  const effectiveWindowDays = Math.min(windowDays, maxDaysSpan);
-  const startDaysAgo = endDaysAgo + effectiveWindowDays;
+  const startDaysAgo = Math.min(windowRange.start, maxDaysSpan);
+  const endDaysAgo = windowRange.end;
 
   const visibleCatches = useMemo(() => {
     const now = Date.now();
@@ -175,15 +175,15 @@ export default function MapPage() {
           <div className="map-time-presets">
             {WINDOW_PRESETS.map((preset) => {
               const days = Math.min(preset.days, maxDaysSpan);
-              const active = effectiveWindowDays === days;
+              const active = startDaysAgo === days && endDaysAgo === 0;
               return (
                 <button
                   key={preset.label}
                   type="button"
                   className={`map-time-preset${active ? " active" : ""}`}
                   onClick={() => {
-                    setWindowDays(preset.days);
-                    setEndDaysAgo(0);
+                    setWindowRange({ start: days, end: 0 });
+                    setScrollToken((t) => t + 1);
                   }}
                 >
                   {preset.label}
@@ -192,11 +192,12 @@ export default function MapPage() {
             })}
           </div>
         </div>
-        <TimeWindowSlider
+        <TimeWindowRuler
           maxDaysSpan={maxDaysSpan}
-          windowDays={effectiveWindowDays}
+          startDaysAgo={startDaysAgo}
           endDaysAgo={endDaysAgo}
-          onChange={setEndDaysAgo}
+          onChange={(start, end) => setWindowRange({ start, end })}
+          scrollToken={scrollToken}
         />
       </div>
       <MapContainer
