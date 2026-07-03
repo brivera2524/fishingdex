@@ -36,7 +36,7 @@ export default function App() {
               <Route path="/map" element={<MapPage />} />
               <Route path="/anglers" element={<Anglers />} />
               <Route path="/recent" element={<RecentCatches />} />
-              <Route path="/" element={<Navigate to="/dex" replace />} />
+              <Route path="/" element={<Navigate to="/map" replace />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
