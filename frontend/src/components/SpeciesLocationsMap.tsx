@@ -36,8 +36,9 @@ export default function SpeciesLocationsMap({ catches }: SpeciesLocationsMapProp
       <p className="section-label">Where it's been caught</p>
       <MapContainer center={points[0] ?? SAN_DIEGO} zoom={10} className="species-mini-map-container">
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          detectRetina
         />
         <FitToMarkers points={points} />
         <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={20} iconCreateFunction={createClusterIcon}>

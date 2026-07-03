@@ -410,7 +410,10 @@ export default function MapPage() {
         attributionControl={false}
         doubleClickZoom={!drawMode}
       >
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          detectRetina
+        />
         <MapDragCollapse onDragStart={() => setTimeExpanded(false)} />
         {drawMode && <SpotDrawLayer onAddPoint={(pt) => setDrawPoints((pts) => [...pts, pt])} />}
         {drawMode && drawPoints.length > 0 && (
