@@ -11,9 +11,19 @@ interface MyCatchesProps {
   userId?: number;
   readOnly?: boolean;
   onEdit?: (catchId: number) => void;
+  /** Opens this catch's detail sheet as soon as the list loads — used right
+   * after logging a catch, so the user lands straight on it to confirm it
+   * saved correctly and can immediately fix/delete it if something's off. */
+  autoSelectCatchId?: number;
 }
 
-export default function MyCatches({ embedded = false, userId, readOnly = false, onEdit }: MyCatchesProps) {
+export default function MyCatches({
+  embedded = false,
+  userId,
+  readOnly = false,
+  onEdit,
+  autoSelectCatchId,
+}: MyCatchesProps) {
   const [catches, setCatches] = useState<Catch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +39,13 @@ export default function MyCatches({ embedded = false, userId, readOnly = false, 
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load catches"))
       .finally(() => setLoading(false));
   }, [userId]);
+
+  useEffect(() => {
+    if (autoSelectCatchId == null) return;
+    const match = catches.find((c) => c.id === autoSelectCatchId);
+    if (match) setSelected(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catches, autoSelectCatchId]);
 
   function closeSheet() {
     setSelected(null);

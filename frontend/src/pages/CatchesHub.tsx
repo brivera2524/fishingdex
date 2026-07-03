@@ -29,6 +29,12 @@ export default function CatchesHub() {
   // sheet doesn't otherwise trigger that.
   const [refreshKey, setRefreshKey] = useState(0);
   const [celebration, setCelebration] = useState<CelebrationDetails | null>(null);
+  // Set right after logging/editing a catch so MyCatches opens straight to
+  // it — the natural place to notice a mistake and fix it immediately, and
+  // it doubles as confirmation the save actually went through. Cleared on
+  // any *other* refresh (e.g. pull-to-refresh) so a stale id doesn't
+  // reopen an old catch's sheet the next time MyCatches remounts.
+  const [autoSelectCatchId, setAutoSelectCatchId] = useState<number | null>(null);
 
   function openNewCatch() {
     setTab("catches");
@@ -39,15 +45,17 @@ export default function CatchesHub() {
     setLogSheet(null);
   }
 
-  function handleLogDone(celebrationDetails?: CelebrationDetails) {
+  function handleLogDone(celebrationDetails?: CelebrationDetails, catchId?: number) {
     setLogSheet(null);
     setTab("catches");
     setRefreshKey((k) => k + 1);
+    setAutoSelectCatchId(catchId ?? null);
     if (celebrationDetails) setCelebration(celebrationDetails);
   }
 
   async function handlePullRefresh() {
     setRefreshKey((k) => k + 1);
+    setAutoSelectCatchId(null);
     // Dex/MyCatches remount and show their own "Loading..." state — this
     // just keeps the pull indicator visible briefly so the gesture feels
     // like it did something, rather than snapping back instantly.
@@ -75,7 +83,12 @@ export default function CatchesHub() {
         {tab === "dex" ? (
           <Dex embedded key={refreshKey} />
         ) : (
-          <MyCatches embedded key={refreshKey} onEdit={(catchId) => setLogSheet({ mode: "edit", catchId })} />
+          <MyCatches
+            embedded
+            key={refreshKey}
+            onEdit={(catchId) => setLogSheet({ mode: "edit", catchId })}
+            autoSelectCatchId={autoSelectCatchId ?? undefined}
+          />
         )}
       </PullToRefresh>
       <button type="button" className="fab-floating" aria-label="Log a catch" onClick={openNewCatch}>

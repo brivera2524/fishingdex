@@ -63,10 +63,11 @@ interface CatchFormProps {
   /** Carried over from the camera-identify flow, if that's how we got here. */
   detectState?: DetectState | null;
   /** Called once the catch has been saved (or the discovery reveal dismissed).
-   * Carries which celebration animation (if any) the caller should play —
-   * omitted entirely when a new-species DiscoveryReveal was shown instead,
-   * to keep the two celebratory moments from stacking on top of each other. */
-  onDone: (celebration?: CelebrationDetails) => void;
+   * `celebration` carries which animation (if any) the caller should play —
+   * omitted when a new-species DiscoveryReveal was shown instead, to keep
+   * the two celebratory moments from stacking. `catchId` is the just-saved
+   * catch, so the caller can jump straight to it in My Catches. */
+  onDone: (celebration?: CelebrationDetails, catchId?: number) => void;
 }
 
 export default function CatchForm({ catchId, detectState = null, onDone }: CatchFormProps) {
@@ -84,7 +85,9 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
   const [loading, setLoading] = useState(false);
   const [loadingCatch, setLoadingCatch] = useState(isEdit);
   const [priorSpeciesIds, setPriorSpeciesIds] = useState<Set<number> | null>(null);
-  const [discovery, setDiscovery] = useState<{ species: Species; photoUrl: string | null } | null>(null);
+  const [discovery, setDiscovery] = useState<{ species: Species; photoUrl: string | null; catchId: number } | null>(
+    null
+  );
   const [coords, setCoords] = useState<LatLng | null>(null);
   // Manual entry only: the camera-identify flow (detectState present) always
   // uses current location + now since both are guaranteed accurate there.
@@ -314,12 +317,12 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       if (isNewSpecies) {
         const matchedSpecies = species.find((s) => s.id === speciesId);
         if (matchedSpecies) {
-          setDiscovery({ species: matchedSpecies, photoUrl: savedPhotoUrl });
+          setDiscovery({ species: matchedSpecies, photoUrl: savedPhotoUrl, catchId: savedCatchId });
           return;
         }
       }
 
-      onDone(celebration);
+      onDone(celebration, savedCatchId);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save catch");
     } finally {
@@ -349,7 +352,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       <DiscoveryReveal
         species={discovery.species}
         photoSrc={discovery.photoUrl ? `${API_BASE}${discovery.photoUrl}` : null}
-        onDone={onDone}
+        onDone={() => onDone(undefined, discovery.catchId)}
       />
     );
   }
