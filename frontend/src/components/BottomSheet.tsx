@@ -1,5 +1,6 @@
 import { AnimatePresence, animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 
 interface BottomSheetProps {
@@ -114,7 +115,13 @@ export default function BottomSheet({ open, onClose, children, fixedHeight = fal
     };
   }, [open, onClose, y]);
 
-  return (
+  // Portalled to the body so a sheet rendered from inside any ancestor that
+  // happens to establish its own stacking context (e.g. the sticky top bar,
+  // which needs z-index for its own reasons) can't get trapped there —
+  // its z-index would otherwise only be compared within that ancestor's
+  // context instead of against the rest of the page, letting things like
+  // the bottom nav paint over the whole sheet despite its higher z-index.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -155,6 +162,7 @@ export default function BottomSheet({ open, onClose, children, fixedHeight = fal
           </div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
