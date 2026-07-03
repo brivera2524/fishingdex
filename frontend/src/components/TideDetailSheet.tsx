@@ -74,8 +74,23 @@ function timeLabel(d: Date): string {
 }
 
 const CHART_WIDTH = 320;
-const CHART_HEIGHT = 120;
-const CHART_PADDING = 16;
+const CHART_HEIGHT = 140;
+const CHART_SIDE_PADDING = 16;
+const CHART_TOP_PADDING = 16;
+// Extra room below the curve reserved for the time axis (tick marks + labels),
+// separate from the padding around the curve itself.
+const CHART_AXIS_HEIGHT = 34;
+const CHART_BOTTOM = CHART_HEIGHT - CHART_AXIS_HEIGHT;
+const HOUR_MS = 60 * 60 * 1000;
+const AXIS_TICK_INTERVAL_HOURS = 6;
+
+function hourTickLabel(d: Date): string {
+  return d.toLocaleTimeString([], { hour: "numeric" }).replace(" ", "").toLowerCase();
+}
+
+function dateTickLabel(d: Date): string {
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
 interface TideDetailSheetProps {
   open: boolean;
@@ -112,6 +127,7 @@ export default function TideDetailSheet({ open, onClose }: TideDetailSheetProps)
   let chartPath = "";
   let nowX: number | null = null;
   let eventDots: { x: number; y: number; event: HiLoEvent }[] = [];
+  let axisTicks: { x: number; label: string; isDayBoundary: boolean }[] = [];
 
   if (curve && curve.length > 1) {
     const heights = curve.map((p) => p.heightFt);
@@ -124,12 +140,11 @@ export default function TideDetailSheet({ open, onClose }: TideDetailSheetProps)
     const maxT = curve[curve.length - 1].time.getTime();
     const spanT = maxT - minT || 1;
 
+    const toX = (time: number) => CHART_SIDE_PADDING + ((time - minT) / spanT) * (CHART_WIDTH - CHART_SIDE_PADDING * 2);
     const toXY = (time: number, heightFt: number) => {
-      const x = CHART_PADDING + ((time - minT) / spanT) * (CHART_WIDTH - CHART_PADDING * 2);
+      const x = toX(time);
       const y =
-        CHART_HEIGHT -
-        CHART_PADDING -
-        ((heightFt - paddedMin) / (paddedMax - paddedMin)) * (CHART_HEIGHT - CHART_PADDING * 2);
+        CHART_BOTTOM - ((heightFt - paddedMin) / (paddedMax - paddedMin)) * (CHART_BOTTOM - CHART_TOP_PADDING);
       return { x, y };
     };
 
@@ -142,12 +157,24 @@ export default function TideDetailSheet({ open, onClose }: TideDetailSheetProps)
 
     const now = Date.now();
     if (now >= minT && now <= maxT) {
-      nowX = toXY(now, minH).x;
+      nowX = toX(now);
     }
 
     eventDots = (events ?? [])
       .filter((e) => e.time.getTime() >= minT && e.time.getTime() <= maxT)
       .map((e) => ({ ...toXY(e.time.getTime(), e.heightFt), event: e }));
+
+    // Tick every few hours so the curve reads against actual times of day,
+    // with day boundaries (midnight) called out by a date instead of a time.
+    const firstTick = new Date(minT);
+    firstTick.setMinutes(0, 0, 0);
+    const hoursPastBoundary = firstTick.getHours() % AXIS_TICK_INTERVAL_HOURS;
+    if (hoursPastBoundary !== 0) firstTick.setHours(firstTick.getHours() + (AXIS_TICK_INTERVAL_HOURS - hoursPastBoundary));
+    for (let t = firstTick.getTime(); t <= maxT; t += AXIS_TICK_INTERVAL_HOURS * HOUR_MS) {
+      const d = new Date(t);
+      const isDayBoundary = d.getHours() === 0;
+      axisTicks.push({ x: toX(t), label: isDayBoundary ? dateTickLabel(d) : hourTickLabel(d), isDayBoundary });
+    }
   }
 
   return (
@@ -163,8 +190,41 @@ export default function TideDetailSheet({ open, onClose }: TideDetailSheetProps)
 
         {chartPath && (
           <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="tide-chart">
+            <line
+              x1={0}
+              x2={CHART_WIDTH}
+              y1={CHART_BOTTOM}
+              y2={CHART_BOTTOM}
+              className="tide-chart-axis-line"
+            />
+            {axisTicks.map((tick, i) => (
+              <g key={i}>
+                <line
+                  x1={tick.x}
+                  x2={tick.x}
+                  y1={CHART_TOP_PADDING}
+                  y2={CHART_BOTTOM}
+                  className={tick.isDayBoundary ? "tide-chart-tick tide-chart-tick-day" : "tide-chart-tick"}
+                />
+                <text
+                  x={tick.x}
+                  y={CHART_HEIGHT - 6}
+                  className={tick.isDayBoundary ? "tide-chart-tick-label tide-chart-tick-label-day" : "tide-chart-tick-label"}
+                  textAnchor="middle"
+                >
+                  {tick.label}
+                </text>
+              </g>
+            ))}
             <path d={chartPath} className="tide-chart-line" />
-            {nowX != null && <line x1={nowX} x2={nowX} y1={0} y2={CHART_HEIGHT} className="tide-chart-now" />}
+            {nowX != null && (
+              <g>
+                <line x1={nowX} x2={nowX} y1={CHART_TOP_PADDING} y2={CHART_BOTTOM} className="tide-chart-now" />
+                <text x={nowX} y={CHART_TOP_PADDING - 4} className="tide-chart-now-label" textAnchor="middle">
+                  Now
+                </text>
+              </g>
+            )}
             {eventDots.map(({ x, y, event }) => (
               <g key={event.time.toISOString()}>
                 <circle cx={x} cy={y} r={3} className="tide-chart-dot" />

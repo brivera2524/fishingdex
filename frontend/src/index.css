@@ -1316,6 +1316,41 @@ button:disabled {
   fill: var(--ink-soft);
 }
 
+.tide-chart-now-label {
+  font-size: 8px;
+  font-weight: 700;
+  fill: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tide-chart-axis-line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.tide-chart-tick {
+  stroke: var(--border);
+  stroke-width: 1;
+  opacity: 0.35;
+}
+
+.tide-chart-tick-day {
+  opacity: 0.7;
+}
+
+.tide-chart-tick-label {
+  font-size: 8px;
+  font-weight: 600;
+  fill: var(--ink-soft);
+}
+
+.tide-chart-tick-label-day {
+  font-size: 8px;
+  font-weight: 700;
+  fill: var(--ink);
+}
+
 .map-bottom-stack {
   position: absolute;
   bottom: 12px;
