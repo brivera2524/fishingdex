@@ -19,10 +19,15 @@ export interface WindState {
 export type WindMarker = L.Marker & { windData?: WindState | null };
 
 // Wind moves faster than tide but Open-Meteo's underlying model doesn't
-// update every second either — a short TTL keeps the badge and its detail
-// sheet (and repeated re-renders/re-mounts in between) from all re-hitting
-// the network for the same spot within a few minutes of each other.
-const WIND_TTL_MS = 5 * 60 * 1000;
+// update every second either — this keeps the badge and its detail sheet
+// (and repeated re-renders/re-mounts in between) from all re-hitting the
+// network for the same spot within the same 15-minute window.
+const WIND_TTL_MS = 15 * 60 * 1000;
+// How often a mounted badge re-checks for fresh data. Most of these calls
+// resolve instantly from the TTL cache above without hitting the network at
+// all — this just makes sure the *displayed* value doesn't stay frozen at
+// whatever it was the moment the map was opened if the tab sits open a while.
+const WIND_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 // Open-Meteo: free, no API key, permissive CORS — same direct-from-browser
 // pattern already used for NOAA tide data in TideBadge/TideDetailSheet.
@@ -96,18 +101,33 @@ export default function WindBadge({ spot, showLabel, onSelect, onWindLoaded, mar
 
   useEffect(() => {
     let cancelled = false;
-    fetchWind(spot.centroid_lat, spot.centroid_lng)
-      .then((w) => {
-        if (!cancelled) {
-          setWind(w);
-          onWindLoaded?.();
-        }
-      })
-      .catch(() => {
-        /* Open-Meteo unreachable — badge just shows a dash for speed. */
-      });
+    function refresh() {
+      fetchWind(spot.centroid_lat, spot.centroid_lng)
+        .then((w) => {
+          if (!cancelled) {
+            setWind(w);
+            onWindLoaded?.();
+          }
+        })
+        .catch(() => {
+          /* Open-Meteo unreachable — badge just shows a dash for speed. */
+        });
+    }
+    refresh();
+    const interval = setInterval(refresh, WIND_REFRESH_INTERVAL_MS);
+    // A plain interval alone can leave a long-backgrounded tab showing
+    // whatever was current when it was last foregrounded, since throttled
+    // background timers can fall well behind — refreshing the moment the
+    // tab becomes visible again closes that gap immediately instead of
+    // waiting for the next tick.
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spot.centroid_lat, spot.centroid_lng]);

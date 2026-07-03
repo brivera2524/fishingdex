@@ -11,21 +11,24 @@ const NOAA_BASE = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter";
 const RING_RADIUS = 18;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-// The hi/lo window barely changes minute to minute (the next event's time is
-// static for hours), so it can sit longer than the fine-grained current
-// height reading, which is the one thing meant to feel "live".
+// The hi/lo event window is the only thing actually fetched from NOAA, and
+// barely changes minute to minute (the next event's time is static for
+// hours) — it's refreshed on this cadence (or immediately if the tab was
+// backgrounded past it), and most of those calls resolve instantly from the
+// TTL cache below without a real network request at all.
 const HILO_TTL_MS = 15 * 60 * 1000;
-const CURRENT_HEIGHT_TTL_MS = 5 * 60 * 1000;
+const HILO_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+// Separate from the above: how often the *displayed* height/percent is
+// recomputed against the current time. This never touches the network — it
+// just re-runs the interpolation below against whichever events are already
+// cached, so the badge keeps advancing smoothly between the infrequent real
+// NOAA refreshes.
+const TICK_INTERVAL_MS = 30 * 1000;
 
 interface HiLoPrediction {
   t: string;
   v: string;
   type: "H" | "L";
-}
-
-interface PlainPrediction {
-  t: string;
-  v: string;
 }
 
 interface HiLoEvent {
@@ -73,72 +76,77 @@ function fetchHiLoWindow(): Promise<HiLoEvent[]> {
   });
 }
 
-function fetchCurrentHeightFt(): Promise<number | null> {
-  return cachedFetch("tide:current-height", CURRENT_HEIGHT_TTL_MS, async () => {
-    const beginDate = formatNoaaDateTime(new Date(Date.now() - 60 * 60 * 1000));
-    const url = `${NOAA_BASE}?product=predictions&datum=MLLW&station=${STATION_ID}&time_zone=lst_ldt&units=english&format=json&interval=6&begin_date=${encodeURIComponent(beginDate)}&range=2`;
-    const res = await fetch(url);
-    const data: { predictions?: PlainPrediction[] } = await res.json();
-    const predictions = data.predictions ?? [];
-    if (predictions.length === 0) return null;
-    const now = Date.now();
-    let closest = predictions[0];
-    let closestDiff = Infinity;
-    for (const p of predictions) {
-      const diff = Math.abs(parseNoaaTime(p.t).getTime() - now);
-      if (diff < closestDiff) {
-        closestDiff = diff;
-        closest = p;
-      }
-    }
-    return Number.parseFloat(closest.v);
-  });
-}
-
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n));
 }
 
+// Tide height between two consecutive extremes roughly follows a cosine
+// curve, not a straight line — this approximates that shape (the same idea
+// behind the "rule of twelfths" sailors use) closely enough for a glance-at
+// badge, without needing a separate fine-grained NOAA reading just to avoid
+// a visibly-wrong linear ramp.
+function computeTideState(events: HiLoEvent[]): TideState | null {
+  const now = Date.now();
+  const nextIndex = events.findIndex((e) => e.time.getTime() > now);
+  // Need both a preceding and an upcoming event to know the range we're
+  // moving across.
+  if (nextIndex <= 0) return null;
+  const next = events[nextIndex];
+  const prev = events[nextIndex - 1];
+
+  const span = next.heightFt - prev.heightFt;
+  const timeFraction = clamp01((now - prev.time.getTime()) / (next.time.getTime() - prev.time.getTime()));
+  const heightFt = prev.heightFt + span * ((1 - Math.cos(Math.PI * timeFraction)) / 2);
+
+  return {
+    // If the next event is a high, the tide is on its way up, and vice versa.
+    direction: next.type === "H" ? "rising" : "falling",
+    nextType: next.type,
+    nextTime: next.time,
+    heightFt,
+    percent: span === 0 ? 0.5 : clamp01((heightFt - prev.heightFt) / span),
+  };
+}
+
 export default function TideBadge() {
+  const [events, setEvents] = useState<HiLoEvent[] | null>(null);
   const [state, setState] = useState<TideState | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchHiLoWindow(), fetchCurrentHeightFt()])
-      .then(([events, currentHeightFt]) => {
-        if (cancelled) return;
-        const now = Date.now();
-        const nextIndex = events.findIndex((e) => e.time.getTime() > now);
-        // Need both a preceding and an upcoming event to know the range
-        // we're moving across.
-        if (nextIndex <= 0) return;
-        const next = events[nextIndex];
-        const prev = events[nextIndex - 1];
-
-        const span = next.heightFt - prev.heightFt;
-        // Falls back to interpolating by elapsed time between the two
-        // events if the fine-grained height reading came back empty.
-        const timeFraction = (now - prev.time.getTime()) / (next.time.getTime() - prev.time.getTime());
-        const heightFt = currentHeightFt ?? prev.heightFt + span * timeFraction;
-
-        setState({
-          // If the next event is a high, the tide is on its way up, and
-          // vice versa.
-          direction: next.type === "H" ? "rising" : "falling",
-          nextType: next.type,
-          nextTime: next.time,
-          heightFt,
-          percent: span === 0 ? 0.5 : clamp01((heightFt - prev.heightFt) / span),
+    function refresh() {
+      fetchHiLoWindow()
+        .then((evs) => {
+          if (!cancelled) setEvents(evs);
+        })
+        .catch(() => {
+          /* NOAA unreachable or unexpected response — keep showing whatever's cached. */
         });
-      })
-      .catch(() => {
-        /* NOAA unreachable or unexpected response — just skip the badge. */
-      });
+    }
+    refresh();
+    const interval = setInterval(refresh, HILO_REFRESH_INTERVAL_MS);
+    // A plain interval alone can leave a long-backgrounded tab showing
+    // whatever was current when it was last foregrounded, since throttled
+    // background timers can fall well behind — refreshing the moment the
+    // tab becomes visible again closes that gap immediately.
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (!events) return;
+    setState(computeTideState(events));
+    const interval = setInterval(() => setState(computeTideState(events)), TICK_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [events]);
 
   if (!state) return null;
 
