@@ -13,7 +13,7 @@ import type { MapCatch } from "../api/types";
 import type { LatLng } from "../components/LocationPicker";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
-import TimeRangeSlider from "../components/TimeRangeSlider";
+import TimeWindowSlider from "../components/TimeWindowSlider";
 
 interface FocusState {
   focusCatchId: number;
@@ -24,16 +24,13 @@ interface FocusState {
 const DAY_MS = 86_400_000;
 const DEFAULT_WINDOW_DAYS = 30;
 
-// Slider domain runs 0..maxDaysSpan where 0 = the oldest catch on record and
-// maxDaysSpan = right now — so the left thumb reads as the "start" of the
-// window and the right thumb as its "end", matching a left-to-right timeline.
-function daysAgoToValue(daysAgo: number, maxDaysSpan: number) {
-  return maxDaysSpan - daysAgo;
-}
-
-function valueToDaysAgo(value: number, maxDaysSpan: number) {
-  return maxDaysSpan - value;
-}
+const WINDOW_PRESETS = [
+  { label: "1W", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+  { label: "6M", days: 180 },
+  { label: "All", days: Infinity },
+];
 
 function formatRangeLabel(startDaysAgo: number, endDaysAgo: number) {
   const now = Date.now();
@@ -52,7 +49,8 @@ export default function MapPage() {
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
   const [maxDaysSpan, setMaxDaysSpan] = useState(DEFAULT_WINDOW_DAYS);
-  const [range, setRange] = useState({ low: 0, high: DEFAULT_WINDOW_DAYS });
+  const [windowDays, setWindowDays] = useState(DEFAULT_WINDOW_DAYS);
+  const [endDaysAgo, setEndDaysAgo] = useState(0);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
@@ -65,9 +63,7 @@ export default function MapPage() {
           const ageDays = (now - new Date(c.caught_at).getTime()) / DAY_MS;
           return ageDays > max ? ageDays : max;
         }, DEFAULT_WINDOW_DAYS);
-        const span = Math.ceil(oldestAgeDays) + 1;
-        setMaxDaysSpan(span);
-        setRange({ low: Math.max(0, daysAgoToValue(DEFAULT_WINDOW_DAYS, span)), high: span });
+        setMaxDaysSpan(Math.ceil(oldestAgeDays) + 1);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load map"))
       .finally(() => setLoading(false));
@@ -117,8 +113,8 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, loading, catches]);
 
-  const startDaysAgo = valueToDaysAgo(range.low, maxDaysSpan);
-  const endDaysAgo = valueToDaysAgo(range.high, maxDaysSpan);
+  const effectiveWindowDays = Math.min(windowDays, maxDaysSpan);
+  const startDaysAgo = endDaysAgo + effectiveWindowDays;
 
   const visibleCatches = useMemo(() => {
     const now = Date.now();
@@ -177,31 +173,30 @@ export default function MapPage() {
         <div className="map-time-panel-header">
           <span className="map-time-panel-label">{formatRangeLabel(startDaysAgo, endDaysAgo)}</span>
           <div className="map-time-presets">
-            {[
-              { label: "1W", days: 7 },
-              { label: "1M", days: 30 },
-              { label: "3M", days: 90 },
-              { label: "All", days: maxDaysSpan },
-            ].map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                className="map-time-preset"
-                onClick={() =>
-                  setRange({ low: Math.max(0, daysAgoToValue(preset.days, maxDaysSpan)), high: maxDaysSpan })
-                }
-              >
-                {preset.label}
-              </button>
-            ))}
+            {WINDOW_PRESETS.map((preset) => {
+              const days = Math.min(preset.days, maxDaysSpan);
+              const active = effectiveWindowDays === days;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className={`map-time-preset${active ? " active" : ""}`}
+                  onClick={() => {
+                    setWindowDays(preset.days);
+                    setEndDaysAgo(0);
+                  }}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-        <TimeRangeSlider
-          min={0}
-          max={maxDaysSpan}
-          low={range.low}
-          high={range.high}
-          onChange={(low, high) => setRange({ low, high })}
+        <TimeWindowSlider
+          maxDaysSpan={maxDaysSpan}
+          windowDays={effectiveWindowDays}
+          endDaysAgo={endDaysAgo}
+          onChange={setEndDaysAgo}
         />
       </div>
       <MapContainer

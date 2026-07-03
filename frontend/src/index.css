@@ -1387,7 +1387,7 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
-.map-time-preset:active {
+.map-time-preset.active {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
@@ -1408,12 +1408,14 @@ button:disabled {
   background: var(--border);
 }
 
-.time-slider-track-fill {
+.time-slider-window {
   position: absolute;
-  top: 12px;
-  height: 4px;
-  border-radius: 2px;
+  top: 10px;
+  height: 8px;
+  min-width: 8px;
+  border-radius: 4px;
   background: var(--accent);
+  pointer-events: none;
 }
 
 .time-slider input[type="range"] {
@@ -1424,9 +1426,12 @@ button:disabled {
   margin: 0;
   height: 20px;
   background: transparent;
-  pointer-events: none;
   -webkit-appearance: none;
   appearance: none;
+}
+
+.time-slider input[type="range"]:disabled {
+  opacity: 0;
 }
 
 .time-slider input[type="range"]::-webkit-slider-thumb {
