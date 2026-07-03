@@ -1485,19 +1485,68 @@ button:disabled {
   white-space: nowrap;
 }
 
-.wind-cluster-icon span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.wind-cluster-dot {
   width: 100%;
   height: 100%;
   border-radius: 50%;
   background: #2f6fed;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 6px rgba(15, 23, 41, 0.45);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wind-cluster-fallback {
   color: #fff;
   font-weight: 700;
   font-size: 12px;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 6px rgba(15, 23, 41, 0.45);
+}
+
+.wind-cluster-arrow {
+  width: 16px;
+  height: 16px;
+  fill: #fff;
+  position: absolute;
+  top: 4px;
+}
+
+.wind-cluster-speed {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  bottom: 5px;
+}
+
+.wind-cluster-unit {
+  font-size: 6px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+}
+
+.wind-cluster-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
 }
 
 .wind-badge-arrow {

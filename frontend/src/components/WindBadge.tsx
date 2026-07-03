@@ -11,6 +11,13 @@ export interface WindState {
   directionDeg: number;
 }
 
+// Leaflet.markercluster's iconCreateFunction only gets the raw child Marker
+// instances (via cluster.getAllChildMarkers()), not our React props/state —
+// stashing each marker's latest wind reading directly on the instance is how
+// createWindClusterIcon (leafletSetup.ts) can average them for the cluster
+// bubble's icon.
+export type WindMarker = L.Marker & { windData?: WindState | null };
+
 // Wind moves faster than tide but Open-Meteo's underlying model doesn't
 // update every second either — a short TTL keeps the badge and its detail
 // sheet (and repeated re-renders/re-mounts in between) from all re-hitting
@@ -68,6 +75,10 @@ interface WindBadgeProps {
   spot: Spot;
   showLabel: boolean;
   onSelect: (spot: Spot) => void;
+  /** Called once this spot's wind data (re)loads, so the cluster group can
+   * recompute its aggregate icon — Leaflet.markercluster doesn't do this on
+   * its own just because a child marker's icon changed underneath it. */
+  onWindLoaded?: () => void;
 }
 
 // Only the Marker itself lives inside MapContainer — its detail sheet is
@@ -76,14 +87,17 @@ interface WindBadgeProps {
 // given z-index:0 specifically to contain Leaflet's internal panes, which
 // otherwise render above page chrome), trapping the sheet behind the map
 // instead of over it.
-export default function WindBadge({ spot, showLabel, onSelect }: WindBadgeProps) {
+export default function WindBadge({ spot, showLabel, onSelect, onWindLoaded }: WindBadgeProps) {
   const [wind, setWind] = useState<WindState | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetchWind(spot.centroid_lat, spot.centroid_lng)
       .then((w) => {
-        if (!cancelled) setWind(w);
+        if (!cancelled) {
+          setWind(w);
+          onWindLoaded?.();
+        }
       })
       .catch(() => {
         /* Open-Meteo unreachable — badge just shows a dash for speed. */
@@ -91,6 +105,7 @@ export default function WindBadge({ spot, showLabel, onSelect }: WindBadgeProps)
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spot.centroid_lat, spot.centroid_lng]);
 
   return (
@@ -98,6 +113,9 @@ export default function WindBadge({ spot, showLabel, onSelect }: WindBadgeProps)
       position={[spot.centroid_lat, spot.centroid_lng]}
       icon={buildWindIcon(wind, spot.name, showLabel)}
       eventHandlers={{ click: () => onSelect(spot) }}
+      ref={(instance) => {
+        if (instance) (instance as WindMarker).windData = wind;
+      }}
     />
   );
 }

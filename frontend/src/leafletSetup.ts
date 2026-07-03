@@ -3,6 +3,7 @@ import L from "leaflet";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import type { WindMarker } from "./components/WindBadge";
 
 // Vite bundles Leaflet's default marker image paths incorrectly out of the
 // box. Importing this module (for its side effect) fixes it once for any
@@ -49,12 +50,51 @@ export function createClusterIcon(cluster: L.MarkerCluster) {
 
 // A distinct color from createClusterIcon (catch pins) so a cluster of wind
 // badges doesn't read as "more catches" when both layers are visible at once.
+//
+// Rather than collapsing to a bare count, this averages the clustered spots'
+// wind readings so zooming out still gives a rough, mostly-accurate sense of
+// conditions instead of nothing at all. Direction can't just be averaged as
+// plain degrees (350° and 10° should average to 0°, not 180°) — each reading
+// is treated as a vector and the vectors are summed, weighted by speed so a
+// stronger reading has more say in the resulting direction than a light one.
 export function createWindClusterIcon(cluster: L.MarkerCluster) {
   const count = cluster.getChildCount();
   const size = count < 10 ? 38 : count < 100 ? 44 : 50;
+
+  let sumX = 0;
+  let sumY = 0;
+  let sumSpeed = 0;
+  let readings = 0;
+  for (const child of cluster.getAllChildMarkers()) {
+    const wind = (child as WindMarker).windData;
+    if (!wind) continue;
+    const rad = (wind.directionDeg * Math.PI) / 180;
+    sumX += wind.speedMph * Math.sin(rad);
+    sumY += wind.speedMph * Math.cos(rad);
+    sumSpeed += wind.speedMph;
+    readings++;
+  }
+
+  let inner: string;
+  if (readings === 0) {
+    // Children haven't loaded their wind data yet — fall back to a plain count.
+    inner = `<span class="wind-cluster-fallback">💨 ${count}</span>`;
+  } else {
+    const avgSpeed = sumSpeed / readings;
+    const avgDirectionDeg = ((Math.atan2(sumX, sumY) * 180) / Math.PI + 360) % 360;
+    const rotation = (avgDirectionDeg + 180) % 360;
+    inner = `
+      <svg viewBox="0 0 32 32" class="wind-cluster-arrow" style="transform: rotate(${rotation}deg)">
+        <path d="M16 4 L22 20 L16 16 L10 20 Z" />
+      </svg>
+      <span class="wind-cluster-speed">${Math.round(avgSpeed)}<span class="wind-cluster-unit">mph</span></span>
+      <span class="wind-cluster-count">${count}</span>
+    `;
+  }
+
   return L.divIcon({
     className: "wind-cluster-icon",
-    html: `<span>💨 ${count}</span>`,
+    html: `<div class="wind-cluster-dot">${inner}</div>`,
     iconSize: L.point(size, size, true),
   });
 }

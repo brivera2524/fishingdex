@@ -103,6 +103,7 @@ export default function MapPage() {
   const [mapZoom, setMapZoom] = useState(focus ? 15 : 11);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const windClusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
   function refreshSpots() {
     listSpots()
@@ -450,9 +451,20 @@ export default function MapPage() {
           ))}
         {!drawMode && spotsEnabled && <ZoomTracker onZoom={setMapZoom} />}
         {!drawMode && spotsEnabled && (
-          <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={50} iconCreateFunction={createWindClusterIcon}>
+          <MarkerClusterGroup
+            ref={windClusterGroupRef}
+            showCoverageOnHover={false}
+            maxClusterRadius={50}
+            iconCreateFunction={createWindClusterIcon}
+          >
             {spots.map((spot) => (
-              <WindBadge key={spot.id} spot={spot} showLabel={mapZoom >= LABEL_MIN_ZOOM} onSelect={setSelectedSpot} />
+              <WindBadge
+                key={spot.id}
+                spot={spot}
+                showLabel={mapZoom >= LABEL_MIN_ZOOM}
+                onSelect={setSelectedSpot}
+                onWindLoaded={() => windClusterGroupRef.current?.refreshClusters()}
+              />
             ))}
           </MarkerClusterGroup>
         )}
