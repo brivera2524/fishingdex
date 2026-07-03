@@ -41,7 +41,12 @@ export default function SpeciesLocationsMap({ catches }: SpeciesLocationsMapProp
           detectRetina
         />
         <FitToMarkers points={points} />
-        <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={20} iconCreateFunction={createClusterIcon}>
+        <MarkerClusterGroup
+          showCoverageOnHover={false}
+          maxClusterRadius={20}
+          iconCreateFunction={createClusterIcon}
+          removeOutsideVisibleBounds={false}
+        >
           {catches.map((c) => (
             <Marker key={c.id} position={[c.latitude, c.longitude]} icon={catchMarkerIcon}>
               <Popup>

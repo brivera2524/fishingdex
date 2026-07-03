@@ -431,6 +431,7 @@ export default function MapPage() {
               showCoverageOnHover={false}
               maxClusterRadius={20}
               iconCreateFunction={createClusterIcon}
+              removeOutsideVisibleBounds={false}
             >
               {visibleCatches.map((c) => (
                 <Marker
@@ -488,6 +489,7 @@ export default function MapPage() {
             showCoverageOnHover={false}
             maxClusterRadius={50}
             iconCreateFunction={createWindClusterIcon}
+            removeOutsideVisibleBounds={false}
           >
             {spots.map((spot) => (
               <WindBadge
