@@ -6,7 +6,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { catchMarkerIcon, createClusterIcon, currentLocationIcon, SAN_DIEGO } from "../leafletSetup";
+import { catchMarkerIcon, createClusterIcon, createWindClusterIcon, currentLocationIcon, SAN_DIEGO } from "../leafletSetup";
 import { createSpot, deleteSpot, getMapCatches, listSpots } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { MapCatch, Spot } from "../api/types";
@@ -63,6 +63,21 @@ function SpotDrawLayer({ onAddPoint }: { onAddPoint: (latlng: [number, number]) 
   return null;
 }
 
+// Wind badges only show their spot's name once zoomed in enough that the
+// cluster group has naturally spread them apart — showing labels while still
+// clustered would just add more clutter on top of the one thing clustering
+// was meant to fix.
+const LABEL_MIN_ZOOM = 14;
+
+function ZoomTracker({ onZoom }: { onZoom: (zoom: number) => void }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  useEffect(() => {
+    onZoom(map.getZoom());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 export default function MapPage() {
   const location = useLocation();
   const focus = location.state as FocusState | null;
@@ -85,6 +100,7 @@ export default function MapPage() {
   const [savingSpot, setSavingSpot] = useState(false);
   const [deleteConfirmSpot, setDeleteConfirmSpot] = useState<Spot | null>(null);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [mapZoom, setMapZoom] = useState(focus ? 15 : 11);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
@@ -346,7 +362,7 @@ export default function MapPage() {
               className={`map-layer-toggle${spotsEnabled ? " active" : ""}`}
               onClick={() => setSpotsEnabled((v) => !v)}
             >
-              💨 Wind
+              🧭 Spots
             </button>
             {currentUser?.is_admin && (
               <button type="button" className="map-layer-toggle" onClick={toggleDrawMode}>
@@ -432,9 +448,14 @@ export default function MapPage() {
               }}
             />
           ))}
-        {!drawMode &&
-          spotsEnabled &&
-          spots.map((spot) => <WindBadge key={spot.id} spot={spot} onSelect={setSelectedSpot} />)}
+        {!drawMode && spotsEnabled && <ZoomTracker onZoom={setMapZoom} />}
+        {!drawMode && spotsEnabled && (
+          <MarkerClusterGroup showCoverageOnHover={false} maxClusterRadius={50} iconCreateFunction={createWindClusterIcon}>
+            {spots.map((spot) => (
+              <WindBadge key={spot.id} spot={spot} showLabel={mapZoom >= LABEL_MIN_ZOOM} onSelect={setSelectedSpot} />
+            ))}
+          </MarkerClusterGroup>
+        )}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}

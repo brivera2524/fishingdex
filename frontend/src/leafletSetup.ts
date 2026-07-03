@@ -46,3 +46,15 @@ export function createClusterIcon(cluster: L.MarkerCluster) {
     iconSize: L.point(size, size, true),
   });
 }
+
+// A distinct color from createClusterIcon (catch pins) so a cluster of wind
+// badges doesn't read as "more catches" when both layers are visible at once.
+export function createWindClusterIcon(cluster: L.MarkerCluster) {
+  const count = cluster.getChildCount();
+  const size = count < 10 ? 38 : count < 100 ? 44 : 50;
+  return L.divIcon({
+    className: "wind-cluster-icon",
+    html: `<span>💨 ${count}</span>`,
+    iconSize: L.point(size, size, true),
+  });
+}

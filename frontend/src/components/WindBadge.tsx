@@ -30,8 +30,8 @@ export async function fetchWind(lat: number, lng: number): Promise<WindState | n
 // Rotating a divIcon's raw HTML by hand (like createClusterIcon in
 // leafletSetup.ts rebuilds its label from live data) since Leaflet markers
 // don't support arbitrary React children — the icon is just regenerated
-// whenever `wind` changes.
-function buildWindIcon(wind: WindState | null): L.DivIcon {
+// whenever `wind` (or the zoom-gated label) changes.
+function buildWindIcon(wind: WindState | null, name: string, showLabel: boolean): L.DivIcon {
   // Arrow points where the wind is blowing TOWARD (more intuitive at a
   // glance than "from"), i.e. the meteorological direction + 180.
   const rotation = wind ? (wind.directionDeg + 180) % 360 : 0;
@@ -39,20 +39,24 @@ function buildWindIcon(wind: WindState | null): L.DivIcon {
   return L.divIcon({
     className: "wind-badge-icon",
     html: `
-      <div class="wind-badge-dot">
-        <svg viewBox="0 0 32 32" class="wind-badge-arrow" style="transform: rotate(${rotation}deg)">
-          <path d="M16 4 L22 20 L16 16 L10 20 Z" />
-        </svg>
-        <span class="wind-badge-speed">${speedLabel}<span class="wind-badge-unit">mph</span></span>
+      <div class="wind-badge-wrap">
+        <div class="wind-badge-dot">
+          <svg viewBox="0 0 32 32" class="wind-badge-arrow" style="transform: rotate(${rotation}deg)">
+            <path d="M16 4 L22 20 L16 16 L10 20 Z" />
+          </svg>
+          <span class="wind-badge-speed">${speedLabel}<span class="wind-badge-unit">mph</span></span>
+        </div>
+        ${showLabel ? `<span class="wind-badge-name">${name}</span>` : ""}
       </div>
     `,
-    iconSize: [40, 40],
+    iconSize: [40, showLabel ? 60 : 40],
     iconAnchor: [20, 20],
   });
 }
 
 interface WindBadgeProps {
   spot: Spot;
+  showLabel: boolean;
   onSelect: (spot: Spot) => void;
 }
 
@@ -62,7 +66,7 @@ interface WindBadgeProps {
 // given z-index:0 specifically to contain Leaflet's internal panes, which
 // otherwise render above page chrome), trapping the sheet behind the map
 // instead of over it.
-export default function WindBadge({ spot, onSelect }: WindBadgeProps) {
+export default function WindBadge({ spot, showLabel, onSelect }: WindBadgeProps) {
   const [wind, setWind] = useState<WindState | null>(null);
 
   useEffect(() => {
@@ -82,7 +86,7 @@ export default function WindBadge({ spot, onSelect }: WindBadgeProps) {
   return (
     <Marker
       position={[spot.centroid_lat, spot.centroid_lng]}
-      icon={buildWindIcon(wind)}
+      icon={buildWindIcon(wind, spot.name, showLabel)}
       eventHandlers={{ click: () => onSelect(spot) }}
     />
   );
