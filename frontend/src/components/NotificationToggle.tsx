@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { updateNotificationMode } from "../api/endpoints";
 import { getCurrentSubscription, subscribeToPush } from "../lib/push";
 import type { NotificationMode } from "../api/types";
@@ -21,10 +21,19 @@ const MODE_LABELS: Record<NotificationMode, string> = {
 
 export default function NotificationToggle() {
   const { currentUser } = useAuth();
-  const [mode, setMode] = useState<NotificationMode>(currentUser?.notification_mode ?? "off");
+  const [mode, setMode] = useState<NotificationMode>("off");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // currentUser loads asynchronously (via getMe(), after AuthProvider
+  // mounts) — on a fresh app launch this component renders before that
+  // resolves, so seeding `mode`'s initial state directly from currentUser
+  // would just lock in "off" forever the moment currentUser was still null.
+  // Syncing here instead picks up the real saved mode once it arrives.
+  useEffect(() => {
+    if (currentUser) setMode(currentUser.notification_mode);
+  }, [currentUser]);
 
   // Push only works for a home-screen-installed PWA on iOS — showing a
   // picker that would silently fail from a plain Safari tab is worse than
