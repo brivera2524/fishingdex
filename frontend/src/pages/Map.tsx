@@ -78,7 +78,7 @@ export default function MapPage() {
   const [catches, setCatches] = useState<MapCatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pinsEnabled, setPinsEnabled] = useState(true);
+  const [pinsEnabled, setPinsEnabled] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [spotsEnabled, setSpotsEnabled] = useState(true);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
@@ -375,6 +375,13 @@ export default function MapPage() {
           <div className="map-layer-toggles">
             <button
               type="button"
+              className={`map-layer-toggle${spotsEnabled ? " active" : ""}`}
+              onClick={() => setSpotsEnabled((v) => !v)}
+            >
+              🧭 Spots
+            </button>
+            <button
+              type="button"
               className={`map-layer-toggle${pinsEnabled ? " active" : ""}`}
               onClick={() => setPinsEnabled((v) => !v)}
             >
@@ -386,13 +393,6 @@ export default function MapPage() {
               onClick={() => setHeatmapEnabled((v) => !v)}
             >
               🔥 Heatmap
-            </button>
-            <button
-              type="button"
-              className={`map-layer-toggle${spotsEnabled ? " active" : ""}`}
-              onClick={() => setSpotsEnabled((v) => !v)}
-            >
-              🧭 Spots
             </button>
             {currentUser?.is_admin && (
               <button type="button" className="map-layer-toggle" onClick={toggleDrawMode}>
