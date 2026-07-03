@@ -549,6 +549,24 @@ button:disabled {
   cursor: pointer;
 }
 
+.card-tappable.active {
+  border-color: var(--accent);
+  background: var(--surface-sunken);
+}
+
+.notification-toggle-button {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: auto;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
 .dex-grid {
   list-style: none;
   padding: 0;
@@ -1171,6 +1189,59 @@ button:disabled {
   letter-spacing: 0.06em;
   font-size: 13px;
   margin-bottom: 6px;
+}
+
+.celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.celebration-overlay-record {
+  background: rgba(6, 13, 28, 0.35);
+}
+
+.celebration-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(250, 204, 21, 0.35) 0%, transparent 70%);
+}
+
+.celebration-burst {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.celebration-particle {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.celebration-badge {
+  position: relative;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 20px;
+  padding: 16px 28px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.celebration-badge-record {
+  font-size: 24px;
+  background: linear-gradient(135deg, #facc15, #fb923c);
+  color: #1a1200;
+  box-shadow: 0 8px 30px rgba(250, 204, 21, 0.5);
 }
 
 /* Map page */

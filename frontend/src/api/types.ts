@@ -50,6 +50,16 @@ export interface Catch {
   tide_direction: "rising" | "falling" | null;
   /** Computed server-side from whether (latitude, longitude) falls inside a curated spot's polygon. */
   spot: SpotSummary | null;
+  /** Response-only, only meaningful right after a create/update save — used to trigger a celebration animation. */
+  is_personal_best: boolean;
+  is_leaderboard_record: boolean;
+}
+
+export type NotificationMode = "all" | "pb_and_record" | "record_only" | "off";
+
+export interface PushSubscriptionInput {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
 }
 
 export interface CatchInput {
@@ -127,6 +137,7 @@ export interface CurrentUser {
   display_name: string;
   created_at: string;
   is_admin: boolean;
+  notification_mode: NotificationMode;
 }
 
 export interface AdminSettings {

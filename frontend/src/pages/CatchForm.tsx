@@ -61,8 +61,11 @@ interface CatchFormProps {
   catchId?: number;
   /** Carried over from the camera-identify flow, if that's how we got here. */
   detectState?: DetectState | null;
-  /** Called once the catch has been saved (or the discovery reveal dismissed). */
-  onDone: () => void;
+  /** Called once the catch has been saved (or the discovery reveal dismissed).
+   * Carries which celebration animation (if any) the caller should play —
+   * omitted entirely when a new-species DiscoveryReveal was shown instead,
+   * to keep the two celebratory moments from stacking on top of each other. */
+  onDone: (celebration?: "pb" | "record") => void;
 }
 
 export default function CatchForm({ catchId, detectState = null, onDone }: CatchFormProps) {
@@ -242,6 +245,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     setLoading(true);
     try {
       let savedCatchId: number;
+      let celebrationTier: "pb" | "record" | undefined;
       const isNewSpecies =
         !isEdit &&
         !detectState?.alreadyRevealed &&
@@ -250,12 +254,13 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
 
       if (isEdit && catchId != null) {
         savedCatchId = catchId;
-        await updateCatch(savedCatchId, {
+        const updated = await updateCatch(savedCatchId, {
           species_id: speciesId,
           weight: weight ? Number(weight) : null,
           length: length ? Number(length) : null,
           notes: notes || null,
         });
+        celebrationTier = updated.is_leaderboard_record ? "record" : updated.is_personal_best ? "pb" : undefined;
       } else {
         const effectiveCoords = detectState
           ? coords
@@ -276,6 +281,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           longitude: effectiveCoords?.lng ?? null,
         });
         savedCatchId = created.id;
+        celebrationTier = created.is_leaderboard_record ? "record" : created.is_personal_best ? "pb" : undefined;
       }
 
       let savedPhotoUrl: string | null = existingPhotoUrl;
@@ -295,7 +301,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
         }
       }
 
-      onDone();
+      onDone(celebrationTier);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save catch");
     } finally {

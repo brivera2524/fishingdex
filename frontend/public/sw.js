@@ -59,3 +59,26 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(event.request))
   );
 });
+
+self.addEventListener("push", (event) => {
+  const data = event.data ? event.data.json() : {};
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Fish Pokedex", {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window" }).then((windowClients) => {
+      const existing = windowClients.find((client) => client.url.includes(url));
+      if (existing) return existing.focus();
+      return clients.openWindow(url);
+    })
+  );
+});

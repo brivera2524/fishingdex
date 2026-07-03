@@ -4,6 +4,7 @@ import Dex from "./Dex";
 import MyCatches from "./MyCatches";
 import CatchForm, { type DetectState } from "./CatchForm";
 import BottomSheet from "../components/BottomSheet";
+import CatchCelebration from "../components/CatchCelebration";
 import PullToRefresh from "../components/PullToRefresh";
 
 type Tab = "dex" | "catches";
@@ -27,6 +28,7 @@ export default function CatchesHub() {
   // and refetches — Dex/MyCatches only fetch on mount, and closing the log
   // sheet doesn't otherwise trigger that.
   const [refreshKey, setRefreshKey] = useState(0);
+  const [celebration, setCelebration] = useState<"pb" | "record" | null>(null);
 
   function openNewCatch() {
     setTab("catches");
@@ -37,10 +39,11 @@ export default function CatchesHub() {
     setLogSheet(null);
   }
 
-  function handleLogDone() {
+  function handleLogDone(celebrationTier?: "pb" | "record") {
     setLogSheet(null);
     setTab("catches");
     setRefreshKey((k) => k + 1);
+    if (celebrationTier) setCelebration(celebrationTier);
   }
 
   async function handlePullRefresh() {
@@ -88,6 +91,8 @@ export default function CatchesHub() {
           />
         )}
       </BottomSheet>
+
+      {celebration && <CatchCelebration tier={celebration} onDone={() => setCelebration(null)} />}
     </div>
   );
 }

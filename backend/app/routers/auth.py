@@ -38,6 +38,7 @@ def me(current_user: User = Depends(get_current_user)):
         display_name=current_user.display_name,
         created_at=current_user.created_at,
         is_admin=is_admin(current_user),
+        notification_mode=current_user.notification_mode,
     )
 
 

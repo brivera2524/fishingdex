@@ -16,9 +16,15 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     display_name: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # "all" | "pb_and_record" | "record_only" | "off". Defaults to "off" —
+    # push notifications are opt-in, not the other way around.
+    notification_mode: Mapped[str] = mapped_column(String(20), default="off", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     catches: Mapped[list["Catch"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    push_subscriptions: Mapped[list["PushSubscription"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Species(Base):
@@ -115,6 +121,24 @@ class Comment(Base):
 
     catch: Mapped["Catch"] = relationship(back_populates="comments")
     user: Mapped["User"] = relationship()
+
+
+class PushSubscription(Base):
+    """One browser/device's Web Push subscription. Keyed by endpoint (not
+    user_id + endpoint) so re-subscribing on a shared device correctly hands
+    the row over to whichever friend is currently logged in there, rather
+    than accumulating duplicates."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    endpoint: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="push_subscriptions")
 
 
 class AppSetting(Base):

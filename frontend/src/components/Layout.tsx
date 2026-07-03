@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import AdminModelToggle from "./AdminModelToggle";
+import NotificationToggle from "./NotificationToggle";
 
 export default function Layout() {
   const { logout, currentUser } = useAuth();
@@ -13,6 +14,7 @@ export default function Layout() {
         <span className="brand">Fish Pokedex</span>
         <div className="top-bar-actions">
           {currentUser?.is_admin && <AdminModelToggle />}
+          <NotificationToggle />
           <button className="link-button" onClick={logout} style={{ color: "#fff" }}>
             Log out
           </button>

@@ -10,6 +10,8 @@ import type {
   IdentifyResult,
   LeaderboardCatch,
   MapCatch,
+  NotificationMode,
+  PushSubscriptionInput,
   RecentCatch,
   Species,
   SpeciesRecord,
@@ -152,6 +154,24 @@ export function createSpot(input: SpotInput) {
 
 export function deleteSpot(spotId: number) {
   return apiFetch<void>(`/spots/${spotId}`, { method: "DELETE" });
+}
+
+export function getVapidPublicKey() {
+  return apiFetch<{ key: string }>("/push/vapid-public-key");
+}
+
+export function subscribePush(subscription: PushSubscriptionInput) {
+  return apiFetch<void>("/push/subscribe", {
+    method: "POST",
+    body: JSON.stringify(subscription),
+  });
+}
+
+export function updateNotificationMode(mode: NotificationMode) {
+  return apiFetch<{ mode: NotificationMode }>("/push/notification-mode", {
+    method: "PUT",
+    body: JSON.stringify({ mode }),
+  });
 }
 
 export function getAdminSettings() {

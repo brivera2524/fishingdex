@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -34,8 +35,23 @@ class UserOut(BaseModel):
     display_name: str
     created_at: datetime
     is_admin: bool = False
+    notification_mode: str = "off"
 
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)
+
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str
+    keys: PushSubscriptionKeys
+
+
+class NotificationModeUpdate(BaseModel):
+    mode: Literal["all", "pb_and_record", "record_only", "off"]
 
 
 class SpeciesOut(BaseModel):
@@ -118,6 +134,11 @@ class CatchOut(BaseModel):
     tide_height_ft: float | None = None
     tide_direction: str | None = None
     spot: SpotSummary | None = None
+    # Response-only — describes a point-in-time fact about the save that just
+    # happened (used to trigger a celebration animation for the catcher), not
+    # persisted on the Catch model.
+    is_personal_best: bool = False
+    is_leaderboard_record: bool = False
 
     _normalize_caught_at = field_validator("caught_at", mode="before")(_as_utc)
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)

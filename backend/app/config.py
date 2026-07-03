@@ -9,6 +9,13 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     max_upload_mb: int = 8
     anthropic_api_key: str = ""
+    # Web Push (VAPID). Generated once, offline, via py_vapid — never at
+    # runtime, and never regenerated (that would invalidate every existing
+    # subscription). vapid_admin_email is the VAPID "sub" claim, e.g.
+    # "mailto:you@example.com".
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_admin_email: str = ""
     # Comma-separated list of allowed frontend origins for CORS, e.g.
     # "https://fishdex.vercel.app". Defaults to "*" for local dev.
     allowed_origins: str = "*"
