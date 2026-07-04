@@ -100,6 +100,10 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
     setIndex((i) => (i + delta + records.length) % records.length);
   }
 
+  // Draws the eye to the Challenge tab whenever there's one worth checking —
+  // upcoming or actively running — without needing to tap in first.
+  const hasLiveChallenge = challenges.some((c) => c.status !== "ended");
+
   return (
     <div className={embedded ? undefined : "page"}>
       {!embedded && <h1>Leaderboard</h1>}
@@ -126,6 +130,7 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
             onClick={() => setTab("challenge")}
           >
             Challenge
+            {hasLiveChallenge && <span className="tab-badge-dot" aria-hidden="true" />}
           </button>
         </div>
       </div>

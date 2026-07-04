@@ -263,6 +263,7 @@ main {
 }
 
 .mode-pill-toggle button {
+  position: relative;
   flex: 1;
   border: none;
   background: transparent;
@@ -279,6 +280,33 @@ main {
 .mode-pill-toggle button.active {
   background: var(--accent);
   color: var(--accent-ink);
+}
+
+/* A small "something's happening here" cue on the Challenge tab — an
+   upcoming or active challenge is easy to miss otherwise, since nothing
+   else on this row hints there's a reason to tap it. */
+.tab-badge-dot {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fb923c;
+  box-shadow: 0 0 0 rgba(251, 146, 60, 0.6);
+  animation: tab-badge-pulse 2s infinite;
+}
+
+@keyframes tab-badge-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(251, 146, 60, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 146, 60, 0);
+  }
 }
 
 /* Distinct from the plain .card standings below it — an accent-tinted
