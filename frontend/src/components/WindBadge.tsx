@@ -53,6 +53,20 @@ export function fetchWind(lat: number, lng: number): Promise<WindState | null> {
   });
 }
 
+// Only the admin can set a spot's name (see require_admin in spots.py), so
+// this isn't reachable by a random signed-up user — but escaping it before
+// splicing into raw HTML is cheap insurance against a compromised admin
+// account (or a future spot-naming feature opened up to more users) turning
+// into a stored-XSS vector via this divIcon.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Rotating a divIcon's raw HTML by hand (like createClusterIcon in
 // leafletSetup.ts rebuilds its label from live data) since Leaflet markers
 // don't support arbitrary React children — the icon is just regenerated
@@ -62,6 +76,7 @@ function buildWindIcon(wind: WindState | null, name: string, showLabel: boolean)
   // glance than "from"), i.e. the meteorological direction + 180.
   const rotation = wind ? (wind.directionDeg + 180) % 360 : 0;
   const speedLabel = wind ? Math.round(wind.speedMph) : "–";
+  const safeName = escapeHtml(name);
   return L.divIcon({
     className: "wind-badge-icon",
     html: `
@@ -72,7 +87,7 @@ function buildWindIcon(wind: WindState | null, name: string, showLabel: boolean)
           </svg>
           <span class="wind-badge-speed">${speedLabel}<span class="wind-badge-unit">mph</span></span>
         </div>
-        ${showLabel ? `<span class="wind-badge-name">${name}</span>` : ""}
+        ${showLabel ? `<span class="wind-badge-name">${safeName}</span>` : ""}
       </div>
     `,
     iconSize: [40, showLabel ? 60 : 40],

@@ -1,5 +1,5 @@
 import anthropic
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -8,6 +8,7 @@ from app.config import settings
 from app.database import get_db
 from app.identify import identify_species
 from app.models import User
+from app.rate_limit import limiter
 from app.routers.catches import ALLOWED_PHOTO_TYPES
 from app.schemas import IdentifyResult
 
@@ -15,7 +16,9 @@ router = APIRouter(prefix="/identify", tags=["identify"])
 
 
 @router.post("", response_model=IdentifyResult)
+@limiter.limit("20/hour")
 async def identify(
+    request: Request,
     file: UploadFile,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

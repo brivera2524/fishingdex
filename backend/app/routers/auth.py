@@ -1,18 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import hmac
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_current_user, hash_password, is_admin, verify_password
 from app.config import settings
 from app.database import get_db
 from app.models import User
+from app.rate_limit import limiter
 from app.schemas import LoginRequest, SignupRequest, TokenResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=TokenResponse)
-def signup(payload: SignupRequest, db: Session = Depends(get_db)):
-    if payload.invite_code != settings.invite_code:
+@limiter.limit("10/hour")
+def signup(request: Request, payload: SignupRequest, db: Session = Depends(get_db)):
+    # Constant-time compare — a plain `!=` short-circuits on the first
+    # mismatched byte, which in theory leaks how many leading characters of
+    # the invite code a guess got right via response timing.
+    if not hmac.compare_digest(payload.invite_code, settings.invite_code):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid invite code")
 
     display_name = payload.display_name.strip()
@@ -43,7 +50,8 @@ def me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("20/hour")
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.display_name == payload.display_name.strip()).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
