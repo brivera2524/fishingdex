@@ -5,9 +5,19 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Catch, Species, User
-from app.schemas import AnglerStat, LeaderboardCatch, SpeciesRecord
+from app.schemas import AnglerStat, LeaderboardCatch, SpeciesOut, SpeciesRecord
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
+
+# Combined "species" leaderboards spanning a few real species anglers treat
+# as one loose category — e.g. San Diego's three inshore Paralabrax bass are
+# usually just called "bass" regardless of which of the three it actually
+# is. Keyed by a negative id so it can never collide with a real species'
+# primary key; species_catch_leaderboard below special-cases these ids to
+# pull catches from every species in the group instead of Catch.species_id.
+SPECIES_GROUPS: dict[int, tuple[str, list[str]]] = {
+    -1: ("Big Three Bass", ["Calico Bass", "Barred Sand Bass", "Spotted Bay Bass"]),
+}
 
 
 def _to_leaderboard_catch(catch: Catch) -> LeaderboardCatch:
@@ -53,6 +63,26 @@ def species_leaderboard(
                 top_catch=_to_leaderboard_catch(top_catch) if top_catch else None,
             )
         )
+
+    for group_id, (group_name, member_names) in SPECIES_GROUPS.items():
+        base_query = db.query(Catch).join(Species).filter(
+            Species.common_name.in_(member_names), Catch.counts_for_leaderboard
+        )
+        catch_count = base_query.count()
+        top_catch = (
+            base_query.options(joinedload(Catch.user), joinedload(Catch.spot))
+            .filter(Catch.weight.isnot(None))
+            .order_by(Catch.weight.desc())
+            .first()
+        )
+        records.append(
+            SpeciesRecord(
+                species=SpeciesOut(id=group_id, common_name=group_name),
+                catch_count=catch_count,
+                top_catch=_to_leaderboard_catch(top_catch) if top_catch else None,
+            )
+        )
+
     return records
 
 
@@ -62,6 +92,22 @@ def species_catch_leaderboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if species_id in SPECIES_GROUPS:
+        _, member_names = SPECIES_GROUPS[species_id]
+        catches = (
+            db.query(Catch)
+            .join(Species)
+            .options(joinedload(Catch.user))
+            .filter(
+                Species.common_name.in_(member_names),
+                Catch.weight.isnot(None),
+                Catch.counts_for_leaderboard,
+            )
+            .order_by(Catch.weight.desc())
+            .all()
+        )
+        return [_to_leaderboard_catch(c) for c in catches]
+
     catches = (
         db.query(Catch)
         .options(joinedload(Catch.user))
