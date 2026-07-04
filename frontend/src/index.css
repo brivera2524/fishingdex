@@ -1297,17 +1297,6 @@ button:disabled {
   z-index: 0; /* see .species-mini-map-container comment — contains Leaflet's internal pane/control z-index (up to 1000) so it can't render above page chrome like the near-me FAB */
 }
 
-/* CartoDB's Dark Matter tileset is mostly near-black pixels (especially
-   water), so a plain brightness() filter barely moved it — brightness() is
-   multiplicative, and multiplying a near-zero value stays near zero. This
-   inverts the light "Positron" tileset instead (source colors actually have
-   room to shift), which is the standard trick for a soft dark map look
-   without a custom vector style. hue-rotate corrects the color-wheel flip
-   invert() causes, so land/water read as navy/gray instead of orange/cyan. */
-.map-tiles-dimmed {
-  filter: brightness(0.4) saturate(0.55) contrast(1.15);
-}
-
 .map-badge {
   position: absolute;
   top: 12px;

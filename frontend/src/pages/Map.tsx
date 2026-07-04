@@ -26,6 +26,10 @@ interface FocusState {
   longitude: number;
 }
 
+// Stadia Maps: real purpose-built styles (unlike CartoDB's fixed light/
+// voyager/dark trio) — free tier, no billing, just an account + API key.
+const STADIA_API_KEY = import.meta.env.VITE_STADIA_API_KEY ?? "";
+
 const DAY_MS = 86_400_000;
 const DEFAULT_WINDOW_DAYS = 30;
 
@@ -504,10 +508,9 @@ export default function MapPage() {
             clusters had. Forcing it off makes tiles load continuously
             during a drag, same as desktop. */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          url={`https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`}
           detectRetina
           updateWhenIdle={false}
-          className="map-tiles-dimmed"
         />
         <MapDragCollapse onDragStart={() => setTimeExpanded(false)} />
         {drawMode && <SpotDrawLayer onAddPoint={(pt) => setDrawPoints((pts) => [...pts, pt])} />}
