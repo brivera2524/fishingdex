@@ -507,6 +507,7 @@ export default function MapPage() {
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           detectRetina
           updateWhenIdle={false}
+          className="map-tiles-dimmed"
         />
         <MapDragCollapse onDragStart={() => setTimeExpanded(false)} />
         {drawMode && <SpotDrawLayer onAddPoint={(pt) => setDrawPoints((pts) => [...pts, pt])} />}
