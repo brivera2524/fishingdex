@@ -189,6 +189,22 @@ class SpeciesRecord(BaseModel):
     top_catch: LeaderboardCatch | None = None
 
 
+class ChallengeOut(BaseModel):
+    id: str
+    name: str
+    starts_at: datetime
+    ends_at: datetime
+    status: Literal["upcoming", "active", "ended"]
+    # Ranked by weight descending — standings[0] is the winner (or current
+    # leader, while still active), standings[-1] is the loser (or current
+    # last place). Each entry is one participant's single best qualifying
+    # catch in the window.
+    standings: list[LeaderboardCatch]
+
+    _normalize_starts_at = field_validator("starts_at", mode="before")(_as_utc)
+    _normalize_ends_at = field_validator("ends_at", mode="before")(_as_utc)
+
+
 class AnglerStat(BaseModel):
     display_name: str
     catch_count: int

@@ -134,6 +134,18 @@ export interface AnglerStat {
   species_count: number;
 }
 
+export interface Challenge {
+  id: string;
+  name: string;
+  starts_at: string;
+  ends_at: string;
+  status: "upcoming" | "active" | "ended";
+  /** Ranked by weight descending — standings[0] is the winner (or current
+   * leader), standings[standings.length - 1] is the loser (or current last).
+   * Each entry is one participant's single best qualifying catch. */
+  standings: LeaderboardCatch[];
+}
+
 export interface MapCatch {
   id: number;
   display_name: string;

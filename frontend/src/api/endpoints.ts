@@ -5,6 +5,7 @@ import type {
   Catch,
   CatchInput,
   CatchUpdateInput,
+  Challenge,
   Comment,
   CurrentUser,
   IdentifyResult,
@@ -110,6 +111,10 @@ export function getSpeciesCatchLeaderboard(speciesId: number) {
 
 export function getAnglerLeaderboard() {
   return apiFetch<AnglerStat[]>("/leaderboard/anglers");
+}
+
+export function getChallenges() {
+  return apiFetch<Challenge[]>("/leaderboard/challenges");
 }
 
 export function getComments(catchId: number) {

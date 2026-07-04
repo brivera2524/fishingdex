@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -5,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Catch, Species, User
-from app.schemas import AnglerStat, LeaderboardCatch, SpeciesOut, SpeciesRecord
+from app.schemas import AnglerStat, ChallengeOut, LeaderboardCatch, SpeciesOut, SpeciesRecord
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
@@ -16,8 +18,27 @@ router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 # primary key; species_catch_leaderboard below special-cases these ids to
 # pull catches from every species in the group instead of Catch.species_id.
 SPECIES_GROUPS: dict[int, tuple[str, list[str]]] = {
-    -1: ("Big Three Bass", ["Calico Bass", "Barred Sand Bass", "Spotted Bay Bass"]),
+    -1: ("The Big Three", ["Calico Bass", "Barred Sand Bass", "Spotted Bay Bass"]),
 }
+
+# Time-boxed challenges: rank each participant by their single best catch
+# (within the window, of the given species group) rather than every catch —
+# "everyone has one biggest fish at a time." A plain list rather than a DB
+# table/migration since these are rare, hand-configured one-offs; add a new
+# entry here for the next one rather than building admin CRUD for something
+# that happens a couple times a year at most.
+CHALLENGES: list[dict] = [
+    {
+        "id": "big-three-2026-07",
+        "name": "The Big Three Challenge",
+        "species_group_id": -1,
+        # 12:00 PM Pacific on each date — both July 5 and Aug 5, 2026 fall
+        # within PDT (UTC-7), so these are given directly in UTC rather than
+        # depending on a timezone database for a fixed, already-known offset.
+        "starts_at": datetime(2026, 7, 5, 19, 0, tzinfo=timezone.utc),
+        "ends_at": datetime(2026, 8, 5, 19, 0, tzinfo=timezone.utc),
+    },
+]
 
 
 def _to_leaderboard_catch(catch: Catch) -> LeaderboardCatch:
@@ -116,6 +137,74 @@ def species_catch_leaderboard(
         .all()
     )
     return [_to_leaderboard_catch(c) for c in catches]
+
+
+@router.get("/challenges", response_model=list[ChallengeOut])
+def list_challenges(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    results = []
+    for cfg in CHALLENGES:
+        _, member_names = SPECIES_GROUPS[cfg["species_group_id"]]
+
+        # Each participant's single best qualifying catch in the window —
+        # "everyone has one biggest fish at a time" — found via each user's
+        # max weight, then joined back to the actual catch row(s) at that
+        # weight (ties are deduped below, keeping just one).
+        best_per_user = (
+            db.query(Catch.user_id, func.max(Catch.weight).label("max_weight"))
+            .join(Species)
+            .join(User, Catch.user_id == User.id)
+            .filter(
+                Species.common_name.in_(member_names),
+                Catch.weight.isnot(None),
+                Catch.caught_at >= cfg["starts_at"],
+                Catch.caught_at < cfg["ends_at"],
+                Catch.counts_for_leaderboard,
+                ~User.is_hidden,
+            )
+            .group_by(Catch.user_id)
+            .subquery()
+        )
+        rows = (
+            db.query(Catch)
+            .join(
+                best_per_user,
+                (Catch.user_id == best_per_user.c.user_id) & (Catch.weight == best_per_user.c.max_weight),
+            )
+            .options(joinedload(Catch.user), joinedload(Catch.spot))
+            .order_by(Catch.weight.desc())
+            .all()
+        )
+
+        seen_users: set[int] = set()
+        standings = []
+        for catch in rows:
+            if catch.user_id in seen_users:
+                continue
+            seen_users.add(catch.user_id)
+            standings.append(_to_leaderboard_catch(catch))
+
+        if now < cfg["starts_at"]:
+            status = "upcoming"
+        elif now < cfg["ends_at"]:
+            status = "active"
+        else:
+            status = "ended"
+
+        results.append(
+            ChallengeOut(
+                id=cfg["id"],
+                name=cfg["name"],
+                starts_at=cfg["starts_at"],
+                ends_at=cfg["ends_at"],
+                status=status,
+                standings=standings,
+            )
+        )
+    return results
 
 
 @router.get("/anglers", response_model=list[AnglerStat])
