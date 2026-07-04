@@ -34,11 +34,15 @@ def species_leaderboard(
     species_list = db.query(Species).order_by(Species.common_name).all()
     records = []
     for sp in species_list:
-        catch_count = db.query(Catch).filter(Catch.species_id == sp.id).count()
+        catch_count = (
+            db.query(Catch)
+            .filter(Catch.species_id == sp.id, Catch.counts_for_leaderboard)
+            .count()
+        )
         top_catch = (
             db.query(Catch)
             .options(joinedload(Catch.user), joinedload(Catch.spot))
-            .filter(Catch.species_id == sp.id, Catch.weight.isnot(None))
+            .filter(Catch.species_id == sp.id, Catch.weight.isnot(None), Catch.counts_for_leaderboard)
             .order_by(Catch.weight.desc())
             .first()
         )
@@ -61,7 +65,7 @@ def species_catch_leaderboard(
     catches = (
         db.query(Catch)
         .options(joinedload(Catch.user))
-        .filter(Catch.species_id == species_id, Catch.weight.isnot(None))
+        .filter(Catch.species_id == species_id, Catch.weight.isnot(None), Catch.counts_for_leaderboard)
         .order_by(Catch.weight.desc())
         .all()
     )
@@ -80,6 +84,7 @@ def angler_leaderboard(
             func.count(func.distinct(Catch.species_id)).label("species_count"),
         )
         .join(Catch, Catch.user_id == User.id)
+        .filter(Catch.counts_for_leaderboard)
         .group_by(User.id)
         .order_by(func.count(Catch.id).desc())
         .all()

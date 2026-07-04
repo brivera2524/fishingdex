@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -19,6 +19,12 @@ class User(Base):
     # "all" | "pb_and_record" | "record_only" | "off". Defaults to "off" —
     # push notifications are opt-in, not the other way around.
     notification_mode: Mapped[str] = mapped_column(String(20), default="off", nullable=False)
+    # A real column rather than a hardcoded "user id 1 is the admin" check —
+    # lets admin status move to (or be shared with) a different account
+    # without a code change. Granted via a one-off script (see
+    # app/scripts/grant_admin.py), not through any API — there's no user
+    # management UI, and there doesn't need to be for a friend-group app.
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     catches: Mapped[list["Catch"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -108,6 +114,13 @@ class Catch(Base):
     spot_id: Mapped[int | None] = mapped_column(ForeignKey("spots.id"), index=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    # Lets a catch keep its map pin, photo, and dex/collection value while
+    # being excluded from every cross-user ranking (leaderboards, PB/record
+    # detection, angler catch/species counts) — e.g. seed/test data logged
+    # while building out the app, which shouldn't count against anyone's
+    # real fishing. Defaults true so this is opt-out, not opt-in.
+    counts_for_leaderboard: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="catches")
     species: Mapped["Species"] = relationship(back_populates="catches")

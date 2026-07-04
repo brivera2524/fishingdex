@@ -20,6 +20,7 @@ def _previous_best(db: Session, user_id: int, species_id: int, exclude_catch_id:
             Catch.species_id == species_id,
             Catch.weight.isnot(None),
             Catch.id != exclude_catch_id,
+            Catch.counts_for_leaderboard,
         )
         .order_by(Catch.weight.desc())
         .first()
@@ -29,7 +30,12 @@ def _previous_best(db: Session, user_id: int, species_id: int, exclude_catch_id:
 def _previous_leader(db: Session, species_id: int, exclude_catch_id: int) -> Catch | None:
     return (
         db.query(Catch)
-        .filter(Catch.species_id == species_id, Catch.weight.isnot(None), Catch.id != exclude_catch_id)
+        .filter(
+            Catch.species_id == species_id,
+            Catch.weight.isnot(None),
+            Catch.id != exclude_catch_id,
+            Catch.counts_for_leaderboard,
+        )
         .order_by(Catch.weight.desc())
         .first()
     )
@@ -40,7 +46,7 @@ def check_personal_best(db: Session, catch: Catch) -> RecordCheck:
     — a user's first-ever catch of a species isn't a "personal best" in any
     meaningful sense, and treating it as one would notify constantly while
     this small group is still discovering new species."""
-    if catch.weight is None:
+    if catch.weight is None or not catch.counts_for_leaderboard:
         return RecordCheck(is_new=False)
     prev = _previous_best(db, catch.user_id, catch.species_id, catch.id)
     if prev and catch.weight > prev.weight:
@@ -49,7 +55,7 @@ def check_personal_best(db: Session, catch: Catch) -> RecordCheck:
 
 
 def check_leaderboard_record(db: Session, catch: Catch) -> RecordCheck:
-    if catch.weight is None:
+    if catch.weight is None or not catch.counts_for_leaderboard:
         return RecordCheck(is_new=False)
     prev = _previous_leader(db, catch.species_id, catch.id)
     if prev and catch.weight > prev.weight:

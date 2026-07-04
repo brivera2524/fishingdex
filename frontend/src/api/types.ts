@@ -60,6 +60,9 @@ export interface Catch {
   tide_direction: "rising" | "falling" | null;
   /** Computed server-side from whether (latitude, longitude) falls inside a curated spot's polygon. */
   spot: SpotSummary | null;
+  /** Excludes this catch from leaderboards/PB-record detection/angler stats while it still shows normally
+   * everywhere else (dex, map, my catches) — defaults true, only false for catches explicitly excluded. */
+  counts_for_leaderboard: boolean;
   /** Response-only, only meaningful right after a create/update save — used to trigger a celebration animation. */
   is_personal_best: boolean;
   is_leaderboard_record: boolean;

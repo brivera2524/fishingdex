@@ -142,6 +142,10 @@ class CatchOut(BaseModel):
     tide_height_ft: float | None = None
     tide_direction: str | None = None
     spot: SpotSummary | None = None
+    # Excludes this catch from leaderboards, PB/record detection, and angler
+    # catch/species counts while still showing normally in the dex, map, and
+    # "my catches" views — see Catch.counts_for_leaderboard on the model.
+    counts_for_leaderboard: bool = True
     # Response-only — describes a point-in-time fact about the save that just
     # happened (used to trigger a celebration animation for the catcher), not
     # persisted on the Catch model.
