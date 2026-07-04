@@ -25,6 +25,12 @@ class User(Base):
     # app/scripts/grant_admin.py), not through any API — there's no user
     # management UI, and there doesn't need to be for a friend-group app.
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Excludes this account from the anglers roster (GET /users) and the
+    # angler leaderboard — for a dev/test account that shouldn't clutter the
+    # friend group's actual roster. Their catches are unaffected elsewhere
+    # (map, dex, species leaderboards) unless also excluded via
+    # counts_for_leaderboard. Set via app/scripts/hide_from_anglers.py.
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     catches: Mapped[list["Catch"]] = relationship(back_populates="user", cascade="all, delete-orphan")

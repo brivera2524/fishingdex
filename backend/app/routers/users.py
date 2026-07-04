@@ -23,6 +23,7 @@ def list_users(
             func.count(func.distinct(Catch.species_id)).label("species_count"),
         )
         .outerjoin(Catch, (Catch.user_id == User.id) & Catch.counts_for_leaderboard)
+        .filter(~User.is_hidden)
         .group_by(User.id)
         .order_by(func.count(Catch.id).desc())
         .all()

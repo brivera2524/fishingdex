@@ -84,7 +84,7 @@ def angler_leaderboard(
             func.count(func.distinct(Catch.species_id)).label("species_count"),
         )
         .join(Catch, Catch.user_id == User.id)
-        .filter(Catch.counts_for_leaderboard)
+        .filter(Catch.counts_for_leaderboard, ~User.is_hidden)
         .group_by(User.id)
         .order_by(func.count(Catch.id).desc())
         .all()
