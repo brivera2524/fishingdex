@@ -18,6 +18,7 @@ import TimeWindowRuler from "../components/TimeWindowRuler";
 import WindBadge from "../components/WindBadge";
 import WindDetailSheet from "../components/WindDetailSheet";
 import SpotNameSheet from "../components/SpotNameSheet";
+import { prefetchSanDiegoTiles } from "../lib/tilePrefetch";
 import { useAuth } from "../auth/AuthContext";
 
 interface FocusState {
@@ -167,6 +168,11 @@ export default function MapPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load map"))
       .finally(() => setLoading(false));
     refreshSpots();
+    // Fire-and-forget — backgrounds a one-time (per device) download of
+    // every tile across the whole San Diego area, so ordinary panning never
+    // has a blank edge waiting on the network again. Cheap to call on every
+    // mount: already-cached tiles are skipped without a network request.
+    prefetchSanDiegoTiles(STADIA_API_KEY);
   }, []);
 
   function toggleDrawMode() {
