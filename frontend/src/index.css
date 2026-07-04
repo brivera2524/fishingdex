@@ -281,6 +281,41 @@ main {
   color: var(--accent-ink);
 }
 
+/* Distinct from the plain .card standings below it — an accent-tinted
+   gradient so the challenge's name/status/countdown reads as "about the
+   event itself" at a glance, not just another row in the same list. */
+.challenge-header {
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface));
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.challenge-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.challenge-status-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+
+.challenge-countdown {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .species-switcher {
   display: flex;
   align-items: center;

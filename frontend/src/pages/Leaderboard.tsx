@@ -24,6 +24,21 @@ function formatDateRange(startsAt: string, endsAt: string): string {
   return `${fmt(startsAt)} – ${fmt(endsAt)}`;
 }
 
+function formatCountdown(ch: Challenge, nowMs: number): string {
+  const startMs = new Date(ch.starts_at).getTime();
+  const endMs = new Date(ch.ends_at).getTime();
+  const diffMs = ch.status === "upcoming" ? startMs - nowMs : ch.status === "active" ? endMs - nowMs : nowMs - endMs;
+
+  const days = Math.floor(diffMs / 86_400_000);
+  const hours = Math.floor((diffMs % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((diffMs % 3_600_000) / 60_000);
+  const duration = days >= 1 ? `${days}d ${hours}h` : hours >= 1 ? `${hours}h ${minutes}m` : `${Math.max(minutes, 1)}m`;
+
+  if (ch.status === "upcoming") return `Starts in ${duration}`;
+  if (ch.status === "active") return `${duration} left`;
+  return `Ended ${duration} ago`;
+}
+
 interface LeaderboardProps {
   embedded?: boolean;
 }
@@ -40,6 +55,14 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedCatch, setSelectedCatch] = useState<LeaderboardCatch | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Keeps the challenge countdown from going stale if the tab is left open —
+  // a minute of drift is plenty fine for a month-long challenge.
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     Promise.all([getSpeciesLeaderboard(), getAnglerLeaderboard(), getChallenges()])
@@ -187,20 +210,25 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
           {challenges.length === 0 && <p>No challenges right now.</p>}
           {challenges.map((ch) => (
             <div key={ch.id} style={{ marginBottom: 20 }}>
-              <div className="card">
+              <div className="challenge-header">
                 <div className="page-header">
-                  <span className="card-title">{ch.name}</span>
-                  <span className="card-stat">{CHALLENGE_STATUS_LABEL[ch.status]}</span>
+                  <span className="challenge-title">{ch.name}</span>
+                  <span className="challenge-status-pill">{CHALLENGE_STATUS_LABEL[ch.status]}</span>
                 </div>
                 <span className="card-meta">{formatDateRange(ch.starts_at, ch.ends_at)}</span>
+                <span className="challenge-countdown">{formatCountdown(ch, now)}</span>
               </div>
               {ch.standings.length === 0 && (
-                <p style={{ marginTop: 10 }}>
+                <p style={{ marginTop: 14 }}>
                   {ch.status === "upcoming" ? "Nobody's logged a qualifying catch yet." : "No qualifying catches."}
                 </p>
               )}
               {ch.standings.length > 0 && (
-                <ul className="catch-list" style={{ marginTop: 10 }}>
+                <>
+                  <p className="section-label" style={{ marginTop: 16, marginBottom: 8 }}>
+                    Standings
+                  </p>
+                  <ul className="catch-list">
                   {ch.standings.map((c, i) => {
                     const isLast = i === ch.standings.length - 1 && ch.standings.length > 1;
                     return (
@@ -223,7 +251,8 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
                       </li>
                     );
                   })}
-                </ul>
+                  </ul>
+                </>
               )}
             </div>
           ))}
