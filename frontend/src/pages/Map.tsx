@@ -511,6 +511,7 @@ export default function MapPage() {
           url={`https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`}
           detectRetina
           updateWhenIdle={false}
+          keepBuffer={6}
         />
         <MapDragCollapse onDragStart={() => setTimeExpanded(false)} />
         {drawMode && <SpotDrawLayer onAddPoint={(pt) => setDrawPoints((pts) => [...pts, pt])} />}
