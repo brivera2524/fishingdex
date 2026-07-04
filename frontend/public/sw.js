@@ -2,12 +2,13 @@ const CACHE_NAME = "fishdex-v1";
 // Separate, long-lived cache for map tiles — kept out of the version bump
 // below on purpose. The app only ever covers the San Diego area, so the set
 // of tiles across the zoom levels actually used is small and essentially
-// static; there's no reason to keep re-fetching them from CARTO every visit.
+// static; there's no reason to keep re-fetching them from the tile provider
+// every visit.
 const TILE_CACHE_NAME = "fishdex-tiles-v1";
 const PRECACHE_URLS = ["/", "/manifest.json"];
 
 function isTileRequest(url) {
-  return url.hostname.endsWith("basemaps.cartocdn.com");
+  return url.hostname.endsWith("tiles.stadiamaps.com");
 }
 
 self.addEventListener("install", (event) => {
