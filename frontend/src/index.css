@@ -1297,6 +1297,17 @@ button:disabled {
   z-index: 0; /* see .species-mini-map-container comment — contains Leaflet's internal pane/control z-index (up to 1000) so it can't render above page chrome like the near-me FAB */
 }
 
+/* Leaflet's own base stylesheet sets .leaflet-container { background: #ddd }
+   at the same specificity as a single custom class — whichever loads last in
+   the cascade wins, which isn't reliably "ours". Combining both classes (both
+   of which Leaflet always applies to the same element) beats that specificity
+   outright regardless of import order. Otherwise this light gray shows
+   through as a flash behind any gap — a tile still loading, or panning past
+   the prefetched bounds — which looks jarring against this app's dark theme. */
+.leaflet-container.map-container {
+  background: var(--surface-sunken);
+}
+
 .map-badge {
   position: absolute;
   top: 12px;
@@ -1952,6 +1963,14 @@ button:disabled {
      like the fixed bottom nav (z-index 20) and can render above it. Setting
      z-index here contains all of that inside this element's own context. */
   z-index: 0;
+}
+
+/* Combined with .leaflet-container for higher specificity than Leaflet's own
+   .leaflet-container { background: #ddd } base rule — see the comment on
+   .leaflet-container.map-container above. */
+.leaflet-container.species-mini-map-container,
+.leaflet-container.location-picker-map {
+  background: var(--surface-sunken);
 }
 
 .location-picker {

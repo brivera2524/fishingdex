@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { catchMarkerIcon, SAN_DIEGO } from "../leafletSetup";
+import { catchMarkerIcon, SAN_DIEGO, STADIA_TILE_URL } from "../leafletSetup";
 
 export interface LatLng {
   lat: number;
@@ -53,8 +53,8 @@ export default function LocationPicker({ value, onChange, interactive = true }: 
         zoomControl={interactive}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url={STADIA_TILE_URL}
           detectRetina
           updateWhenIdle={false}
         />

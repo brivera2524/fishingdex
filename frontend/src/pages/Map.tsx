@@ -6,7 +6,14 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { catchMarkerIcon, createClusterIcon, createWindClusterIcon, currentLocationIcon, SAN_DIEGO } from "../leafletSetup";
+import {
+  catchMarkerIcon,
+  createClusterIcon,
+  createWindClusterIcon,
+  currentLocationIcon,
+  SAN_DIEGO,
+  STADIA_TILE_URL,
+} from "../leafletSetup";
 import { createSpot, deleteSpot, getMapCatches, listSpots, updateSpot } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { MapCatch, Spot } from "../api/types";
@@ -26,10 +33,6 @@ interface FocusState {
   latitude: number;
   longitude: number;
 }
-
-// Stadia Maps: real purpose-built styles (unlike CartoDB's fixed light/
-// voyager/dark trio) — free tier, no billing, just an account + API key.
-const STADIA_API_KEY = import.meta.env.VITE_STADIA_API_KEY ?? "";
 
 const DAY_MS = 86_400_000;
 const DEFAULT_WINDOW_DAYS = 30;
@@ -172,7 +175,7 @@ export default function MapPage() {
     // every tile across the whole San Diego area, so ordinary panning never
     // has a blank edge waiting on the network again. Cheap to call on every
     // mount: already-cached tiles are skipped without a network request.
-    prefetchSanDiegoTiles(STADIA_API_KEY);
+    prefetchSanDiegoTiles();
   }, []);
 
   function toggleDrawMode() {
@@ -514,7 +517,7 @@ export default function MapPage() {
             clusters had. Forcing it off makes tiles load continuously
             during a drag, same as desktop. */}
         <TileLayer
-          url={`https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`}
+          url={STADIA_TILE_URL}
           detectRetina
           updateWhenIdle={false}
           keepBuffer={6}

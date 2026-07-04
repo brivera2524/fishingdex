@@ -17,6 +17,12 @@ L.Icon.Default.mergeOptions({
 
 export const SAN_DIEGO: [number, number] = [32.7157, -117.1611];
 
+// Shared across every Leaflet map in the app (main map, location picker,
+// species detail mini-map) so they all render the same dark style instead
+// of some being left on whatever provider/style predates a future change.
+export const STADIA_API_KEY = import.meta.env.VITE_STADIA_API_KEY ?? "";
+export const STADIA_TILE_URL = `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`;
+
 // A plain solid dot in the app's accent color, used for every catch marker
 // instead of Leaflet's default blue teardrop pin — so a single catch and a
 // cluster of catches (see createClusterIcon) read as the same visual family

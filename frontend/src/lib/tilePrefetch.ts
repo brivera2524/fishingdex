@@ -9,6 +9,8 @@
 // specific catch" view) is deliberately excluded — it's ~4x the tile count
 // of everything else combined for a view that's narrow, occasional, and
 // caches almost instantly on its own the few times it's actually used.
+import { STADIA_API_KEY } from "../leafletSetup";
+
 const TILE_CACHE_NAME = "fishdex-tiles-v1";
 const MIN_ZOOM = 9;
 const MAX_ZOOM = 14;
@@ -63,8 +65,8 @@ async function fetchWithConcurrency(urls: string[], cache: Cache): Promise<void>
 // Fire-and-forget: never awaited by a caller, never blocks rendering. Safe
 // to call on every Map page visit — already-cached tiles are skipped via
 // cache.match before ever hitting the network, so repeat calls are cheap.
-export function prefetchSanDiegoTiles(stadiaApiKey: string): void {
-  if (!("caches" in window) || !stadiaApiKey) return;
+export function prefetchSanDiegoTiles(): void {
+  if (!("caches" in window) || !STADIA_API_KEY) return;
   // Must match exactly what Leaflet's TileLayer (detectRetina) actually
   // requests at runtime — it appends "@2x" before the extension on retina
   // displays, same {r} substitution Leaflet itself does internally. A
@@ -73,7 +75,7 @@ export function prefetchSanDiegoTiles(stadiaApiKey: string): void {
   const retinaSuffix = window.devicePixelRatio > 1 ? "@2x" : "";
   const urls = buildTileUrls(
     (z, x, y) =>
-      `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/${z}/${x}/${y}${retinaSuffix}.png?api_key=${stadiaApiKey}`
+      `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/${z}/${x}/${y}${retinaSuffix}.png?api_key=${STADIA_API_KEY}`
   );
   caches.open(TILE_CACHE_NAME).then((cache) => fetchWithConcurrency(urls, cache));
 }
