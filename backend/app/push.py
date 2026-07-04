@@ -78,3 +78,27 @@ def notify_catch_event_task(catcher_id: int, tier: str, title: str, body: str, u
         logger.exception("Background push notification task failed for catcher %s", catcher_id)
     finally:
         db.close()
+
+
+def notify_comment(db: Session, catch_owner_id: int, title: str, body: str, url: str = "/dex") -> None:
+    """Not gated by notification_mode's catch tiers — that setting is about
+    which OTHER PEOPLE's catches to hear about, not whether to be told
+    someone commented on your own. Only "off" (a real kill switch for all
+    push) suppresses it."""
+    owner = db.get(User, catch_owner_id)
+    if not owner or owner.notification_mode == "off":
+        return
+    payload = {"title": title, "body": body, "url": url}
+    subs = db.query(PushSubscription).filter(PushSubscription.user_id == catch_owner_id).all()
+    for sub in subs:
+        _send_one(db, sub, payload)
+
+
+def notify_comment_task(catch_owner_id: int, title: str, body: str, url: str = "/dex") -> None:
+    db = SessionLocal()
+    try:
+        notify_comment(db, catch_owner_id, title, body, url)
+    except Exception:
+        logger.exception("Background comment notification task failed for catch owner %s", catch_owner_id)
+    finally:
+        db.close()

@@ -1,12 +1,16 @@
+import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Catch, Comment, User
+from app.push import notify_comment_task
 from app.schemas import CommentCreate, CommentOut, CommentUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["comments"])
 
@@ -46,16 +50,31 @@ def list_comments(
 def create_comment(
     catch_id: int,
     payload: CommentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not db.get(Catch, catch_id):
+    catch = db.query(Catch).options(joinedload(Catch.species)).filter(Catch.id == catch_id).first()
+    if not catch:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catch not found")
 
     comment = Comment(catch_id=catch_id, user_id=current_user.id, body=payload.body)
     db.add(comment)
     db.commit()
     db.refresh(comment)
+
+    if catch.user_id != current_user.id:
+        try:
+            preview = payload.body if len(payload.body) <= 80 else payload.body[:77] + "..."
+            background_tasks.add_task(
+                notify_comment_task,
+                catch.user_id,
+                "💬 New comment",
+                f'{current_user.display_name} commented on your {catch.species.common_name}: "{preview}"',
+            )
+        except Exception:
+            logger.exception("Failed to schedule comment notification for catch %s", catch_id)
+
     return _to_comment_out(comment)
 
 
