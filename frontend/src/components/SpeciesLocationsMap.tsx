@@ -34,7 +34,13 @@ export default function SpeciesLocationsMap({ catches }: SpeciesLocationsMapProp
   return (
     <div className="species-mini-map">
       <p className="section-label">Where it's been caught</p>
-      <MapContainer center={points[0] ?? SAN_DIEGO} zoom={10} className="species-mini-map-container">
+      <MapContainer
+        center={points[0] ?? SAN_DIEGO}
+        zoom={10}
+        className="species-mini-map-container"
+        zoomControl={false}
+        attributionControl={false}
+      >
         <TileLayer
           attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url={STADIA_TILE_URL}
