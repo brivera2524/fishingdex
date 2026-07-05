@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 30  # 30 days
     upload_dir: str = "./uploads"
     max_upload_mb: int = 8
-    anthropic_api_key: str = ""
+    google_api_key: str = ""
     # Web Push (VAPID). Generated once, offline, via py_vapid — never at
     # runtime, and never regenerated (that would invalidate every existing
     # subscription). vapid_admin_email is the VAPID "sub" claim, e.g.

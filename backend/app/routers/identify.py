@@ -1,5 +1,5 @@
-import anthropic
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from google.genai import errors as genai_errors
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -39,7 +39,7 @@ async def identify(
         )
 
     try:
-        # identify_species() makes a multi-second blocking HTTP call to Claude via
+        # identify_species() makes a multi-second blocking HTTP call to Gemini via
         # the sync SDK client — run it off the event loop so one in-flight
         # identification doesn't freeze every other request on the server.
         species, raw_answer = await run_in_threadpool(
@@ -47,20 +47,14 @@ async def identify(
         )
     except RuntimeError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
-    except anthropic.RateLimitError:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Species ID is rate-limited right now, try again in a moment",
-        )
-    except anthropic.APIStatusError as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Species ID failed: {e.message}",
-        )
-    except anthropic.APIConnectionError:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not reach species ID service",
-        )
+    except genai_errors.ClientError as e:
+        if e.code == 429:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Species ID is rate-limited right now, try again in a moment",
+            )
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Species ID failed: {e.message}")
+    except genai_errors.APIError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Species ID failed: {e.message}")
 
     return IdentifyResult(species=species, raw_answer=raw_answer)

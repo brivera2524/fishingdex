@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { getAdminSettings, updateAdminSettings } from "../api/endpoints";
 
 const MODEL_LABELS: Record<string, string> = {
-  "claude-sonnet-5": "Sonnet 5",
-  "claude-opus-4-8": "Opus 4.8",
+  "gemini-3.1-flash-lite": "Gemini 3 Flash Lite",
+  "gemini-3-flash-preview": "Gemini 3 Flash",
 };
 
 export default function AdminModelToggle() {
@@ -43,7 +43,7 @@ export default function AdminModelToggle() {
       disabled={saving}
       onChange={(e) => handleChange(e.target.value)}
       aria-label="Identify model"
-      title="Claude model used for fish identification"
+      title="Gemini model used for fish identification"
     >
       {available.map((m) => (
         <option key={m} value={m}>
