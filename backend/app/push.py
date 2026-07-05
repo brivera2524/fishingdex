@@ -15,10 +15,14 @@ logger = logging.getLogger(__name__)
 # catch", but gets the more exciting record-tier message instead of a
 # duplicate generic one — so each event is classified once (record > pb >
 # catch) and only recipients whose mode covers that tier receive it.
+# "challenge_leader" is orthogonal to that chain (a catch can be both a PB
+# and a new challenge leader) but bundled into the same tiers as "record" —
+# per explicit user choice, this reuses the existing dial rather than adding
+# a dedicated settings toggle.
 MODE_TIERS: dict[str, set[str]] = {
-    "all": {"catch", "pb", "record"},
-    "pb_and_record": {"pb", "record"},
-    "record_only": {"record"},
+    "all": {"catch", "pb", "record", "challenge_leader"},
+    "pb_and_record": {"pb", "record", "challenge_leader"},
+    "record_only": {"record", "challenge_leader"},
     "off": set(),
 }
 

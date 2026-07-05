@@ -1,17 +1,18 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { gps as parseExifGps, parse as parseExif } from "exifr";
 import {
+  addCatchPhoto,
   createCatch,
   deleteCatchPhoto,
   getCatch,
+  getChallenges,
   identifyPhoto,
   listMyCatches,
   listSpecies,
   updateCatch,
-  uploadCatchPhoto,
 } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
-import type { Species } from "../api/types";
+import type { CatchPhoto, Challenge, Species } from "../api/types";
 import type { CelebrationDetails } from "../components/CatchCelebration";
 import DiscoveryReveal from "../components/DiscoveryReveal";
 import LocationPicker, { type LatLng } from "../components/LocationPicker";
@@ -20,6 +21,15 @@ import PhotoCropModal from "../components/PhotoCropModal";
 
 type LocationMode = "current" | "manual" | "photo";
 type PhotoExif = { coords: LatLng | null; caughtAt: Date | null };
+type StagedPhoto = { file: File; previewUrl: string };
+type DisplayPhoto =
+  | { kind: "existing"; id: number; url: string }
+  | { kind: "staged"; stagedIndex: number; url: string; file: File };
+
+const MAX_PHOTOS = 4;
+// Must match SPECIES_GROUPS[-1] in backend/app/routers/leaderboard.py — no
+// dedicated endpoint exposes this grouping today, so it's kept in sync by hand.
+const BIG_THREE_SPECIES = ["Spotted Bay Bass", "Barred Sand Bass", "Calico Bass"];
 
 function splitLocalDateTime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -78,13 +88,15 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
   const [weight, setWeight] = useState("");
   const [length, setLength] = useState("");
   const [notes, setNotes] = useState("");
-  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [removePhoto, setRemovePhoto] = useState(false);
+  const [existingPhotos, setExistingPhotos] = useState<CatchPhoto[]>([]);
+  const [stagedPhotos, setStagedPhotos] = useState<StagedPhoto[]>([]);
+  const [removedPhotoIds, setRemovedPhotoIds] = useState<Set<number>>(new Set());
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCatch, setLoadingCatch] = useState(isEdit);
   const [priorSpeciesIds, setPriorSpeciesIds] = useState<Set<number> | null>(null);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [discovery, setDiscovery] = useState<{ species: Species; photoUrl: string | null; catchId: number } | null>(
     null
   );
@@ -160,9 +172,18 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
       .catch(() => setPriorSpeciesIds(new Set()));
   }, [isEdit]);
 
+  // Drives the Big Three "bring a weight photo" reminder — only shown while
+  // a challenge covering that species group is actually running.
+  useEffect(() => {
+    getChallenges()
+      .then(setChallenges)
+      .catch(() => setChallenges([]));
+  }, []);
+
   useEffect(() => {
     if (!detectState?.photoBlob || isEdit) return;
-    setPhotoFile(new File([detectState.photoBlob], "capture.jpg", { type: detectState.photoBlob.type }));
+    const file = new File([detectState.photoBlob], "capture.jpg", { type: detectState.photoBlob.type });
+    setStagedPhotos([{ file, previewUrl: URL.createObjectURL(file) }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -174,11 +195,18 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
         setWeight(c.weight != null ? String(c.weight) : "");
         setLength(c.length != null ? String(c.length) : "");
         setNotes(c.notes ?? "");
-        setExistingPhotoUrl(c.photo_url);
+        setExistingPhotos(c.photos);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load catch"))
       .finally(() => setLoadingCatch(false));
   }, [catchId]);
+
+  const visibleExisting = existingPhotos.filter((p) => !removedPhotoIds.has(p.id));
+  const combinedPhotos: DisplayPhoto[] = [
+    ...visibleExisting.map((p): DisplayPhoto => ({ kind: "existing", id: p.id, url: `${API_BASE}${p.photo_url}` })),
+    ...stagedPhotos.map((p, i): DisplayPhoto => ({ kind: "staged", stagedIndex: i, url: p.previewUrl, file: p.file })),
+  ];
+  const clampedSelectedIndex = Math.min(selectedIndex, Math.max(combinedPhotos.length - 1, 0));
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -186,6 +214,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     // the crop) fires another change event.
     e.target.value = "";
     if (!file) return;
+    if (combinedPhotos.length >= MAX_PHOTOS) return;
     // Read EXIF from the original file now — cropping re-encodes through a
     // canvas, which strips all metadata, so this has to happen before that.
     const exifPromise = !isEdit && !detectState ? readPhotoExif(file) : Promise.resolve({ coords: null, caughtAt: null });
@@ -200,33 +229,21 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
 
   async function handleCropConfirm(blob: Blob) {
     if (!pendingCrop) return;
+    const isFirstPhoto = combinedPhotos.length === 0;
     const croppedFile = new File([blob], "catch.jpg", { type: "image/jpeg" });
-    setPhotoFile(croppedFile);
-    setRemovePhoto(false);
+    const newStagedIndex = stagedPhotos.length;
+    setStagedPhotos((prev) => [...prev, { file: croppedFile, previewUrl: URL.createObjectURL(croppedFile) }]);
+    setSelectedIndex(visibleExisting.length + newStagedIndex);
 
-    if (!isEdit && !detectState) {
+    // Only the very first photo added to the catch defaults location/time —
+    // adding a 2nd/3rd/4th photo shouldn't override what's already been set.
+    if (!isEdit && !detectState && isFirstPhoto) {
       // Optimistically shows the "reading..." state under the photo pill
       // immediately, but only if the user hasn't already picked a mode
       // themselves — the priority effect takes it from here once the EXIF
       // read resolves.
       if (!userPickedLocationMode) setLocationMode("photo");
       setPhotoExifStatus("loading");
-
-      // Fire the species auto-detect alongside the EXIF read (not awaited
-      // here) so both run concurrently instead of one after the other.
-      setIdentifying(true);
-      setAutoDetected(false);
-      identifyPhoto(croppedFile)
-        .then((result) => {
-          if (result.species) {
-            setSpeciesId(result.species.id);
-            setAutoDetected(true);
-          }
-        })
-        .catch(() => {
-          /* Best-effort — the user can still pick a species manually. */
-        })
-        .finally(() => setIdentifying(false));
 
       const exifResult = await pendingCrop.exifPromise;
       setPhotoCoords(exifResult.coords);
@@ -240,6 +257,38 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
 
     URL.revokeObjectURL(pendingCrop.objectUrl);
     setPendingCrop(null);
+  }
+
+  function removePhotoAt(displayIndex: number) {
+    const target = combinedPhotos[displayIndex];
+    if (!target) return;
+    if (target.kind === "existing") {
+      setRemovedPhotoIds((prev) => new Set(prev).add(target.id));
+    } else {
+      setStagedPhotos((prev) => prev.filter((_, i) => i !== target.stagedIndex));
+    }
+    setSelectedIndex(0);
+  }
+
+  async function handleIdentify() {
+    const target = combinedPhotos[clampedSelectedIndex];
+    if (!target) return;
+    setIdentifying(true);
+    setAutoDetected(false);
+    try {
+      // Staged photos already have a File on hand; an already-uploaded photo
+      // only has a URL client-side, so it has to be re-fetched as a blob.
+      const blob = target.kind === "staged" ? target.file : await fetch(target.url).then((r) => r.blob());
+      const result = await identifyPhoto(blob);
+      if (result.species) {
+        setSpeciesId(result.species.id);
+        setAutoDetected(true);
+      }
+    } catch {
+      /* Best-effort — the user can still pick a species manually. */
+    } finally {
+      setIdentifying(false);
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -305,14 +354,13 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
         };
       }
 
-      let savedPhotoUrl: string | null = existingPhotoUrl;
-      if (photoFile) {
-        const updated = await uploadCatchPhoto(savedCatchId, photoFile);
-        savedPhotoUrl = updated.photo_url;
-      } else if (isEdit && removePhoto && existingPhotoUrl) {
-        await deleteCatchPhoto(savedCatchId);
-        savedPhotoUrl = null;
+      for (const photoId of removedPhotoIds) {
+        await deleteCatchPhoto(savedCatchId, photoId);
       }
+      for (const staged of stagedPhotos) {
+        await addCatchPhoto(savedCatchId, staged.file);
+      }
+      const savedPhotoUrl = combinedPhotos[0]?.url ?? null;
 
       if (isNewSpecies) {
         const matchedSpecies = species.find((s) => s.id === speciesId);
@@ -330,12 +378,6 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     }
   }
 
-  const previewUrl = photoFile
-    ? URL.createObjectURL(photoFile)
-    : existingPhotoUrl && !removePhoto
-      ? `${API_BASE}${existingPhotoUrl}`
-      : null;
-
   const activeCoords = locationMode === "current" ? coords : locationMode === "manual" ? manualCoords : photoCoords;
   function pickLocationMode(mode: LocationMode) {
     setUserPickedLocationMode(true);
@@ -347,11 +389,16 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     setManualCoords(next);
   }
 
+  const selectedSpeciesName = species.find((s) => s.id === speciesId)?.common_name;
+  const bigThreeChallengeActive = challenges.some((c) => c.status === "active");
+  const showBigThreeReminder =
+    bigThreeChallengeActive && selectedSpeciesName != null && BIG_THREE_SPECIES.includes(selectedSpeciesName);
+
   if (discovery) {
     return (
       <DiscoveryReveal
         species={discovery.species}
-        photoSrc={discovery.photoUrl ? `${API_BASE}${discovery.photoUrl}` : null}
+        photoSrc={discovery.photoUrl}
         onDone={() => onDone(undefined, discovery.catchId)}
       />
     );
@@ -388,6 +435,12 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           {autoDetected && !identifying && (
             <p className="card-meta">✨ Auto-detected from your photo — double check it's correct.</p>
           )}
+          {showBigThreeReminder && (
+            <p className="reminder-banner">
+              📸 The Big Three Challenge is live — include a clear photo of the fish on a scale, or this catch won't
+              count!
+            </p>
+          )}
         </label>
         <div className="form-row">
           <label>
@@ -420,30 +473,52 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           </label>
         </div>
         <label>
-          Photo
-          <div className="photo-upload-field">
-            <div className="photo-upload-button">
-              {previewUrl ? (
-                <img src={previewUrl} alt="" className="photo-upload-thumb" />
-              ) : (
+          Photos
+          <div className="photo-thumb-row">
+            {combinedPhotos.map((photo, i) => (
+              <div
+                key={photo.kind === "existing" ? `existing-${photo.id}` : `staged-${photo.stagedIndex}`}
+                className={`photo-thumb-tile${i === clampedSelectedIndex ? " selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedIndex(i)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") setSelectedIndex(i);
+                }}
+              >
+                <img src={photo.url} alt="" />
+                <button
+                  type="button"
+                  className="photo-thumb-remove"
+                  aria-label="Remove photo"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removePhotoAt(i);
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {combinedPhotos.length < MAX_PHOTOS && (
+              <label className="photo-thumb-tile photo-thumb-add">
                 <span className="photo-upload-icon">📷</span>
-              )}
-              {previewUrl ? "Change photo" : "Add a photo"}
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              className="photo-upload-input"
-              aria-label="Photo"
-            />
+                <input type="file" accept="image/*" onChange={handlePhotoChange} aria-label="Add photo" />
+              </label>
+            )}
           </div>
+          {combinedPhotos.length > 0 && !detectState && (
+            <button
+              type="button"
+              className="secondary-button"
+              style={{ marginTop: 8 }}
+              onClick={handleIdentify}
+              disabled={identifying}
+            >
+              {identifying ? "🔍 Identifying..." : "🔍 Identify species from selected photo"}
+            </button>
+          )}
         </label>
-        {isEdit && existingPhotoUrl && previewUrl && !photoFile && (
-          <button type="button" className="link-button" onClick={() => setRemovePhoto(true)}>
-            Remove photo
-          </button>
-        )}
         {!isEdit && !detectState && (
           <>
             <div className="form-row-auto">
@@ -464,7 +539,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                 <button
                   type="button"
                   className={locationMode === "photo" ? "active" : ""}
-                  disabled={!photoFile}
+                  disabled={combinedPhotos.length === 0}
                   onClick={() => pickLocationMode("photo")}
                 >
                   🖼️ Photo

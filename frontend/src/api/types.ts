@@ -42,6 +42,11 @@ export interface SpotUpdateInput {
   parking_lng?: number;
 }
 
+export interface CatchPhoto {
+  id: number;
+  photo_url: string;
+}
+
 export interface Catch {
   id: number;
   user_id: number;
@@ -51,7 +56,10 @@ export interface Catch {
   caught_at: string;
   latitude: number | null;
   longitude: number | null;
+  /** The primary (first-uploaded) photo — kept for every existing single-photo display. */
   photo_url: string | null;
+  /** Every photo for this catch, in upload order — photos[0].photo_url === photo_url. */
+  photos: CatchPhoto[];
   notes: string | null;
   created_at: string;
   species: Species;
@@ -84,7 +92,6 @@ export interface CatchInput {
   caught_at: string;
   latitude?: number | null;
   longitude?: number | null;
-  photo_url?: string | null;
   notes?: string | null;
 }
 
@@ -115,6 +122,7 @@ export interface LeaderboardCatch {
   length: number | null;
   caught_at: string;
   photo_url: string | null;
+  photos: CatchPhoto[];
   latitude: number | null;
   longitude: number | null;
   tide_height_ft: number | null;
@@ -180,6 +188,7 @@ export interface RecentCatch {
   length: number | null;
   caught_at: string;
   photo_url: string | null;
+  photos: CatchPhoto[];
   latitude: number | null;
   longitude: number | null;
   species: Species;

@@ -3,6 +3,7 @@ import { getRecentCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { RecentCatch } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
+import CatchPhotoGallery from "../components/CatchPhotoGallery";
 import CommentThread from "../components/CommentThread";
 import AnglerDetail from "../components/AnglerDetail";
 import PullToRefresh from "../components/PullToRefresh";
@@ -62,13 +63,7 @@ export default function RecentCatches() {
       <BottomSheet open={selectedCatch != null} onClose={() => setSelectedCatch(null)}>
         {selectedCatch && (
           <div>
-            {selectedCatch.photo_url && (
-              <img
-                className="catch-photo"
-                src={`${API_BASE}${selectedCatch.photo_url}`}
-                alt={selectedCatch.species.common_name}
-              />
-            )}
+            <CatchPhotoGallery photos={selectedCatch.photos} alt={selectedCatch.species.common_name} />
             <h1>{selectedCatch.species.common_name}</h1>
             <p className="card-meta">
               Caught by{" "}

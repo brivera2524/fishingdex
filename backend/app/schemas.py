@@ -103,6 +103,13 @@ class SpotOut(BaseModel):
     _normalize_created_at = field_validator("created_at", mode="before")(_as_utc)
 
 
+class CatchPhotoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    photo_url: str
+
+
 class CatchCreate(BaseModel):
     species_id: int
     weight: float | None = None
@@ -110,7 +117,6 @@ class CatchCreate(BaseModel):
     caught_at: datetime
     latitude: float | None = None
     longitude: float | None = None
-    photo_url: str | None = None
     notes: str | None = None
 
 
@@ -136,6 +142,7 @@ class CatchOut(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     photo_url: str | None = None
+    photos: list[CatchPhotoOut] = []
     notes: str | None = None
     created_at: datetime
     species: SpeciesOut
@@ -174,6 +181,7 @@ class LeaderboardCatch(BaseModel):
     length: float | None = None
     caught_at: datetime
     photo_url: str | None = None
+    photos: list[CatchPhotoOut] = []
     latitude: float | None = None
     longitude: float | None = None
     tide_height_ft: float | None = None
@@ -226,6 +234,7 @@ class RecentCatch(BaseModel):
     length: float | None = None
     caught_at: datetime
     photo_url: str | None = None
+    photos: list[CatchPhotoOut] = []
     latitude: float | None = None
     longitude: float | None = None
     tide_height_ft: float | None = None

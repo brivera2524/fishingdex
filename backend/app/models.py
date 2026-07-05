@@ -105,7 +105,6 @@ class Catch(Base):
 
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
-    photo_url: Mapped[str | None] = mapped_column(String(500))
     notes: Mapped[str | None] = mapped_column(Text)
 
     # Computed server-side from NOAA's San Diego tide predictions at
@@ -132,6 +131,30 @@ class Catch(Base):
     species: Mapped["Species"] = relationship(back_populates="catches")
     spot: Mapped["Spot | None"] = relationship(back_populates="catches")
     comments: Mapped[list["Comment"]] = relationship(back_populates="catch", cascade="all, delete-orphan")
+    photos: Mapped[list["CatchPhoto"]] = relationship(
+        back_populates="catch", cascade="all, delete-orphan", order_by="CatchPhoto.position"
+    )
+
+    @property
+    def photo_url(self) -> str | None:
+        """The primary (lowest-position) photo, for callers that only want a
+        single thumbnail — e.g. Pydantic's from_attributes reading CatchOut's
+        scalar photo_url field straight off this model."""
+        return self.photos[0].photo_url if self.photos else None
+
+
+class CatchPhoto(Base):
+    __tablename__ = "catch_photos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    catch_id: Mapped[int] = mapped_column(ForeignKey("catches.id"), index=True, nullable=False)
+    photo_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    # Upload order — lets a catch have a stable "primary" photo (position 0)
+    # for list-view thumbnails without a separate is_primary flag.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    catch: Mapped["Catch"] = relationship(back_populates="photos")
 
 
 class Comment(Base):

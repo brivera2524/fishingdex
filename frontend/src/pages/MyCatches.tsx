@@ -3,6 +3,7 @@ import { deleteCatch, getUserCatches, listMyCatches } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { Catch } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
+import CatchPhotoGallery from "../components/CatchPhotoGallery";
 import CommentThread from "../components/CommentThread";
 import ViewOnMapButton from "../components/ViewOnMapButton";
 
@@ -101,13 +102,7 @@ export default function MyCatches({
       <BottomSheet open={selected != null} onClose={closeSheet}>
         {selected && (
           <div>
-            {selected.photo_url && (
-              <img
-                className="catch-photo"
-                src={`${API_BASE}${selected.photo_url}`}
-                alt={selected.species.common_name}
-              />
-            )}
+            <CatchPhotoGallery photos={selected.photos} alt={selected.species.common_name} />
             <h1>{selected.species.common_name}</h1>
             <p className="card-meta">{new Date(selected.caught_at).toLocaleString()}</p>
             <div className="card-stats" style={{ margin: "10px 0" }}>

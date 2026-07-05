@@ -49,6 +49,7 @@ def _to_leaderboard_catch(catch: Catch) -> LeaderboardCatch:
         length=catch.length,
         caught_at=catch.caught_at,
         photo_url=catch.photo_url,
+        photos=catch.photos,
         latitude=catch.latitude,
         longitude=catch.longitude,
         tide_height_ft=catch.tide_height_ft,
@@ -72,7 +73,7 @@ def species_leaderboard(
         )
         top_catch = (
             db.query(Catch)
-            .options(joinedload(Catch.user), joinedload(Catch.spot))
+            .options(joinedload(Catch.user), joinedload(Catch.spot), joinedload(Catch.photos))
             .filter(Catch.species_id == sp.id, Catch.weight.isnot(None), Catch.counts_for_leaderboard)
             .order_by(Catch.weight.desc())
             .first()
@@ -91,7 +92,7 @@ def species_leaderboard(
         )
         catch_count = base_query.count()
         top_catch = (
-            base_query.options(joinedload(Catch.user), joinedload(Catch.spot))
+            base_query.options(joinedload(Catch.user), joinedload(Catch.spot), joinedload(Catch.photos))
             .filter(Catch.weight.isnot(None))
             .order_by(Catch.weight.desc())
             .first()
@@ -118,7 +119,7 @@ def species_catch_leaderboard(
         catches = (
             db.query(Catch)
             .join(Species)
-            .options(joinedload(Catch.user))
+            .options(joinedload(Catch.user), joinedload(Catch.photos))
             .filter(
                 Species.common_name.in_(member_names),
                 Catch.weight.isnot(None),
@@ -131,7 +132,7 @@ def species_catch_leaderboard(
 
     catches = (
         db.query(Catch)
-        .options(joinedload(Catch.user))
+        .options(joinedload(Catch.user), joinedload(Catch.photos))
         .filter(Catch.species_id == species_id, Catch.weight.isnot(None), Catch.counts_for_leaderboard)
         .order_by(Catch.weight.desc())
         .all()
@@ -174,7 +175,7 @@ def list_challenges(
                 best_per_user,
                 (Catch.user_id == best_per_user.c.user_id) & (Catch.weight == best_per_user.c.max_weight),
             )
-            .options(joinedload(Catch.user), joinedload(Catch.spot))
+            .options(joinedload(Catch.user), joinedload(Catch.spot), joinedload(Catch.photos))
             .order_by(Catch.weight.desc())
             .all()
         )

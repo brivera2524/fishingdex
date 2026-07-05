@@ -79,17 +79,17 @@ export function deleteCatch(catchId: number) {
   return apiFetch<void>(`/catches/${catchId}`, { method: "DELETE" });
 }
 
-export function uploadCatchPhoto(catchId: number, file: File) {
+export function addCatchPhoto(catchId: number, file: File) {
   const formData = new FormData();
   formData.append("file", file);
-  return apiFetch<Catch>(`/catches/${catchId}/photo`, {
+  return apiFetch<Catch>(`/catches/${catchId}/photos`, {
     method: "POST",
     body: formData,
   });
 }
 
-export function deleteCatchPhoto(catchId: number) {
-  return apiFetch<Catch>(`/catches/${catchId}/photo`, { method: "DELETE" });
+export function deleteCatchPhoto(catchId: number, photoId: number) {
+  return apiFetch<Catch>(`/catches/${catchId}/photos/${photoId}`, { method: "DELETE" });
 }
 
 export function identifyPhoto(file: File | Blob) {

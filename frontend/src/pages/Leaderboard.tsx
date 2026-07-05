@@ -8,6 +8,7 @@ import {
 import { API_BASE, ApiError } from "../api/client";
 import type { AnglerStat, Challenge, LeaderboardCatch, SpeciesRecord } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
+import CatchPhotoGallery from "../components/CatchPhotoGallery";
 import CommentThread from "../components/CommentThread";
 import ViewOnMapButton from "../components/ViewOnMapButton";
 
@@ -288,13 +289,7 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
       <BottomSheet open={selectedCatch != null} onClose={() => setSelectedCatch(null)}>
         {selectedCatch && (
           <div>
-            {selectedCatch.photo_url && (
-              <img
-                className="catch-photo"
-                src={`${API_BASE}${selectedCatch.photo_url}`}
-                alt={selectedCatch.display_name}
-              />
-            )}
+            <CatchPhotoGallery photos={selectedCatch.photos} alt={selectedCatch.display_name} />
             <h1>{selectedCatch.display_name}</h1>
             <div className="card-stats" style={{ margin: "10px 0" }}>
               {selectedCatch.weight != null && <span className="card-stat">{selectedCatch.weight} lb</span>}

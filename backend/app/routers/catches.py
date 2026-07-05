@@ -9,15 +9,17 @@ from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db
 from app.geo import find_spot_for_point
-from app.models import Catch, Species, User
+from app.models import Catch, CatchPhoto, Species, User
 from app.push import notify_catch_event_task
-from app.records import check_leaderboard_record, check_personal_best
+from app.records import check_challenge_leader, check_leaderboard_record, check_personal_best
 from app.schemas import CatchCreate, CatchOut, CatchUpdate, MapCatch, RecentCatch
 from app.tide import TideUnavailable, get_tide_at
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/catches", tags=["catches"])
+
+MAX_PHOTOS_PER_CATCH = 4
 
 
 def _check_records_and_notify(db: Session, catch: Catch, background_tasks: BackgroundTasks) -> CatchOut:
@@ -60,6 +62,22 @@ def _check_records_and_notify(db: Session, catch: Catch, background_tasks: Backg
                 notify_catch_event_task, catch.user_id, "catch", "New catch logged",
                 f"{catch.user.display_name} logged a {catch.species.common_name}",
             )
+
+        # Orthogonal to the record/pb/catch tier above — a catch can be both
+        # a personal best AND a new challenge leader, so this is a second,
+        # independent notification rather than another branch in the chain.
+        challenge_result = check_challenge_leader(db, catch)
+        if challenge_result.is_new:
+            verb = (
+                "takes the early lead in"
+                if challenge_result.previous_holder_name is None
+                else f"overtakes {challenge_result.previous_holder_name} for the lead in"
+            )
+            background_tasks.add_task(
+                notify_catch_event_task, catch.user_id, "challenge_leader", "🥇 New challenge leader!",
+                f"{catch.user.display_name} {verb} {challenge_result.challenge_name} with a "
+                f"{catch.weight} lb {catch.species.common_name}!",
+            )
     except Exception:
         logger.exception("Record check failed for catch %s", catch.id)
 
@@ -82,7 +100,7 @@ ALLOWED_PHOTO_TYPES = {
 def _get_owned_catch(catch_id: int, db: Session, current_user: User) -> Catch:
     catch = (
         db.query(Catch)
-        .options(joinedload(Catch.species), joinedload(Catch.spot))
+        .options(joinedload(Catch.species), joinedload(Catch.spot), joinedload(Catch.photos))
         .filter(Catch.id == catch_id)
         .first()
     )
@@ -130,7 +148,7 @@ def list_my_catches(
 ):
     return (
         db.query(Catch)
-        .options(joinedload(Catch.species), joinedload(Catch.spot))
+        .options(joinedload(Catch.species), joinedload(Catch.spot), joinedload(Catch.photos))
         .filter(Catch.user_id == current_user.id)
         .order_by(Catch.caught_at.desc())
         .all()
@@ -144,7 +162,9 @@ def list_recent_catches(
 ):
     catches = (
         db.query(Catch)
-        .options(joinedload(Catch.species), joinedload(Catch.user), joinedload(Catch.spot))
+        .options(
+            joinedload(Catch.species), joinedload(Catch.user), joinedload(Catch.spot), joinedload(Catch.photos)
+        )
         .order_by(Catch.caught_at.desc())
         .limit(100)
         .all()
@@ -158,6 +178,7 @@ def list_recent_catches(
             length=c.length,
             caught_at=c.caught_at,
             photo_url=c.photo_url,
+            photos=c.photos,
             latitude=c.latitude,
             longitude=c.longitude,
             species=c.species,
@@ -176,7 +197,9 @@ def list_map_catches(
 ):
     catches = (
         db.query(Catch)
-        .options(joinedload(Catch.species), joinedload(Catch.user), joinedload(Catch.spot))
+        .options(
+            joinedload(Catch.species), joinedload(Catch.user), joinedload(Catch.spot), joinedload(Catch.photos)
+        )
         .filter(Catch.latitude.isnot(None), Catch.longitude.isnot(None))
         .order_by(Catch.caught_at.desc())
         .all()
@@ -254,19 +277,26 @@ def delete_catch(
     current_user: User = Depends(get_current_user),
 ):
     catch = _get_owned_catch(catch_id, db, current_user)
-    _delete_photo_file(catch.photo_url)
+    for p in catch.photos:
+        _delete_photo_file(p.photo_url)
     db.delete(catch)
     db.commit()
 
 
-@router.post("/{catch_id}/photo", response_model=CatchOut)
-async def upload_catch_photo(
+@router.post("/{catch_id}/photos", response_model=CatchOut)
+async def add_catch_photo(
     catch_id: int,
     file: UploadFile,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     catch = _get_owned_catch(catch_id, db, current_user)
+
+    if len(catch.photos) >= MAX_PHOTOS_PER_CATCH:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A catch can have at most {MAX_PHOTOS_PER_CATCH} photos",
+        )
 
     ext = ALLOWED_PHOTO_TYPES.get(file.content_type)
     if not ext:
@@ -286,26 +316,29 @@ async def upload_catch_photo(
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    _delete_photo_file(catch.photo_url)
-
     filename = f"{uuid.uuid4().hex}{ext}"
     (upload_dir / filename).write_bytes(contents)
 
-    catch.photo_url = f"/uploads/{filename}"
+    catch.photos.append(CatchPhoto(photo_url=f"/uploads/{filename}", position=len(catch.photos)))
     db.commit()
     db.refresh(catch)
     return catch
 
 
-@router.delete("/{catch_id}/photo", response_model=CatchOut)
+@router.delete("/{catch_id}/photos/{photo_id}", response_model=CatchOut)
 def delete_catch_photo(
     catch_id: int,
+    photo_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     catch = _get_owned_catch(catch_id, db, current_user)
-    _delete_photo_file(catch.photo_url)
-    catch.photo_url = None
+    photo = next((p for p in catch.photos if p.id == photo_id), None)
+    if not photo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
+
+    _delete_photo_file(photo.photo_url)
+    catch.photos.remove(photo)
     db.commit()
     db.refresh(catch)
     return catch
