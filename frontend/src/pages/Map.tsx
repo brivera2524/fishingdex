@@ -19,6 +19,7 @@ import { API_BASE, ApiError } from "../api/client";
 import type { MapCatch, Spot } from "../api/types";
 import LocationPickerModal from "../components/LocationPickerModal";
 import type { LatLng } from "../components/LocationPicker";
+import CurrentFlowLayer from "../components/CurrentFlowLayer";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
 import TimeWindowRuler from "../components/TimeWindowRuler";
@@ -90,6 +91,7 @@ export default function MapPage() {
   const [pinsEnabled, setPinsEnabled] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [spotsEnabled, setSpotsEnabled] = useState(true);
+  const [currentEnabled, setCurrentEnabled] = useState(false);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
   const [maxDaysSpan, setMaxDaysSpan] = useState(DEFAULT_WINDOW_DAYS);
   const [windowRange, setWindowRange] = useState({ start: DEFAULT_WINDOW_DAYS, end: 0 });
@@ -495,6 +497,13 @@ export default function MapPage() {
             >
               🔥 Heatmap
             </button>
+            <button
+              type="button"
+              className={`map-layer-toggle${currentEnabled ? " active" : ""}`}
+              onClick={() => setCurrentEnabled((v) => !v)}
+            >
+              🌊 Current
+            </button>
             {currentUser?.is_admin && (
               <button type="button" className="map-layer-toggle" onClick={toggleDrawMode}>
                 ✏️ Edit
@@ -613,6 +622,7 @@ export default function MapPage() {
             ))}
           </MarkerClusterGroup>
         )}
+        {!drawMode && currentEnabled && <CurrentFlowLayer />}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}
