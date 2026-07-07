@@ -43,7 +43,7 @@ interface TierConfig {
 
 const TIERS: Record<CelebrationTier, TierConfig> = {
   catch: {
-    colors: ["#5eead4", "#2dd4bf", "#0f9d8f"],
+    colors: ["#e0b872", "#c9a35c", "#8a6a34"],
     particleCount: 10,
     particleDuration: 0.6,
     badgeClass: "",

@@ -266,8 +266,16 @@ export default function CameraDetect() {
       </div>
 
       {cameraError ? (
-        <div className="page" style={{ color: "#fff", paddingTop: "30svh", textAlign: "center" }}>
-          <p>{cameraError}</p>
+        <div className="camera-error-wrap">
+          <div className="camera-error-card">
+            <span className="camera-error-icon" aria-hidden="true">
+              📷
+            </span>
+            <p>{cameraError}</p>
+            <button type="button" className="secondary-button" onClick={handleClose}>
+              Go back
+            </button>
+          </div>
         </div>
       ) : (
         <video ref={videoRef} className="camera-video" autoPlay muted playsInline />
