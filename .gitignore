@@ -8,6 +8,3 @@ node_modules/
 frontend/dist/
 frontend/.env.local
 .DS_Store
-
-.vercel
-.env*

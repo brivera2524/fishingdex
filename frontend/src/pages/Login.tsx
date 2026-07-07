@@ -34,11 +34,8 @@ export default function Login() {
   }
 
   return (
-    <div className="page login-page">
-      <div className="login-mark">
-        <h1>🎣 Fish Pokedex</h1>
-        <p className="login-byline">San Diego catch log</p>
-      </div>
+    <div className="page" style={{ paddingTop: "20svh" }}>
+      <h1 style={{ textAlign: "center", fontSize: 32 }}>🎣 Fish Pokedex</h1>
       <form onSubmit={handleSubmit} className="form card">
         {mode === "signup" && (
           <label>
