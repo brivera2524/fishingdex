@@ -15,23 +15,28 @@ import { fetchCurrentField } from "../lib/currentField";
 // The same calm-to-strong gradient conceptually, expanded into a smooth
 // array of samples — leaflet-velocity's colorScale wants a flat list of
 // colors spread evenly across [0, MAX_VELOCITY], not named stops.
+//
+// HFRadar reports real m/s (unlike the abandoned Open-Meteo attempt, which
+// used mph) — a spot-check of actual San Diego readings put typical bay/
+// nearshore speeds well under 0.5 m/s, so thresholds are scaled for that
+// range rather than the open-ocean speeds these colors were first tuned for.
 const COLOR_STOPS: Array<[number, [number, number, number]]> = [
   [0, [56, 189, 248]], // calm — light blue
-  [0.5, [45, 212, 191]], // light — teal
-  [1.2, [250, 204, 21]], // moderate — yellow
-  [2.2, [251, 146, 60]], // strong — orange
-  [3.5, [248, 113, 113]], // very strong — red
+  [0.15, [45, 212, 191]], // light — teal
+  [0.35, [250, 204, 21]], // moderate — yellow
+  [0.6, [251, 146, 60]], // strong — orange
+  [1.0, [248, 113, 113]], // very strong — red
 ];
-const MAX_VELOCITY = 3.5;
+const MAX_VELOCITY = 1.0;
 
-function colorAt(mph: number): string {
+function colorAt(metersPerSecond: number): string {
   const stops = COLOR_STOPS;
-  if (mph <= stops[0][0]) return rgb(stops[0][1]);
+  if (metersPerSecond <= stops[0][0]) return rgb(stops[0][1]);
   for (let i = 1; i < stops.length; i++) {
     const [hi, hiRgb] = stops[i];
-    if (mph <= hi) {
+    if (metersPerSecond <= hi) {
       const [lo, loRgb] = stops[i - 1];
-      const t = (mph - lo) / (hi - lo);
+      const t = (metersPerSecond - lo) / (hi - lo);
       return rgb(loRgb.map((c, j) => Math.round(c + (hiRgb[j] - c) * t)) as [number, number, number]);
     }
   }
@@ -62,7 +67,10 @@ export default function CurrentFlowLayer() {
         data,
         minVelocity: 0,
         maxVelocity: MAX_VELOCITY,
-        velocityScale: 0.01,
+        // Untested against the real m/s data live (a static screenshot
+        // can't show whether particle motion actually reads well) — likely
+        // needs retuning once seen in motion.
+        velocityScale: 0.03,
         colorScale: COLOR_SCALE,
         opacity: 0.95,
       });

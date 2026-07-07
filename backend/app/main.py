@@ -9,7 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import settings
 from app.rate_limit import limiter
-from app.routers import admin, auth, catches, comments, identify, leaderboard, push, species, spots, users
+from app.routers import admin, auth, catches, comments, identify, leaderboard, ocean_current, push, species, spots, users
 
 app = FastAPI(title="Fish Pokedex API")
 
@@ -37,6 +37,7 @@ app.include_router(users.router)
 app.include_router(admin.router)
 app.include_router(spots.router)
 app.include_router(push.router)
+app.include_router(ocean_current.router)
 
 
 @app.get("/health")
