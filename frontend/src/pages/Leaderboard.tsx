@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
-  getAnglerLeaderboard,
   getChallenges,
   getSpeciesCatchLeaderboard,
   getSpeciesLeaderboard,
+  listUsers,
 } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
-import type { AnglerStat, Challenge, LeaderboardCatch, SpeciesRecord } from "../api/types";
+import type { Challenge, LeaderboardCatch, SpeciesRecord, UserStat } from "../api/types";
 import BottomSheet from "../components/BottomSheet";
 import CatchPhotoGallery from "../components/CatchPhotoGallery";
 import CommentThread from "../components/CommentThread";
+import AnglerDetail from "../components/AnglerDetail";
+import PullToRefresh from "../components/PullToRefresh";
 import ViewOnMapButton from "../components/ViewOnMapButton";
 
-type Tab = "species" | "anglers" | "challenge";
+type Tab = "fish" | "species" | "challenge";
+const TAB_VALUES: Tab[] = ["fish", "species", "challenge"];
 
 const CHALLENGE_STATUS_LABEL: Record<Challenge["status"], string> = {
   upcoming: "Starts soon",
@@ -40,14 +44,16 @@ function formatCountdown(ch: Challenge, nowMs: number): string {
   return `Ended ${duration} ago`;
 }
 
-interface LeaderboardProps {
-  embedded?: boolean;
+interface SelectedAngler {
+  id: number;
+  displayName: string;
 }
 
-export default function Leaderboard({ embedded = false }: LeaderboardProps) {
-  const [tab, setTab] = useState<Tab>("species");
+export default function Leaderboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [users, setUsers] = useState<UserStat[]>([]);
   const [records, setRecords] = useState<SpeciesRecord[]>([]);
-  const [anglers, setAnglers] = useState<AnglerStat[]>([]);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +62,30 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedCatch, setSelectedCatch] = useState<LeaderboardCatch | null>(null);
+  const [selectedAngler, setSelectedAngler] = useState<SelectedAngler | null>(null);
   const [now, setNow] = useState(() => Date.now());
+
+  // Draws the eye to the Challenge tab whenever there's one worth checking —
+  // upcoming or actively running — and hides the tab entirely otherwise. A
+  // stale ?tab=challenge (e.g. the challenge ended since the link was saved)
+  // falls back to the default tab instead of leaving no tab visibly active.
+  const hasLiveChallenge = challenges.some((c) => c.status !== "ended");
+  const tabParam = searchParams.get("tab");
+  const tab: Tab =
+    TAB_VALUES.includes(tabParam as Tab) && (tabParam !== "challenge" || hasLiveChallenge)
+      ? (tabParam as Tab)
+      : "fish";
+
+  function setTab(next: Tab) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set("tab", next);
+        return params;
+      },
+      { replace: true }
+    );
+  }
 
   // Keeps the challenge countdown from going stale if the tab is left open —
   // a minute of drift is plenty fine for a month-long challenge.
@@ -65,9 +94,19 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    Promise.all([getSpeciesLeaderboard(), getAnglerLeaderboard(), getChallenges()])
-      .then(([speciesRecords, anglerStats, challengeList]) => {
+  function fetchDetail(speciesId: number) {
+    setDetailLoading(true);
+    setDetail(null);
+    return getSpeciesCatchLeaderboard(speciesId)
+      .then(setDetail)
+      .catch(() => setDetail([]))
+      .finally(() => setDetailLoading(false));
+  }
+
+  function loadData() {
+    return Promise.all([listUsers(), getSpeciesLeaderboard(), getChallenges()])
+      .then(([userStats, speciesRecords, challengeList]) => {
+        setUsers(userStats);
         // Most-caught species first, so both the carousel and the "jump to
         // species" picker surface populated leaderboards before empty ones.
         const sorted = [...speciesRecords].sort((a, b) => {
@@ -75,24 +114,26 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
           return a.species.common_name.localeCompare(b.species.common_name);
         });
         setRecords(sorted);
-        setAnglers(anglerStats);
         setChallenges(challengeList);
         setIndex(0);
+        // Refresh whatever species detail is on screen too, not just the
+        // list backing it — a pull-to-refresh should update what's visible.
+        if (sorted.length > 0) fetchDetail(sorted[0].species.id);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load leaderboard"))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const current = records[index] ?? null;
 
   useEffect(() => {
     if (!current) return;
-    setDetailLoading(true);
-    setDetail(null);
-    getSpeciesCatchLeaderboard(current.species.id)
-      .then(setDetail)
-      .catch(() => setDetail([]))
-      .finally(() => setDetailLoading(false));
+    fetchDetail(current.species.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.species.id]);
 
@@ -101,169 +142,156 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
     setIndex((i) => (i + delta + records.length) % records.length);
   }
 
-  // Draws the eye to the Challenge tab whenever there's one worth checking —
-  // upcoming or actively running — without needing to tap in first.
-  const hasLiveChallenge = challenges.some((c) => c.status !== "ended");
-
   return (
-    <div className={embedded ? undefined : "page"}>
-      {!embedded && <h1>Leaderboard</h1>}
-      <div className="leaderboard-mode-row">
-        <span className="leaderboard-mode-label">Leaderboard</span>
+    <div className="page">
+      <PullToRefresh onRefresh={loadData}>
+        <h1>Leaderboard</h1>
         <div className="mode-pill-toggle">
-          <button
-            type="button"
-            className={tab === "species" ? "active" : ""}
-            onClick={() => setTab("species")}
-          >
-            Biggest Fish
+          <button type="button" className={tab === "fish" ? "active" : ""} onClick={() => setTab("fish")}>
+            Fish Caught
           </button>
-          <button
-            type="button"
-            className={tab === "anglers" ? "active" : ""}
-            onClick={() => setTab("anglers")}
-          >
-            Most Catches
+          <button type="button" className={tab === "species" ? "active" : ""} onClick={() => setTab("species")}>
+            Max Weight
           </button>
-          <button
-            type="button"
-            className={tab === "challenge" ? "active" : ""}
-            onClick={() => setTab("challenge")}
-          >
-            Challenge
-            {hasLiveChallenge && <span className="tab-badge-dot" aria-hidden="true" />}
-          </button>
-        </div>
-      </div>
-
-      {loading && <p>Loading...</p>}
-      {error && <p className="error">{error}</p>}
-
-      {!loading && tab === "species" && current && (
-        <>
-          <div className="species-switcher">
+          {hasLiveChallenge && (
             <button
               type="button"
-              className="secondary-button species-switcher-arrow"
-              onClick={() => step(-1)}
-              aria-label="Previous species"
+              className={tab === "challenge" ? "active" : ""}
+              onClick={() => setTab("challenge")}
             >
-              ‹
+              Challenge
+              <span className="tab-badge-dot" aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              className="species-switcher-label"
-              onClick={() => setPickerOpen(true)}
-            >
-              <span className="card-title">{current.species.common_name} ▾</span>
-              <span className="card-meta">
-                {index + 1} / {records.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="secondary-button species-switcher-arrow"
-              onClick={() => step(1)}
-              aria-label="Next species"
-            >
-              ›
-            </button>
-          </div>
-
-          {detailLoading && <p>Loading...</p>}
-          {!detailLoading && detail && detail.length === 0 && <p>No one has caught this yet.</p>}
-          {!detailLoading && detail && detail.length > 0 && (
-            <ul className="catch-list">
-              {detail.map((c, i) => (
-                <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
-                  {c.photo_url && (
-                    <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.display_name} />
-                  )}
-                  <div className="page-header">
-                    <span className="card-title">
-                      {i === 0 ? "🏆 " : `#${i + 1} `}
-                      {c.display_name}
-                    </span>
-                    <span className="card-stat">{c.weight} lb</span>
-                  </div>
-                  <span className="card-meta">{new Date(c.caught_at).toLocaleDateString()}</span>
-                </li>
-              ))}
-            </ul>
           )}
-        </>
-      )}
+        </div>
 
-      {!loading && tab === "anglers" && (
-        <ul className="catch-list">
-          {anglers.map((a, i) => (
-            <li key={a.display_name} className="card">
-              <div className="page-header">
-                <span className="card-title">
-                  #{i + 1} {a.display_name}
-                </span>
-                <span className="card-stat">{a.catch_count} catches</span>
-              </div>
-              <span className="card-meta">{a.species_count} species discovered</span>
-            </li>
-          ))}
-          {anglers.length === 0 && <p>No catches logged yet.</p>}
-        </ul>
-      )}
+        {loading && <p>Loading...</p>}
+        {error && <p className="error">{error}</p>}
 
-      {!loading && tab === "challenge" && (
-        <>
-          {challenges.length === 0 && <p>No challenges right now.</p>}
-          {challenges.map((ch) => (
-            <div key={ch.id} style={{ marginBottom: 20 }}>
-              <div className="challenge-header">
+        {!loading && tab === "fish" && (
+          <ul className="catch-list">
+            {users.map((u) => (
+              <li
+                key={u.id}
+                className="card card-tappable"
+                onClick={() => setSelectedAngler({ id: u.id, displayName: u.display_name })}
+              >
                 <div className="page-header">
-                  <span className="challenge-title">{ch.name}</span>
-                  <span className="challenge-status-pill">{CHALLENGE_STATUS_LABEL[ch.status]}</span>
+                  <span className="card-title">{u.display_name}</span>
+                  <span className="card-stat">{u.catch_count} catches</span>
                 </div>
-                <span className="card-meta">{formatDateRange(ch.starts_at, ch.ends_at)}</span>
-                <span className="challenge-countdown">{formatCountdown(ch, now)}</span>
-              </div>
-              {ch.standings.length === 0 && (
-                <p style={{ marginTop: 14 }}>
-                  {ch.status === "upcoming" ? "Nobody's logged a qualifying catch yet." : "No qualifying catches."}
-                </p>
-              )}
-              {ch.standings.length > 0 && (
-                <>
-                  <p className="section-label" style={{ marginTop: 16, marginBottom: 8 }}>
-                    Standings
-                  </p>
-                  <ul className="catch-list">
-                  {ch.standings.map((c, i) => {
-                    const isLast = i === ch.standings.length - 1 && ch.standings.length > 1;
-                    return (
-                      <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
-                        {c.photo_url && (
-                          <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.display_name} />
-                        )}
-                        <div className="page-header">
-                          <span className="card-title">
-                            {i === 0 ? "🏆 " : isLast ? "🐟 " : `#${i + 1} `}
-                            {c.display_name}
-                          </span>
-                          <span className="card-stat">{c.weight} lb</span>
-                        </div>
-                        <span className="card-meta">
-                          {i === 0 && ch.status === "ended" && "Winner — "}
-                          {isLast && ch.status === "ended" && "Loser — "}
-                          {new Date(c.caught_at).toLocaleDateString()}
-                        </span>
-                      </li>
-                    );
-                  })}
-                  </ul>
-                </>
-              )}
+                <span className="card-meta">{u.species_count} species discovered</span>
+              </li>
+            ))}
+            {users.length === 0 && <p>No catches logged yet.</p>}
+          </ul>
+        )}
+
+        {!loading && tab === "species" && current && (
+          <>
+            <div className="species-switcher">
+              <button
+                type="button"
+                className="secondary-button species-switcher-arrow"
+                onClick={() => step(-1)}
+                aria-label="Previous species"
+              >
+                ‹
+              </button>
+              <button type="button" className="species-switcher-label" onClick={() => setPickerOpen(true)}>
+                <span className="card-title">{current.species.common_name} ▾</span>
+                <span className="card-meta">
+                  {index + 1} / {records.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="secondary-button species-switcher-arrow"
+                onClick={() => step(1)}
+                aria-label="Next species"
+              >
+                ›
+              </button>
             </div>
-          ))}
-        </>
-      )}
+
+            {detailLoading && <p>Loading...</p>}
+            {!detailLoading && detail && detail.length === 0 && <p>No one has caught this yet.</p>}
+            {!detailLoading && detail && detail.length > 0 && (
+              <ul className="catch-list">
+                {detail.map((c, i) => (
+                  <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
+                    {c.photo_url && (
+                      <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.display_name} />
+                    )}
+                    <div className="page-header">
+                      <span className="card-title">
+                        {i === 0 ? "🏆 " : `#${i + 1} `}
+                        {c.display_name}
+                      </span>
+                      <span className="card-stat">{c.weight} lb</span>
+                    </div>
+                    <span className="card-meta">{new Date(c.caught_at).toLocaleDateString()}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+
+        {!loading && tab === "challenge" && (
+          <>
+            {challenges.length === 0 && <p>No challenges right now.</p>}
+            {challenges.map((ch) => (
+              <div key={ch.id} style={{ marginBottom: 20 }}>
+                <div className="challenge-header">
+                  <div className="page-header">
+                    <span className="challenge-title">{ch.name}</span>
+                    <span className="challenge-status-pill">{CHALLENGE_STATUS_LABEL[ch.status]}</span>
+                  </div>
+                  <span className="card-meta">{formatDateRange(ch.starts_at, ch.ends_at)}</span>
+                  <span className="challenge-countdown">{formatCountdown(ch, now)}</span>
+                </div>
+                {ch.standings.length === 0 && (
+                  <p style={{ marginTop: 14 }}>
+                    {ch.status === "upcoming" ? "Nobody's logged a qualifying catch yet." : "No qualifying catches."}
+                  </p>
+                )}
+                {ch.standings.length > 0 && (
+                  <>
+                    <p className="section-label" style={{ marginTop: 16, marginBottom: 8 }}>
+                      Standings
+                    </p>
+                    <ul className="catch-list">
+                      {ch.standings.map((c, i) => {
+                        const isLast = i === ch.standings.length - 1 && ch.standings.length > 1;
+                        return (
+                          <li key={c.id} className="card card-tappable" onClick={() => setSelectedCatch(c)}>
+                            {c.photo_url && (
+                              <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.display_name} />
+                            )}
+                            <div className="page-header">
+                              <span className="card-title">
+                                {i === 0 ? "🏆 " : isLast ? "🐟 " : `#${i + 1} `}
+                                {c.display_name}
+                              </span>
+                              <span className="card-stat">{c.weight} lb</span>
+                            </div>
+                            <span className="card-meta">
+                              {i === 0 && ch.status === "ended" && "Winner — "}
+                              {isLast && ch.status === "ended" && "Loser — "}
+                              {new Date(c.caught_at).toLocaleDateString()}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </PullToRefresh>
 
       <BottomSheet open={pickerOpen} onClose={() => setPickerOpen(false)}>
         <h1>Jump to species</h1>
@@ -313,6 +341,10 @@ export default function Leaderboard({ embedded = false }: LeaderboardProps) {
             <CommentThread catchId={selectedCatch.id} />
           </div>
         )}
+      </BottomSheet>
+
+      <BottomSheet open={selectedAngler != null} onClose={() => setSelectedAngler(null)} fixedHeight>
+        {selectedAngler && <AnglerDetail userId={selectedAngler.id} displayName={selectedAngler.displayName} />}
       </BottomSheet>
     </div>
   );

@@ -54,11 +54,11 @@ export default function Layout() {
           </NavLink>
         </div>
         <NavLink
-          to="/anglers"
+          to="/leaderboard"
           className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
         >
-          <span className="bottom-nav-icon">👤</span>
-          Anglers
+          <span className="bottom-nav-icon">🏆</span>
+          Leaderboard
         </NavLink>
         <NavLink
           to="/recent"

@@ -230,23 +230,6 @@ main {
   flex: 1;
 }
 
-.leaderboard-mode-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.leaderboard-mode-label {
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-}
-
 .mode-pill-toggle {
   display: flex;
   max-width: 100%;
@@ -740,7 +723,6 @@ button:disabled {
 
 .catch-photo-gallery-track {
   display: flex;
-  cursor: grab;
 }
 
 .catch-photo-gallery-item {

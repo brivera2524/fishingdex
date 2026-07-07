@@ -7,7 +7,7 @@ import Login from "./pages/Login";
 import CatchesHub from "./pages/CatchesHub";
 import MapPage from "./pages/Map";
 import CameraDetect from "./pages/CameraDetect";
-import Anglers from "./pages/Anglers";
+import Leaderboard from "./pages/Leaderboard";
 import RecentCatches from "./pages/RecentCatches";
 
 export default function App() {
@@ -34,7 +34,7 @@ export default function App() {
             >
               <Route path="/dex" element={<CatchesHub />} />
               <Route path="/map" element={<MapPage />} />
-              <Route path="/anglers" element={<Anglers />} />
+              <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/recent" element={<RecentCatches />} />
               <Route path="/" element={<Navigate to="/map" replace />} />
             </Route>

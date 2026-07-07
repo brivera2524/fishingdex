@@ -136,12 +136,6 @@ export interface SpeciesRecord {
   top_catch: LeaderboardCatch | null;
 }
 
-export interface AnglerStat {
-  display_name: string;
-  catch_count: number;
-  species_count: number;
-}
-
 export interface Challenge {
   id: string;
   name: string;

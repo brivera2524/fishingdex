@@ -77,6 +77,7 @@ def _check_records_and_notify(db: Session, catch: Catch, background_tasks: Backg
                 notify_catch_event_task, catch.user_id, "challenge_leader", "🥇 New challenge leader!",
                 f"{catch.user.display_name} {verb} {challenge_result.challenge_name} with a "
                 f"{catch.weight} lb {catch.species.common_name}!",
+                "/leaderboard?tab=challenge",
             )
     except Exception:
         logger.exception("Record check failed for catch %s", catch.id)

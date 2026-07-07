@@ -1,7 +1,6 @@
 import { apiFetch } from "./client";
 import type {
   AdminSettings,
-  AnglerStat,
   Catch,
   CatchInput,
   CatchUpdateInput,
@@ -107,10 +106,6 @@ export function getSpeciesLeaderboard() {
 
 export function getSpeciesCatchLeaderboard(speciesId: number) {
   return apiFetch<LeaderboardCatch[]>(`/leaderboard/species/${speciesId}`);
-}
-
-export function getAnglerLeaderboard() {
-  return apiFetch<AnglerStat[]>("/leaderboard/anglers");
 }
 
 export function getChallenges() {
