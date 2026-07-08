@@ -1624,9 +1624,9 @@ button:disabled {
   padding: 8px 2px;
   background: transparent;
   color: var(--ink-soft);
-  padding: 8px 14px;
+  padding: 8px 4px;
   border-radius: 999px;
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 3vw, 1rem);
   font-weight: 700;
   min-height: auto;
   white-space: nowrap;
