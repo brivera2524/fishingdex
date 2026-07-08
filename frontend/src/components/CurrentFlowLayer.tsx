@@ -46,10 +46,13 @@ const N_PARTICLES = 900;
 const PARTICLE_LIFE_MIN = 60; // frames
 const PARTICLE_LIFE_MAX = 140;
 // Real speeds are too slow to see move at a literal 1:1 scale — this maps
-// m/s to on-screen pixels/sec of drift. Best-effort tuning, not visually
-// verified against every zoom level; retune if it reads as too fast/slow.
-const ARTISTIC_PX_PER_SEC_PER_MPS = 55;
-const FADE_ALPHA_PER_SEC = 2.6; // higher = shorter trails
+// m/s to on-screen pixels/sec of drift. Tuned so the typical bay speed
+// (~0.09 m/s) reads as a comfortable ~20 px/sec creep, and the rare fast
+// entrance-jet cells (~0.6+ m/s) read as a noticeably faster, but not
+// frantic, ~130-150 px/sec. The earlier value (55) made typical speeds
+// move under a pixel per frame — invisible, reading as static dots.
+const ARTISTIC_PX_PER_SEC_PER_MPS = 220;
+const FADE_ALPHA_PER_SEC = 1.8; // higher = shorter trails
 
 interface Particle {
   lat: number;
@@ -204,7 +207,10 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
 
     function tick(now: number) {
       rafId = requestAnimationFrame(tick);
-      const dt = Math.min(0.1, Math.max(0, (now - lastT) / 1000));
+      // Clamped tight so a single stalled/dropped frame (e.g. from heavy
+      // main-thread work during a drag gesture) can't produce one
+      // disproportionately large jump for every particle at once.
+      const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
       lastT = now;
       if (!grid) return;
 
@@ -253,23 +259,30 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
           ctx.stroke();
         }
 
-        // Advance the particle by projecting to screen space, offsetting
-        // by the artistic drift distance, then unprojecting back to
-        // lat/lng — this way the drift is a consistent, zoom-independent
-        // number of pixels/sec rather than needing manual meters-per-
-        // pixel math at the current zoom level.
-        const pxPerSec = Math.max(speed * ARTISTIC_PX_PER_SEC_PER_MPS, 0);
-        const dragPx = pxPerSec * dt;
-        const dirX = u / speed;
-        const dirY = -v / speed; // screen y grows downward; v (north) doesn't
-        const screenPt = map.latLngToContainerPoint([p.lat, p.lng]);
-        const nextPt = L.point(screenPt.x + dirX * dragPx, screenPt.y + dirY * dragPx);
-        const nextLatLng = map.containerPointToLatLng(nextPt);
-
         p.prevLat = p.lat;
         p.prevLng = p.lng;
-        p.lat = nextLatLng.lat;
-        p.lng = nextLatLng.lng;
+
+        // A cell with a truly exact-zero vector (rare, but real at slack
+        // tide) has no direction to move in — u/speed would be 0/0 = NaN,
+        // silently corrupting this particle's position forever after
+        // (NaN comparisons are always false, so it would never fail the
+        // bounds/land check in sample() and never get caught for re-seed).
+        // Leave it in place for this frame instead.
+        if (speed > 0) {
+          // Advance by projecting to screen space, offsetting by the
+          // artistic drift distance, then unprojecting back to lat/lng —
+          // this way the drift is a consistent, zoom-independent number of
+          // pixels/sec rather than needing manual meters-per-pixel math at
+          // the current zoom level.
+          const dragPx = speed * ARTISTIC_PX_PER_SEC_PER_MPS * dt;
+          const dirX = u / speed;
+          const dirY = -v / speed; // screen y grows downward; v (north) doesn't
+          const screenPt = map.latLngToContainerPoint([p.lat, p.lng]);
+          const nextPt = L.point(screenPt.x + dirX * dragPx, screenPt.y + dirY * dragPx);
+          const nextLatLng = map.containerPointToLatLng(nextPt);
+          p.lat = nextLatLng.lat;
+          p.lng = nextLatLng.lng;
+        }
         p.hasTrail = true;
       }
     }
