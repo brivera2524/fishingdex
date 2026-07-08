@@ -79,9 +79,14 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
 
   useEffect(() => {
     let cancelled = false;
+    let data: L.VelocityLayerRecord[] | null = null;
 
-    fetcher().then((data) => {
-      if (cancelled || !data) return;
+    function recreateLayer() {
+      if (!data) return;
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
+        layerRef.current = null;
+      }
       const layer = L.velocityLayer({
         displayValues: false,
         data,
@@ -108,10 +113,29 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
       });
       layer.addTo(map);
       layerRef.current = layer;
+    }
+
+    // leaflet-velocity's own incremental redraw-on-move (clearRect + restart,
+    // internally wired to dragend/zoomend) leaves stale, wrongly-positioned
+    // particle trails behind after a pan/zoom — visible both as a transient
+    // flash of the pre-move frame and, worse, as permanent faint "shadow"
+    // artifacts that never get cleared (the canvas element gets repositioned
+    // to track the map, but its existing bitmap doesn't reliably get wiped
+    // first). Rather than fight that internal timing, force a fully fresh
+    // canvas (new DOM element, zero residual pixels) by tearing down and
+    // recreating the whole layer every time the view actually settles,
+    // instead of trusting the library to redraw itself correctly in place.
+    map.on("moveend", recreateLayer);
+
+    fetcher().then((result) => {
+      if (cancelled || !result) return;
+      data = result;
+      recreateLayer();
     });
 
     return () => {
       cancelled = true;
+      map.off("moveend", recreateLayer);
       if (layerRef.current) {
         map.removeLayer(layerRef.current);
         layerRef.current = null;
