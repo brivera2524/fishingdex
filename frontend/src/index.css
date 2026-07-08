@@ -1619,13 +1619,14 @@ button:disabled {
 }
 
 .map-layer-toggle {
-  flex: 1 1 auto; /* Allows buttons to grow and shrink to fit */
+  flex: 1 1 20%; /* Allows buttons to grow and shrink to fit */
   flex: 1;
+  padding: 8px 2px;
   background: transparent;
   color: var(--ink-soft);
   padding: 8px 14px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 0.85rem;
   font-weight: 700;
   min-height: auto;
   white-space: nowrap;
