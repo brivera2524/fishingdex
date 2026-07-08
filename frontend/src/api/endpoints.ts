@@ -1,4 +1,3 @@
-import type { VelocityLayerRecord } from "leaflet";
 import { apiFetch } from "./client";
 import type {
   AdminSettings,
@@ -8,6 +7,7 @@ import type {
   CatchUpdateInput,
   Challenge,
   Comment,
+  CurrentGridRecord,
   CurrentUser,
   IdentifyResult,
   LeaderboardCatch,
@@ -76,7 +76,7 @@ export function getRecentCatches() {
 // The backend proxies NOAA's HFRadar ocean current grid — that server sets
 // no CORS headers, so it can't be fetched directly from the browser.
 export function getCurrentField() {
-  return apiFetch<VelocityLayerRecord[]>("/ocean-current/field");
+  return apiFetch<CurrentGridRecord[]>("/ocean-current/field");
 }
 
 // HFRadar (above) has no usable coverage inside San Diego Bay — this is a
