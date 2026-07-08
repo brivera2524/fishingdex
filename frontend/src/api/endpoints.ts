@@ -16,6 +16,7 @@ import type {
   PushSubscriptionInput,
   RecentCatch,
   Species,
+  SpeciesCreateInput,
   SpeciesRecord,
   Spot,
   SpotInput,
@@ -44,6 +45,13 @@ export function getMe() {
 
 export function listSpecies() {
   return apiFetch<Species[]>("/species");
+}
+
+export function createSpecies(input: SpeciesCreateInput) {
+  return apiFetch<Species>("/species", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export function listMyCatches() {

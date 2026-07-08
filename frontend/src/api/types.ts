@@ -14,6 +14,11 @@ export interface Species {
   regulation_notes: string | null;
 }
 
+export interface SpeciesCreateInput {
+  common_name: string;
+  scientific_name?: string | null;
+}
+
 export interface SpotSummary {
   id: number;
   name: string;
@@ -177,7 +182,7 @@ export interface AdminSettings {
 }
 
 export interface BayCurrentField {
-  status: "warming_up" | "ready" | "error";
+  status: "ready" | "error";
   records: VelocityLayerRecord[] | null;
   sim_time_utc: string | null;
   error?: string | null;

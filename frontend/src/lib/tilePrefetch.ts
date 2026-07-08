@@ -11,7 +11,7 @@
 // caches almost instantly on its own the few times it's actually used.
 import { STADIA_API_KEY } from "../leafletSetup";
 
-const TILE_CACHE_NAME = "fishdex-tiles-v1";
+const TILE_CACHE_NAME = "fishdex-tiles-v2";
 const MIN_ZOOM = 9;
 const MAX_ZOOM = 14;
 const BOUNDS = { minLat: 32.45, maxLat: 33.35, minLng: -117.65, maxLng: -116.75 };

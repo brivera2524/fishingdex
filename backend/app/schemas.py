@@ -54,6 +54,11 @@ class NotificationModeUpdate(BaseModel):
     mode: Literal["all", "pb_and_record", "record_only", "off"]
 
 
+class SpeciesCreate(BaseModel):
+    common_name: str
+    scientific_name: str | None = None
+
+
 class SpeciesOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

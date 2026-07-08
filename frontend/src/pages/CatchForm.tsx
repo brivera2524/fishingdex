@@ -3,6 +3,7 @@ import { gps as parseExifGps, parse as parseExif } from "exifr";
 import {
   addCatchPhoto,
   createCatch,
+  createSpecies,
   deleteCatchPhoto,
   getCatch,
   getChallenges,
@@ -13,11 +14,14 @@ import {
 } from "../api/endpoints";
 import { API_BASE, ApiError } from "../api/client";
 import type { CatchPhoto, Challenge, Species } from "../api/types";
+import AddSpeciesSheet from "../components/AddSpeciesSheet";
 import type { CelebrationDetails } from "../components/CatchCelebration";
 import DiscoveryReveal from "../components/DiscoveryReveal";
 import LocationPicker, { type LatLng } from "../components/LocationPicker";
 import LocationPickerModal from "../components/LocationPickerModal";
 import PhotoCropModal from "../components/PhotoCropModal";
+
+const ADD_SPECIES_OPTION = "__add_species__";
 
 type LocationMode = "current" | "manual" | "photo";
 type PhotoExif = { coords: LatLng | null; caughtAt: Date | null };
@@ -85,6 +89,9 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
 
   const [species, setSpecies] = useState<Species[]>([]);
   const [speciesId, setSpeciesId] = useState<number | "">("");
+  const [addSpeciesOpen, setAddSpeciesOpen] = useState(false);
+  const [addSpeciesSaving, setAddSpeciesSaving] = useState(false);
+  const [addSpeciesError, setAddSpeciesError] = useState<string | null>(null);
   const [weight, setWeight] = useState("");
   const [length, setLength] = useState("");
   const [notes, setNotes] = useState("");
@@ -291,6 +298,25 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     }
   }
 
+  async function handleAddSpecies(commonName: string, scientificName: string) {
+    setAddSpeciesSaving(true);
+    setAddSpeciesError(null);
+    try {
+      const created = await createSpecies({
+        common_name: commonName,
+        scientific_name: scientificName || null,
+      });
+      setSpecies((prev) => [...prev, created].sort((a, b) => a.common_name.localeCompare(b.common_name)));
+      setSpeciesId(created.id);
+      setAutoDetected(false);
+      setAddSpeciesOpen(false);
+    } catch (err) {
+      setAddSpeciesError(err instanceof ApiError ? err.message : "Failed to add species");
+    } finally {
+      setAddSpeciesSaving(false);
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (speciesId === "") return;
@@ -417,6 +443,11 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           <select
             value={speciesId}
             onChange={(e) => {
+              if (e.target.value === ADD_SPECIES_OPTION) {
+                setAddSpeciesError(null);
+                setAddSpeciesOpen(true);
+                return;
+              }
               setSpeciesId(Number(e.target.value));
               setAutoDetected(false);
             }}
@@ -430,6 +461,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                 {s.common_name}
               </option>
             ))}
+            <option value={ADD_SPECIES_OPTION}>+ Add a new species...</option>
           </select>
           {identifying && <p className="card-meta">🔍 Identifying species from photo...</p>}
           {autoDetected && !identifying && (
@@ -609,6 +641,13 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
           onDone={() => setLocationModalOpen(false)}
         />
       )}
+      <AddSpeciesSheet
+        open={addSpeciesOpen}
+        saving={addSpeciesSaving}
+        error={addSpeciesError}
+        onCancel={() => setAddSpeciesOpen(false)}
+        onSave={handleAddSpecies}
+      />
     </>
   );
 }

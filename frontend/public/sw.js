@@ -4,7 +4,7 @@ const CACHE_NAME = "fishdex-v1";
 // of tiles across the zoom levels actually used is small and essentially
 // static; there's no reason to keep re-fetching them from the tile provider
 // every visit.
-const TILE_CACHE_NAME = "fishdex-tiles-v1";
+const TILE_CACHE_NAME = "fishdex-tiles-v2";
 const PRECACHE_URLS = ["/", "/manifest.json"];
 
 function isTileRequest(url) {
@@ -41,7 +41,13 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match(event.request);
         if (cached) return cached;
         const response = await fetch(event.request);
-        cache.put(event.request, response.clone());
+        // Only cache real tiles. fetch() resolves (doesn't throw) on HTTP
+        // error responses too (a Stadia rate limit, a momentary 401, ...) —
+        // caching those into a no-expiration cache would make one bad
+        // response a permanent broken tile, never retried on the next pan.
+        if (response.ok) {
+          cache.put(event.request, response.clone());
+        }
         return response;
       })
     );
