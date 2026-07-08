@@ -20,7 +20,7 @@ import type { MapCatch, Spot } from "../api/types";
 import LocationPickerModal from "../components/LocationPickerModal";
 import type { LatLng } from "../components/LocationPicker";
 import CurrentFlowLayer from "../components/CurrentFlowLayer";
-import { fetchBayCurrentField, fetchCurrentField } from "../lib/currentField";
+import { fetchBayCurrentField } from "../lib/currentField";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
 import TimeWindowRuler from "../components/TimeWindowRuler";
@@ -512,9 +512,7 @@ export default function MapPage() {
             )}
           </div>
           {currentEnabled && (
-            <p className="map-current-disclaimer">
-              Open water: live radar · Bay interior: tide-modeled estimate (not a live sensor)
-            </p>
+            <p className="map-current-disclaimer">Bay interior: tide-modeled estimate (not a live sensor)</p>
           )}
         </div>
       )}
@@ -628,12 +626,10 @@ export default function MapPage() {
             ))}
           </MarkerClusterGroup>
         )}
-        {!drawMode && currentEnabled && (
-          <>
-            <CurrentFlowLayer fetcher={fetchCurrentField} />
-            <CurrentFlowLayer fetcher={fetchBayCurrentField} />
-          </>
-        )}
+        {/* HFRadar (open coastal water) layer disabled for now — bay-interior-only
+            per product decision, not a bug. Re-add `fetchCurrentField` when
+            open-water current is wanted again. */}
+        {!drawMode && currentEnabled && <CurrentFlowLayer fetcher={fetchBayCurrentField} />}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}
