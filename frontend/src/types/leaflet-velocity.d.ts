@@ -40,6 +40,8 @@ declare module "leaflet" {
     colorScale?: string[];
     opacity?: number;
     frameRate?: number;
+    particleAge?: number;
+    particleMultiplier?: number;
   }
 
   interface VelocityLayer extends Layer {

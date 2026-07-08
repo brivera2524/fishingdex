@@ -6,20 +6,48 @@ import { cachedFetch } from "./ttlCache";
 // re-hitting our API every time the Map page remounts within a short window.
 const FIELD_TTL_MS = 10 * 60 * 1000;
 
-function nullToNaN(records: VelocityLayerRecord[]): VelocityLayerRecord[] {
+// leaflet-velocity moves each particle by its raw (u, v) vector scaled by
+// velocityScale, with no floor — a genuinely near-zero vector just barely
+// moves regardless of how high velocityScale is turned up, so slack/slow
+// water (very common in this data — most speeds are 0.02-0.6 m/s) reads as
+// completely static. Flooring the magnitude while preserving direction
+// keeps slow cells visibly creeping without touching anything already
+// moving faster than the floor.
+const MIN_SPEED_MPS = 0.04;
+
+function applySpeedFloor(u: number[], v: number[]): void {
+  for (let i = 0; i < u.length; i++) {
+    const uu = u[i];
+    const vv = v[i];
+    if (!Number.isFinite(uu) || !Number.isFinite(vv)) continue;
+    const magnitude = Math.hypot(uu, vv);
+    if (magnitude > 0 && magnitude < MIN_SPEED_MPS) {
+      const scale = MIN_SPEED_MPS / magnitude;
+      u[i] = uu * scale;
+      v[i] = vv * scale;
+    }
+  }
+}
+
+function prepareRecords(records: VelocityLayerRecord[]): VelocityLayerRecord[] {
   // JSON has no NaN literal, so the backend sends land/no-data cells as
   // null — leaflet-velocity's own missing-data convention is NaN, which
   // it already knows to skip drawing.
   for (const record of records) {
     record.data = record.data.map((value) => (value == null ? NaN : value));
   }
+
+  const uRecord = records.find((r) => r.header.parameterNumber === 2);
+  const vRecord = records.find((r) => r.header.parameterNumber === 3);
+  if (uRecord && vRecord) applySpeedFloor(uRecord.data, vRecord.data);
+
   return records;
 }
 
 export function fetchCurrentField(): Promise<VelocityLayerRecord[] | null> {
   return cachedFetch("current-field", FIELD_TTL_MS, async () => {
     const records = await getCurrentField().catch(() => null);
-    return records ? nullToNaN(records) : null;
+    return records ? prepareRecords(records) : null;
   });
 }
 
@@ -31,6 +59,6 @@ export function fetchBayCurrentField(): Promise<VelocityLayerRecord[] | null> {
   return cachedFetch("bay-current-field", FIELD_TTL_MS, async () => {
     const field = await getBayCurrentField().catch(() => null);
     if (!field || field.status !== "ready" || !field.records) return null;
-    return nullToNaN(field.records);
+    return prepareRecords(field.records);
   });
 }
