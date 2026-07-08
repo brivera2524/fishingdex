@@ -1609,6 +1609,7 @@ button:disabled {
 
 .map-layer-toggles {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   width: 100%;
   background: var(--surface);
@@ -1618,6 +1619,7 @@ button:disabled {
 }
 
 .map-layer-toggle {
+  flex: 1 1 auto; /* Allows buttons to grow and shrink to fit */
   flex: 1;
   background: transparent;
   color: var(--ink-soft);
