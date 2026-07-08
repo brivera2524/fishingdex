@@ -1,0 +1,7 @@
+# Extra dependencies for scripts/generate_current_bank.py — run locally on
+# a machine with a CUDA GPU, never installed on Railway (requirements.txt is
+# the production/runtime set and stays GPU-free).
+-r requirements.txt
+numba==0.66.0
+pyproj==3.7.2
+cupy-cuda12x

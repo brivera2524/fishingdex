@@ -1,0 +1,19 @@
+{
+  "generated_at_utc": "2026-07-08T21:03:35.280328+00:00",
+  "n_entries": 176,
+  "int8_scale": 127.0,
+  "velocity_clip_mps": 1.0,
+  "header": {
+    "nx": 230,
+    "ny": 230,
+    "lo1": -117.245,
+    "la1": 32.745,
+    "lo2": -117.095,
+    "la2": 32.6,
+    "dx": 0.0006550218340611602,
+    "dy": 0.0006331877729257469
+  },
+  "spinup_hours": 30.0,
+  "forecast_hours": 384.0,
+  "map_frame_minutes": 15.0
+}

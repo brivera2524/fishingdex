@@ -3,147 +3,133 @@
 app/ocean_current.py serves real observed HFRadar data, but that product has
 no usable resolution *inside* San Diego Bay (see its docstring) — it only
 covers open coastal water. This module fills that gap with a physics-based
-estimate: a 2D depth-averaged tidal current solver (vendored in app/sdbay/,
-originally from the standalone SD-current-sim project) forced by real NOAA
-tide predictions at the bay entrance, on real NOAA bathymetry.
+estimate, but *not* by running the physics solver live: the solver
+(vendored in app/sdbay/) is barotropic and tide-only (no wind/wave/river
+forcing), so the current field at any moment is well-approximated as a
+function of just two numbers — the boundary tide's water level (eta) and
+its rate of change (deta/dt, i.e. flood vs. ebb and how hard). Two different
+real moments with similar (eta, deta/dt) look nearly the same regardless of
+the calendar date.
+
+So the expensive part (a multi-day GPU simulation spanning a full
+spring-neap cycle) happens once, offline, on real hardware with a GPU
+(scripts/generate_current_bank.py) — never on Railway's dyno, which has
+none. That produces a compact "bank" of representative (eta, deta/dt) ->
+current-field snapshots (app/sim_data/current_bank/). This module just:
+fetches today's real NOAA tide prediction, computes real (eta, deta/dt) for
+"now," and interpolates between the nearest bank entries — pure array math,
+a few milliseconds, no solver.
 
 This is a genuine simulation, not a measurement — see app/sdbay/'s
-DISCLAIMER and this module's own confidence notes below. It should be
-presented to users as an estimate ("modeled," not "observed").
+DISCLAIMER. It should be presented to users as an estimate ("modeled," not
+"observed").
 
-Confidence (see the source project's docs/LIMITATIONS.md for detail):
+Confidence (see SD-current-sim's docs/LIMITATIONS.md for detail):
 - Flood/ebb direction and bulk channel speed: well-validated against real
   NOAA current stations (correlation ~0.9+).
 - Absolute peak speed at fast, narrow features: the model underestimates it
   somewhat. Treat modeled speed as relative/qualitative, not precise.
 - No wind, swell, or wake — tide-only.
-
-A full spin-up + short forecast run takes real wall-clock minutes (the
-solver has to integrate roughly a day and a half of simulated time to clear
-initial-condition transients), so this runs periodically in a background
-task rather than per-request, serving the most recent completed run's frame
-nearest to "now" out of an in-memory cache.
 """
 
-import asyncio
-import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
-from pyproj import Transformer
+from scipy.spatial import cKDTree
 
 from app.sdbay.config import load_config
-from app.sdbay.grid import GridData, load_grid
-from app.sdbay.simulate import MapFrame, SimulationResult, run_simulation
-
-logger = logging.getLogger(__name__)
+from app.sdbay.forcing import build_boundary_forcing
 
 SIM_DATA_DIR = Path(__file__).resolve().parent / "sim_data"
-GRID_DIR = SIM_DATA_DIR / "grid_20m"
 CONFIG_PATH = SIM_DATA_DIR / "model.yaml"
+BANK_DIR = SIM_DATA_DIR / "current_bank"
 
-# Output lon/lat grid served to the frontend — coarser than the 20m solver
-# grid (~35m near this latitude), which is plenty for a flow-line
-# visualization and keeps the served payload small. Covers the bay interior
-# only; the HFRadar layer already covers the open coastal water outside it.
-# Bounds chosen to match the solver grid's real wet-cell extent (verified by
-# reprojecting wet_mask's row/col bounding box to lon/lat) plus a small
-# margin — the solver grid runs lon -117.240..-117.100, lat 32.603..32.741.
-OUT_LAT_MIN, OUT_LAT_MAX = 32.60, 32.745
-OUT_LON_MIN, OUT_LON_MAX = -117.245, -117.095
-OUT_NY, OUT_NX = 230, 230
-
-SPINUP_HOURS = 30.0
-FORECAST_HOURS = 6.0
-MAP_FRAME_MINUTES = 10.0
-# Regenerate well before the forecast window runs out, so there's always a
-# frame within a few minutes of "now."
-REFRESH_INTERVAL_SECONDS = 4 * 60 * 60
-
-_WGS84_TO_UTM = Transformer.from_crs("EPSG:4326", "EPSG:26911", always_xy=True)
-
-_state_lock = asyncio.Lock()
-_state: dict = {
-    "status": "warming_up",  # warming_up | ready | error
-    "records": None,
-    "generated_at": None,
-    "sim_time_utc": None,
-    "error": None,
-}
-
-_grid: GridData | None = None
-_remap_cache: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
-_background_task: asyncio.Task | None = None
+DETA_DT_WINDOW_S = 300.0  # matches the generation script's own tagging window
+K_NEAREST = 3
+CACHE_TTL_SECONDS = 15 * 60  # real tide moves slowly; matches ocean_current.py's cache pattern
 
 
-def get_state() -> dict:
-    return _state
+class BayCurrentUnavailable(Exception):
+    """The current NOAA tide prediction couldn't be fetched, or no bank exists."""
 
 
-def _load_grid_once() -> GridData:
-    global _grid
-    if _grid is None:
-        _grid = load_grid(GRID_DIR)
-    return _grid
+_bank = None  # lazily loaded: (points_normalized, scale, eta, deta_dt, u, v, header, int8_scale)
+_cache: dict | None = None
+_cache_expires_at = 0.0
 
 
-def _build_remap_indices(grid: GridData) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """For every cell of the served lon/lat grid, find the nearest cell of
-    the solver's grid (which is regular in UTM meters, not lon/lat degrees —
-    this is a one-time nearest-neighbor resample, not a direct index
-    formula). Cached after the first call since neither grid changes shape.
-    """
-    global _remap_cache
-    if _remap_cache is not None:
-        return _remap_cache
+def _load_bank():
+    global _bank
+    if _bank is not None:
+        return _bank
 
-    lats = np.linspace(OUT_LAT_MAX, OUT_LAT_MIN, OUT_NY)  # row 0 = north, matches leaflet-velocity's la1
-    lons = np.linspace(OUT_LON_MIN, OUT_LON_MAX, OUT_NX)
-    lon_grid, lat_grid = np.meshgrid(lons, lats)
-    x, y = _WGS84_TO_UTM.transform(lon_grid.ravel(), lat_grid.ravel())
-    a, b, c, d, e, f = grid.transform
-    col = np.round((np.asarray(x) - c) / a).astype(int)
-    row = np.round((np.asarray(y) - f) / e).astype(int)
+    import json
 
-    ny, nx = grid.wet_mask.shape
-    in_bounds = (row >= 0) & (row < ny) & (col >= 0) & (col < nx)
-    row_c = np.clip(row, 0, ny - 1).reshape(OUT_NY, OUT_NX)
-    col_c = np.clip(col, 0, nx - 1).reshape(OUT_NY, OUT_NX)
-    valid = (in_bounds.reshape(OUT_NY, OUT_NX)) & grid.wet_mask[row_c, col_c]
+    if not (BANK_DIR / "bank.npz").exists():
+        raise BayCurrentUnavailable(
+            f"No current bank at {BANK_DIR} — run scripts/generate_current_bank.py on a GPU machine first."
+        )
+    data = np.load(BANK_DIR / "bank.npz")
+    meta = json.loads((BANK_DIR / "bank_meta.json").read_text())
 
-    _remap_cache = (row_c, col_c, valid)
-    return _remap_cache
+    eta, deta_dt = data["eta"], data["deta_dt"]
+    points = np.stack([eta, deta_dt], axis=1)
+    scale = points.std(axis=0)
+    tree = cKDTree(points / scale)
+
+    _bank = {
+        "tree": tree,
+        "scale": scale,
+        "u": data["u"],
+        "v": data["v"],
+        "header": meta["header"],
+        "int8_scale": meta["int8_scale"],
+    }
+    return _bank
 
 
-def _nearest_frame(result: SimulationResult, target_time: datetime) -> MapFrame:
-    return min(
-        result.map_frames,
-        key=lambda frame: abs((frame.time_utc.to_pydatetime() - target_time).total_seconds()),
+def _current_eta_state(cfg) -> tuple[float, float]:
+    """Real (eta, deta/dt) right now, from NOAA's tide prediction — the same
+    two numbers the bank is indexed by."""
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(hours=1)
+    boundary = build_boundary_forcing(cfg.forcing, window_start, total_hours=2.0)
+    now_s = (now - window_start).total_seconds()
+    eta = boundary.eta_at(now_s)
+    deta_dt = (boundary.eta_at(now_s + DETA_DT_WINDOW_S) - boundary.eta_at(now_s - DETA_DT_WINDOW_S)) / (
+        2 * DETA_DT_WINDOW_S
     )
+    return eta, deta_dt
 
 
-def _remap_to_records(grid: GridData, frame: MapFrame) -> list[dict]:
-    row_idx, col_idx, valid = _build_remap_indices(grid)
-    u = np.where(valid, frame.u[row_idx, col_idx], np.nan)
-    v = np.where(valid, frame.v[row_idx, col_idx], np.nan)
+def _dequantize(field: np.ndarray, int8_scale: float) -> np.ndarray:
+    out = field.astype(np.float32) / int8_scale
+    out[field == -128] = np.nan
+    return out
 
-    # None -> JSON null -> the frontend converts back to NaN, which
-    # leaflet-velocity already treats as "no data, don't draw here."
+
+def _interpolate_field(bank: dict, eta: float, deta_dt: float) -> tuple[np.ndarray, np.ndarray]:
+    query = np.array([eta, deta_dt]) / bank["scale"]
+    k = min(K_NEAREST, bank["u"].shape[0])
+    dists, idx = bank["tree"].query(query, k=k)
+    dists, idx = np.atleast_1d(dists), np.atleast_1d(idx)
+    weights = 1.0 / np.maximum(dists, 1e-6)
+    weights /= weights.sum()
+
+    u = sum(w * bank["u"][i].astype(np.float32) for w, i in zip(weights, idx))
+    v = sum(w * bank["v"][i].astype(np.float32) for w, i in zip(weights, idx))
+    return _dequantize(u, bank["int8_scale"]), _dequantize(v, bank["int8_scale"])
+
+
+def _build_records(bank: dict, u: np.ndarray, v: np.ndarray, eta: float, deta_dt: float) -> list[dict]:
     u_flat = [None if not np.isfinite(val) else float(val) for val in u.ravel()]
     v_flat = [None if not np.isfinite(val) else float(val) for val in v.ravel()]
 
     header_common = {
-        "nx": OUT_NX,
-        "ny": OUT_NY,
-        "lo1": OUT_LON_MIN,
-        "la1": OUT_LAT_MAX,
-        "lo2": OUT_LON_MAX,
-        "la2": OUT_LAT_MIN,
-        "dx": (OUT_LON_MAX - OUT_LON_MIN) / (OUT_NX - 1),
-        "dy": (OUT_LAT_MAX - OUT_LAT_MIN) / (OUT_NY - 1),
-        "refTime": frame.time_utc.isoformat(),
+        **bank["header"],
+        "refTime": datetime.now(timezone.utc).isoformat(),
         "forecastTime": 0,
     }
     return [
@@ -152,49 +138,26 @@ def _remap_to_records(grid: GridData, frame: MapFrame) -> list[dict]:
     ]
 
 
-def _run_forecast_sync() -> tuple[list[dict], datetime]:
-    """Blocking, CPU-heavy: run on a worker thread via asyncio.to_thread,
-    never on the event loop."""
+def get_bay_current_field() -> dict:
+    """Returns the cached (or freshly interpolated) bay current field.
+
+    Cheap enough to run per-request (a small NOAA API call + a few
+    milliseconds of array math), but cached briefly anyway since real tide
+    state barely changes minute to minute and this matches the existing
+    HFRadar endpoint's caching pattern.
+    """
+    global _cache, _cache_expires_at
+    now = time.monotonic()
+    if _cache is not None and now < _cache_expires_at:
+        return _cache
+
+    bank = _load_bank()
     cfg = load_config(CONFIG_PATH)
-    grid = _load_grid_once()
-    now = datetime.now(timezone.utc)
-    result = run_simulation(
-        cfg,
-        grid,
-        run_start_utc=now,
-        spinup_hours=SPINUP_HOURS,
-        forecast_hours=FORECAST_HOURS,
-        map_frame_minutes=MAP_FRAME_MINUTES,
-    )
-    frame = _nearest_frame(result, now)
-    records = _remap_to_records(grid, frame)
-    return records, frame.time_utc.to_pydatetime()
+    eta, deta_dt = _current_eta_state(cfg)
+    u, v = _interpolate_field(bank, eta, deta_dt)
+    records = _build_records(bank, u, v, eta, deta_dt)
 
-
-async def _refresh_loop() -> None:
-    while True:
-        try:
-            logger.info("ocean_sim: starting bay current forecast run")
-            t0 = time.monotonic()
-            records, sim_time_utc = await asyncio.to_thread(_run_forecast_sync)
-            async with _state_lock:
-                _state.update(
-                    status="ready",
-                    records=records,
-                    generated_at=datetime.now(timezone.utc),
-                    sim_time_utc=sim_time_utc,
-                    error=None,
-                )
-            logger.info("ocean_sim: forecast run complete in %.0fs", time.monotonic() - t0)
-        except Exception as exc:  # noqa: BLE001 - a single bad run must not kill the refresh loop
-            logger.exception("ocean_sim: forecast run failed")
-            async with _state_lock:
-                _state["status"] = "error"
-                _state["error"] = str(exc)
-        await asyncio.sleep(REFRESH_INTERVAL_SECONDS)
-
-
-def start_background_refresh() -> None:
-    global _background_task
-    if _background_task is None:
-        _background_task = asyncio.create_task(_refresh_loop())
+    result = {"status": "ready", "records": records, "eta_m": eta, "deta_dt_mps": deta_dt}
+    _cache = result
+    _cache_expires_at = now + CACHE_TTL_SECONDS
+    return result

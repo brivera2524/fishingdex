@@ -7,7 +7,6 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app import ocean_sim
 from app.config import settings
 from app.rate_limit import limiter
 from app.routers import admin, auth, catches, comments, identify, leaderboard, ocean_current, push, species, spots, users
@@ -39,11 +38,6 @@ app.include_router(admin.router)
 app.include_router(spots.router)
 app.include_router(push.router)
 app.include_router(ocean_current.router)
-
-
-@app.on_event("startup")
-async def start_ocean_sim() -> None:
-    ocean_sim.start_background_refresh()
 
 
 @app.get("/health")

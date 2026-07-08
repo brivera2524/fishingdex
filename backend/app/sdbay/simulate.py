@@ -7,8 +7,10 @@ boundary (see :mod:`sdbay.solver`).
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -55,7 +57,16 @@ def run_simulation(
     map_frame_minutes: float = 60.0,
     stations: list[Station] = ALL_STATIONS,
     progress_every_s: float | None = None,
+    on_frame: Callable[[MapFrame], None] | None = None,
+    keep_frames: bool = True,
 ) -> SimulationResult:
+    """``on_frame``, if given, is called with each map frame as it's produced
+    (e.g. to remap/quantize/persist it immediately). ``keep_frames=False``
+    skips accumulating them in the returned ``SimulationResult.map_frames``
+    list — needed for a many-day run, where keeping every frame in memory
+    (each a full ny*nx float64 array) would use tens of GB; a short run can
+    leave both at their defaults and use the returned list as before.
+    """
     spinup_hours = cfg.forcing.spinup_hours if spinup_hours is None else spinup_hours
     forecast_hours = cfg.forcing.forecast_hours if forecast_hours is None else forecast_hours
     station_output_minutes = cfg.forcing.output_interval_minutes if station_output_minutes is None else station_output_minutes
@@ -106,6 +117,9 @@ def run_simulation(
     station_records: dict[str, list[dict]] = {sid: [] for sid in station_cells}
     map_frames: list[MapFrame] = []
 
+    wall_start = time.monotonic()
+    next_progress_at = wall_start + progress_every_s if progress_every_s else None
+
     while model.time_s < total_s:
         eta_bc_true = boundary.eta_at(model.time_s)
         ramp = min(1.0, model.time_s / ramp_seconds) if ramp_seconds > 0 else 1.0
@@ -130,8 +144,25 @@ def run_simulation(
         if model.time_s >= next_map_sample and model.time_s <= total_s:
             u, v, speed = model.centered_velocity()
             t = pd.Timestamp(spinup_start) + timedelta(seconds=model.time_s)
-            map_frames.append(MapFrame(time_utc=t, eta=model.eta_numpy(), u=u.copy(), v=v.copy(), speed=speed.copy()))
+            frame = MapFrame(time_utc=t, eta=model.eta_numpy(), u=u.copy(), v=v.copy(), speed=speed.copy())
+            if on_frame is not None:
+                on_frame(frame)
+            if keep_frames:
+                map_frames.append(frame)
             next_map_sample += map_dt_s
+
+        if next_progress_at is not None and time.monotonic() >= next_progress_at:
+            phase = "spin-up" if model.time_s < spinup_hours * 3600.0 else "forecast"
+            frac = model.time_s / total_s
+            wall_elapsed = time.monotonic() - wall_start
+            eta_remaining_s = wall_elapsed / frac - wall_elapsed if frac > 0 else float("nan")
+            print(
+                f"  [{phase}] {frac * 100:.1f}% "
+                f"({model.time_s / 3600.0:.1f}h / {total_s / 3600.0:.1f}h sim) - "
+                f"{wall_elapsed / 60.0:.1f} min elapsed, ~{eta_remaining_s / 60.0:.1f} min remaining",
+                flush=True,
+            )
+            next_progress_at = time.monotonic() + progress_every_s
 
     station_series = {}
     for sid, records in station_records.items():

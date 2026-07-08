@@ -5,6 +5,7 @@ backend/.env
 backend/*.db
 backend/uploads/
 backend/data/
+backend/app/sim_data/current_bank/raw_samples.npz
 node_modules/
 frontend/dist/
 frontend/.env.local
