@@ -10,7 +10,7 @@ import L from "leaflet";
 // eslint-disable-next-line import/no-unassigned-import
 import "leaflet-velocity";
 import "leaflet-velocity/dist/leaflet-velocity.css";
-import { fetchCurrentField } from "../lib/currentField";
+import type { fetchBayCurrentField, fetchCurrentField } from "../lib/currentField";
 
 // The same calm-to-strong gradient conceptually, expanded into a smooth
 // array of samples — leaflet-velocity's colorScale wants a flat list of
@@ -49,18 +49,25 @@ function rgb([r, g, b]: [number, number, number]): string {
 
 const COLOR_SCALE = Array.from({ length: 32 }, (_, i) => colorAt((i / 31) * MAX_VELOCITY));
 
+interface CurrentFlowLayerProps {
+  // Two sources share this renderer: real HFRadar data for open coastal
+  // water, and a tide-model simulation for San Diego Bay's interior, where
+  // HFRadar has no usable coverage (see lib/currentField.ts).
+  fetcher: typeof fetchCurrentField | typeof fetchBayCurrentField;
+}
+
 // Renders nothing itself — it's an imperative Leaflet layer (particles drawn
 // to a canvas leaflet-velocity manages internally), added/removed from the
 // map directly rather than through react-leaflet's declarative layer model,
 // since there's no React wrapper for this plugin.
-export default function CurrentFlowLayer() {
+export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
   const map = useMap();
   const layerRef = useRef<L.VelocityLayer | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    fetchCurrentField().then((data) => {
+    fetcher().then((data) => {
       if (cancelled || !data) return;
       const layer = L.velocityLayer({
         displayValues: false,

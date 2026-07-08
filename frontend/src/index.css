@@ -1634,6 +1634,18 @@ button:disabled {
   color: var(--accent-ink);
 }
 
+.map-current-disclaimer {
+  width: 100%;
+  margin: 0;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
 .map-time-panel {
   width: 100%;
   background: var(--surface);

@@ -1,0 +1,36 @@
+# San Diego Bay tidal-current model configuration.
+# Every knob a calibration sweep should touch lives here, not hard-coded in scripts.
+
+physics:
+  drag_cd: 0.0015          # quadratic bottom drag coefficient (best of calibration sweep on the fixed grid)
+  viscosity_m2s: 0.0       # horizontal eddy viscosity; 0 disables (grid is stable without it at 40 m)
+  hmin_m: 0.5              # minimum wet depth (m); cells shallower than this are treated as dry
+  cfl: 0.45                # CFL safety factor used to pick the timestep
+  use_coriolis: true
+  use_advection: true      # nonlinear momentum advection (upwind); lets jets/recirculation form
+  latitude_deg: 32.7
+  use_numba: true          # fused JIT inner loop (~8x faster); set false to force pure NumPy
+  use_gpu: false           # Railway's web dyno has no CUDA GPU; the Numba CPU path is used instead
+
+grid:
+  resolution_m: 20.0
+  grid_dir: app/sim_data/grid_20m
+  source_nc: data/raw/noaa_bathymetry/san_diego_bay_P020_2017.nc
+  min_valid_fraction: 0.5
+
+forcing:
+  boundary_station: "9410170"     # Broadway Pier: nearest official NOAA water-level gauge to the bay mouth
+  boundary_product: predictions   # tidal-only signal; avoids injecting non-tidal noise at the open boundary
+  validation_station: "9410170"
+  spinup_hours: 30.0
+  forecast_hours: 6.0              # short rolling forecast window re-run periodically, not a full 48h batch
+  output_interval_minutes: 6
+
+validation:
+  current_stations: ["PCT0031", "PCT0061"]
+  water_level_station: "9410170"
+  calibrated_amplitude_error_max_m: 0.15
+  calibrated_timing_error_max_min: 45.0
+  calibrated_speed_error_max_mps: 0.25
+
+timezone: America/Los_Angeles

@@ -1,0 +1,50 @@
+{
+  "crs": "EPSG:26911",
+  "vertical_datum": "MLLW (as delivered by NOAA NCEI San Diego Bay P020 DEM)",
+  "resolution_m": 20.0,
+  "shape_yx": [
+    770,
+    661
+  ],
+  "transform": [
+    20.0,
+    0.0,
+    477483.63076181535,
+    0.0,
+    -20.0,
+    3622607.419061869
+  ],
+  "open_boundary_u_face_count": 94,
+  "open_boundary_v_face_count": 65,
+  "entrance_line_lonlat": [
+    [
+      -117.23696,
+      32.67522
+    ],
+    [
+      -117.22461,
+      32.68534
+    ]
+  ],
+  "coronado_line_lonlat": [
+    [
+      -117.22375,
+      32.68426
+    ],
+    [
+      -117.20532,
+      32.64785
+    ]
+  ],
+  "source_url": "https://www.ngdc.noaa.gov/thredds/fileServer/regional/san_diego_bay_P020_2017.nc",
+  "source_dataset": "NOAA NCEI - NOS Estuarine Bathymetry - San Diego Bay (P020), 2017",
+  "source_citation": "National Centers for Environmental Information, 2017. NOAA NOS Estuarine Bathymetry - San Diego Bay (P020). NOAA NCEI. doi:10.7289/V5JD4V3D",
+  "date_built_utc": "2026-07-07T23:56:14.424055+00:00",
+  "notes": [
+    "wet_mask/land_mask/nodata_mask are mutually exclusive and collectively exhaustive.",
+    "depth_m is defined (finite) only where wet_mask is True.",
+    "open_u_face.npy/open_v_face.npy mark the arbitrary interior/edge faces (not a single named grid edge) where real charted water borders the hand-traced open-ocean region defined by entrance_line_lonlat / coronado_line_lonlat; every other exterior face is a solid wall.",
+    "The open boundary uses each open face's own real, charted depth (no assumed/synthetic depth or bathymetry) \u2014 see docs/LIMITATIONS.md for how entrance_line_lonlat and coronado_line_lonlat were determined (hand-traced against the DEM footprint and a real satellite map, after automated heuristics repeatedly misplaced the boundary; the bathymetry-only DEM has no land data at all past the charted coastline).",
+    "Resampled with block-average (rasterio Resampling.average), not stride sampling."
+  ]
+}

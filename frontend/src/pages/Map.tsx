@@ -20,6 +20,7 @@ import type { MapCatch, Spot } from "../api/types";
 import LocationPickerModal from "../components/LocationPickerModal";
 import type { LatLng } from "../components/LocationPicker";
 import CurrentFlowLayer from "../components/CurrentFlowLayer";
+import { fetchBayCurrentField, fetchCurrentField } from "../lib/currentField";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
 import TimeWindowRuler from "../components/TimeWindowRuler";
@@ -510,6 +511,11 @@ export default function MapPage() {
               </button>
             )}
           </div>
+          {currentEnabled && (
+            <p className="map-current-disclaimer">
+              Open water: live radar · Bay interior: tide-modeled estimate (not a live sensor)
+            </p>
+          )}
         </div>
       )}
       <MapContainer
@@ -622,7 +628,12 @@ export default function MapPage() {
             ))}
           </MarkerClusterGroup>
         )}
-        {!drawMode && currentEnabled && <CurrentFlowLayer />}
+        {!drawMode && currentEnabled && (
+          <>
+            <CurrentFlowLayer fetcher={fetchCurrentField} />
+            <CurrentFlowLayer fetcher={fetchBayCurrentField} />
+          </>
+        )}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}

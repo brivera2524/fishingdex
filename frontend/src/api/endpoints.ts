@@ -2,6 +2,7 @@ import type { VelocityLayerRecord } from "leaflet";
 import { apiFetch } from "./client";
 import type {
   AdminSettings,
+  BayCurrentField,
   Catch,
   CatchInput,
   CatchUpdateInput,
@@ -68,6 +69,13 @@ export function getRecentCatches() {
 // no CORS headers, so it can't be fetched directly from the browser.
 export function getCurrentField() {
   return apiFetch<VelocityLayerRecord[]>("/ocean-current/field");
+}
+
+// HFRadar (above) has no usable coverage inside San Diego Bay — this is a
+// tide-driven simulation for the bay interior instead. See the backend's
+// app/ocean_sim.py for what it is and isn't (modeled, not observed).
+export function getBayCurrentField() {
+  return apiFetch<BayCurrentField>("/ocean-current/bay-field");
 }
 
 export function getCatch(catchId: number) {

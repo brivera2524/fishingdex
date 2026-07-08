@@ -1,3 +1,5 @@
+import type { VelocityLayerRecord } from "leaflet";
+
 export interface Species {
   id: number;
   common_name: string;
@@ -172,6 +174,13 @@ export interface CurrentUser {
 export interface AdminSettings {
   model: string;
   available_models: string[];
+}
+
+export interface BayCurrentField {
+  status: "warming_up" | "ready" | "error";
+  records: VelocityLayerRecord[] | null;
+  sim_time_utc: string | null;
+  error?: string | null;
 }
 
 export interface RecentCatch {
