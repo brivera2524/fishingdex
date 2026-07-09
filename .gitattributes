@@ -1,0 +1,4 @@
+# patch-package applies these on a Linux CI box (Vercel). A CRLF-converted
+# patch file won't match the LF source there and fails the whole build, so
+# pin patch files to LF regardless of the committer's platform.
+*.patch text eol=lf
