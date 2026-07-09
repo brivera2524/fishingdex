@@ -43,10 +43,21 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   },
   //-------------------------------------------------------------
   _onLayerDidMove: function _onLayerDidMove() {
-    var topLeft = this._map.containerPointToLayerPoint([0, 0]);
-
-    L.DomUtil.setPosition(this._canvas, topLeft);
-    this.drawLayer();
+    // Leaflet invokes this directly as a "moveend" listener with no
+    // try/catch of its own around the call -- an uncaught exception here
+    // would propagate straight back into whatever Leaflet internal function
+    // fired "moveend", potentially aborting code that runs *after* the
+    // fire() call in that function (see the "zoomanim" comment on
+    // _animateZoom below for a concrete case of exactly this doing real
+    // damage to Leaflet's own zoom state). Catch and log instead of
+    // letting anything from here reach Leaflet's dispatch loop.
+    try {
+      var topLeft = this._map.containerPointToLayerPoint([0, 0]);
+      L.DomUtil.setPosition(this._canvas, topLeft);
+      this.drawLayer();
+    } catch (err) {
+      console.error("[leaflet-velocity] _onLayerDidMove threw:", err);
+    }
   },
   //-------------------------------------------------------------
   getEvents: function getEvents() {
@@ -131,11 +142,27 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   },
   //------------------------------------------------------------------------------
   _animateZoom: function _animateZoom(e) {
-    var scale = this._map.getZoomScale(e.zoom); // -- different calc of offset in leaflet 1.0.0 and 0.0.7 thanks for 1.0.0-rc2 calc @jduggan1
+    // Leaflet's own Map._animateZoom calls `this.fire('zoomanim', ...)`
+    // synchronously and, critically, its *own* zoom-finalizing this._move()
+    // call and the setTimeout fallback that resets _animatingZoom both sit
+    // textually *after* that fire() call in the same function -- if any
+    // "zoomanim" listener throws (this one included), those never run.
+    // _animatingZoom then stays stuck true forever, since there's no other
+    // path that resets it, and Leaflet's _tryAnimatedZoom guards every
+    // subsequent zoom attempt on `!this._map._animatingZoom` -- so every
+    // future zoom silently no-ops. That's "zoom stops working after a
+    // single zoom in," and it doesn't require this specific handler to be
+    // the one throwing: *any* zoomanim listener on the map throwing has the
+    // same effect. Guarding this one removes it as a possible cause and
+    // logs instead of failing silently into that stuck state.
+    try {
+      var scale = this._map.getZoomScale(e.zoom); // -- different calc of offset in leaflet 1.0.0 and 0.0.7 thanks for 1.0.0-rc2 calc @jduggan1
 
-
-    var offset = L.Layer ? this._map._latLngToNewLayerPoint(this._map.getBounds().getNorthWest(), e.zoom, e.center) : this._map._getCenterOffset(e.center)._multiplyBy(-scale).subtract(this._map._getMapPanePos());
-    L.DomUtil.setTransform(this._canvas, offset, scale);
+      var offset = L.Layer ? this._map._latLngToNewLayerPoint(this._map.getBounds().getNorthWest(), e.zoom, e.center) : this._map._getCenterOffset(e.center)._multiplyBy(-scale).subtract(this._map._getMapPanePos());
+      L.DomUtil.setTransform(this._canvas, offset, scale);
+    } catch (err) {
+      console.error("[leaflet-velocity] _animateZoom (zoomanim) threw:", err);
+    }
   }
 });
 
@@ -437,9 +464,18 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     this._zooming = false;
 
     this._map.on("zoomstart", function () {
-      self._zooming = true;
-
-      self._windy.stop();
+      // Same reasoning as _animateZoom above: "zoomstart" is fired from
+      // inside Map._moveStart, which _tryAnimatedZoom calls chained
+      // straight into _animateZoom (".` _moveStart(...)._animateZoom(...)`)
+      // -- an uncaught throw here would skip that chained _animateZoom
+      // call entirely for this zoom attempt. Not the same failure mode as
+      // the zoomanim case, but no reason to risk it either.
+      try {
+        self._zooming = true;
+        if (self._windy) self._windy.stop();
+      } catch (err) {
+        console.error("[leaflet-velocity] zoomstart handler threw:", err);
+      }
     });
 
     this._map.on("zoomend", self._clearAndRestart);
