@@ -161,8 +161,27 @@ class CurrentGrid {
   }
 }
 
-function seedParticle(p: Particle, grid: CurrentGrid) {
-  const { lo1, la1, lo2, la2 } = grid.bounds;
+// Particles are reseeded here far more often than any pan/zoom takes to
+// settle (life is only 1-2.3s), so re-deriving this intersection on every
+// seed keeps the whole population honest to what's currently on screen
+// within a second or two of the view changing, without needing a dedicated
+// moveend/zoomend listener.
+function seedBounds(grid: CurrentGrid, map: L.Map) {
+  const data = grid.bounds;
+  const view = map.getBounds();
+  const lo1 = Math.max(data.lo1, view.getWest());
+  const lo2 = Math.min(data.lo2, view.getEast());
+  const la1 = Math.min(data.la1, view.getNorth());
+  const la2 = Math.max(data.la2, view.getSouth());
+  // No overlap between the data extent and the current viewport (e.g. user
+  // panned entirely outside the bay) — fall back to the full data extent so
+  // particles still exist somewhere rather than never seeding at all.
+  if (lo1 >= lo2 || la2 >= la1) return data;
+  return { lo1, la1, lo2, la2 };
+}
+
+function seedParticle(p: Particle, grid: CurrentGrid, map: L.Map) {
+  const { lo1, la1, lo2, la2 } = seedBounds(grid, map);
   for (let tries = 0; tries < 30; tries++) {
     const lat = la2 + Math.random() * (la1 - la2);
     const lng = lo1 + Math.random() * (lo2 - lo1);
@@ -248,13 +267,13 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
       for (const p of particles) {
         p.age += 1;
         if (p.age > p.life) {
-          seedParticle(p, grid);
+          seedParticle(p, grid, map);
           continue;
         }
 
         const uv = grid.sample(p.lat, p.lng);
         if (!uv) {
-          seedParticle(p, grid);
+          seedParticle(p, grid, map);
           continue;
         }
         const [u, v] = uv;
@@ -264,13 +283,21 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
         while (p.history.length > 1 && now - p.history[0].t > TRAIL_DURATION_MS) p.history.shift();
         if (p.history.length > TRAIL_MAX_POINTS) p.history.splice(0, p.history.length - TRAIL_MAX_POINTS);
 
+        const [r, g, b] = speedRGB(speed);
+        let headPt = map.latLngToContainerPoint([p.lat, p.lng]);
+
         if (p.history.length >= 2) {
           const points = p.history.map((h) => map.latLngToContainerPoint([h.lat, h.lng]));
           const first = points[0];
           const last = points[points.length - 1];
-          const [r, g, b] = speedRGB(speed);
+          headPt = last;
           const gradient = ctx.createLinearGradient(first.x, first.y, last.x, last.y);
-          gradient.addColorStop(0, `rgba(${r | 0},${g | 0},${b | 0},0)`);
+          // Floors at 0.25 rather than fading all the way to 0 — at typical
+          // (often near-floor-speed) bay currents the trail is only ~8-18px
+          // long to begin with, and a stroke that fades to fully transparent
+          // partway along that short a span reads as barely-there even
+          // though it's being drawn correctly every frame.
+          gradient.addColorStop(0, `rgba(${r | 0},${g | 0},${b | 0},0.25)`);
           gradient.addColorStop(1, `rgba(${r | 0},${g | 0},${b | 0},0.9)`);
           ctx.strokeStyle = gradient;
           ctx.beginPath();
@@ -278,6 +305,15 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
           for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
           ctx.stroke();
         }
+
+        // A fixed-size dot at the particle's current position, independent
+        // of trail length/speed — guarantees every live particle is visible
+        // at rest, rather than visibility being entirely a function of how
+        // far a (often slow, near-floor-speed) particle has drifted.
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(${r | 0},${g | 0},${b | 0},0.85)`;
+        ctx.arc(headPt.x, headPt.y, 1.4, 0, Math.PI * 2);
+        ctx.fill();
 
         // A cell with a truly exact-zero vector (rare, but real at slack
         // tide) has no direction to move in — u/speed would be 0/0 = NaN,
@@ -306,7 +342,7 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
     fetcher().then((records) => {
       if (cancelled || !records) return;
       grid = new CurrentGrid(records);
-      for (const p of particles) seedParticle(p, grid);
+      for (const p of particles) seedParticle(p, grid, map);
     });
 
     rafId = requestAnimationFrame(tick);
