@@ -1,8 +1,28 @@
 diff --git a/node_modules/leaflet-velocity/dist/leaflet-velocity.js b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
-index b69f598..4e93d51 100644
+index b69f598..cd83705 100644
 --- a/node_modules/leaflet-velocity/dist/leaflet-velocity.js
 +++ b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
-@@ -338,7 +338,13 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+@@ -52,6 +52,19 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
+   getEvents: function getEvents() {
+     var events = {
+       resize: this._onLayerDidResize,
++      // Patched: also reposition on every "move" (fired continuously
++      // during a live drag, not just once at the end -- see Map.Drag's
++      // _onDrag), not only "moveend". Leaflet resets the map pane's live
++      // drag-compensation transform to identity the instant a drag ends,
++      // but this canvas's own position (set via L.DomUtil.setPosition
++      // below) only used to get corrected by the "moveend" listener --
++      // for one frame right at release, the canvas would sit at its
++      // stale mid-drag position with no compensating transform left to
++      // paper over it, which is what looked like the whole layer
++      // vanishing right when you let go. Repositioning continuously
++      // during the drag itself closes that race instead of chasing it
++      // after the fact.
++      move: this._onLayerDidMove,
+       moveend: this._onLayerDidMove
+     };
+ 
+@@ -338,7 +351,13 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
      if (this._windy) {
        this._windy.setData(data);
  
@@ -17,7 +37,7 @@ index b69f598..4e93d51 100644
      }
  
      this.fire("load");
-@@ -362,7 +368,11 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+@@ -362,7 +381,11 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
  
        if (options.hasOwnProperty("data")) this._windy.setData(options.data);
  
@@ -30,7 +50,7 @@ index b69f598..4e93d51 100644
      }
  
      this.fire("load");
-@@ -385,7 +395,8 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+@@ -385,7 +408,8 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
      if (this._timer) clearTimeout(self._timer);
      this._timer = setTimeout(function () {
        self._startWindy();
@@ -40,7 +60,7 @@ index b69f598..4e93d51 100644
    },
    _startWindy: function _startWindy() {
      var bounds = this._map.getBounds();
-@@ -409,11 +420,27 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+@@ -409,11 +433,27 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
  
      this.onDrawLayer();
  
@@ -71,7 +91,7 @@ index b69f598..4e93d51 100644
  
      this._map.on("zoomend", self._clearAndRestart);
  
-@@ -435,7 +462,26 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+@@ -435,7 +475,26 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
      }
    },
    _clearAndRestart: function _clearAndRestart() {
