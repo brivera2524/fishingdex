@@ -130,9 +130,9 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
     // particle field is inherently viewport-coupled and can't be preserved
     // across a pan — leaflet-velocity indexes particles by screen pixel).
     // The bulk of the visible gap was a hardcoded 750ms delay before the
-    // library starts drawing after any view change; patches/leaflet-
-    // velocity+2.1.4.patch cuts that to 120ms so the flow snaps back nearly
-    // immediately.
+    // library starts drawing after any view change; scripts/patch-leaflet-
+    // velocity.mjs (run on install) cuts that to 120ms so the flow snaps
+    // back nearly immediately.
     map.on("moveend", recreateLayer);
 
     fetcher().then((result) => {
