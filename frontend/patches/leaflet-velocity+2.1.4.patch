@@ -1,0 +1,33 @@
+diff --git a/node_modules/leaflet-velocity/dist/leaflet-velocity.js b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
+index b69f598..b8289e2 100644
+--- a/node_modules/leaflet-velocity/dist/leaflet-velocity.js
++++ b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
+@@ -385,7 +385,8 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+     if (this._timer) clearTimeout(self._timer);
+     this._timer = setTimeout(function () {
+       self._startWindy();
+-    }, 750); // showing velocity is delayed
++    }, 120); // patched down from 750ms so the flow snaps back almost
++             // immediately after a pan/zoom settles (see CurrentFlowLayer.tsx)
+   },
+   _startWindy: function _startWindy() {
+     var bounds = this._map.getBounds();
+@@ -409,9 +410,16 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+ 
+     this.onDrawLayer();
+ 
+-    this._map.on("dragstart", self._windy.stop);
++    // Patched out (was `this._map.on("dragstart", self._windy.stop)`): a
++    // pan doesn't invalidate the projection the way a zoom does, so there's
++    // no need to freeze the animation for it. Leaflet drags this canvas
++    // along via the overlay pane's own CSS transform like any other layer,
++    // so the already-running particle animation keeps playing and moving
++    // with the map through the whole gesture instead of freezing mid-drag
++    // and reshuffling on release. The field resyncs to the exact new
++    // viewport on "moveend" below once the gesture settles, same as before.
+ 
+-    this._map.on("dragend", self._clearAndRestart);
++    this._map.on("moveend", self._clearAndRestart);
+ 
+     this._map.on("zoomstart", self._windy.stop);
+ 
