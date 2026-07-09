@@ -1,0 +1,23 @@
+diff --git a/node_modules/leaflet-velocity/dist/leaflet-velocity.js b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
+index b69f598..a6bacb2 100644
+--- a/node_modules/leaflet-velocity/dist/leaflet-velocity.js
++++ b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
+@@ -385,7 +385,8 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+     if (this._timer) clearTimeout(self._timer);
+     this._timer = setTimeout(function () {
+       self._startWindy();
+-    }, 750); // showing velocity is delayed
++    }, 120); // patched down from 750ms so the flow snaps back almost
++             // immediately after a pan/zoom settles (see CurrentFlowLayer.tsx)
+   },
+   _startWindy: function _startWindy() {
+     var bounds = this._map.getBounds();
+@@ -411,7 +412,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+ 
+     this._map.on("dragstart", self._windy.stop);
+ 
+-    this._map.on("dragend", self._clearAndRestart);
++    this._map.on("moveend", self._clearAndRestart);
+ 
+     this._map.on("zoomstart", self._windy.stop);
+ 
