@@ -1,27 +1,4 @@
-// Wire format for the current-field endpoints: a grid header (geographic
-// bounds + resolution) plus one flat, row-major data array per component
-// (u then v, distinguished by parameterNumber 2/3) — the "wind-js" grib2json
-// convention this app's backend already speaks. Not tied to any particular
-// rendering library.
-export interface CurrentGridHeader {
-  nx: number;
-  ny: number;
-  lo1: number;
-  la1: number;
-  lo2: number;
-  la2: number;
-  dx: number;
-  dy: number;
-  parameterNumber: number;
-  parameterCategory?: number;
-  refTime?: string;
-  forecastTime?: number;
-}
-
-export interface CurrentGridRecord {
-  header: CurrentGridHeader;
-  data: Array<number | null>;
-}
+import type { VelocityLayerRecord } from "leaflet";
 
 export interface Species {
   id: number;
@@ -206,7 +183,7 @@ export interface AdminSettings {
 
 export interface BayCurrentField {
   status: "ready" | "error";
-  records: CurrentGridRecord[] | null;
+  records: VelocityLayerRecord[] | null;
   sim_time_utc: string | null;
   error?: string | null;
 }

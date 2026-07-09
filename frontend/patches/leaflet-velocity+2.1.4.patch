@@ -1,0 +1,13 @@
+diff --git a/node_modules/leaflet-velocity/dist/leaflet-velocity.js b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
+index b69f598..085f154 100644
+--- a/node_modules/leaflet-velocity/dist/leaflet-velocity.js
++++ b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
+@@ -411,7 +411,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+ 
+     this._map.on("dragstart", self._windy.stop);
+ 
+-    this._map.on("dragend", self._clearAndRestart);
++    this._map.on("moveend", self._clearAndRestart);
+ 
+     this._map.on("zoomstart", self._windy.stop);
+ 
