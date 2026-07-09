@@ -79,17 +79,35 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
 
   useEffect(() => {
     let cancelled = false;
-    let data: L.VelocityLayerRecord[] | null = null;
 
-    function recreateLayer() {
-      if (!data) return;
-      if (layerRef.current) {
-        map.removeLayer(layerRef.current);
-        layerRef.current = null;
-      }
+    // Used to tear down and recreate the whole L.velocityLayer (new canvas
+    // DOM element, brand new internal Windy state) on every "moveend",
+    // because leaflet-velocity's own internal redraw-on-move left stale
+    // visual artifacts if trusted to redraw itself in place. That was a
+    // real problem at the time, but it's a much bigger hammer than the
+    // artifact needed, and it has a much larger cost than it looks like:
+    // destroying and rebuilding the entire layer on every pan release also
+    // destroys the currently-playing particle animation and its canvas,
+    // unconditionally, before anything new exists to replace it -- no
+    // internal fix to leaflet-velocity's own restart logic could ever
+    // matter while this was happening, since the whole layer (and that
+    // logic along with it) got thrown away first.
+    //
+    // vendor/leaflet-velocity.patched.js now fixes the underlying problems
+    // directly instead: the canvas repositions correctly on "moveend"
+    // (_onLayerDidMove), a plain pan no longer hard-clears before
+    // rebuilding (only a zoom does, since only a zoom actually invalidates
+    // the pixel<->geo scale), and critically, the currently-playing
+    // animation is no longer stopped before its replacement is ready --
+    // the rebuild happens in the background and only cuts over once
+    // finished. With all of that in place, creating the layer once and
+    // letting leaflet-velocity handle its own view-change restarts is both
+    // simpler and strictly better than tearing it down every time.
+    fetcher().then((result) => {
+      if (cancelled || !result) return;
       const layer = L.velocityLayer({
         displayValues: false,
-        data,
+        data: result,
         minVelocity: 0,
         maxVelocity: MAX_VELOCITY,
         // Real speeds here (0.02-0.6 m/s) are physically too slow to read as
@@ -113,37 +131,10 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
       });
       layer.addTo(map);
       layerRef.current = layer;
-    }
-
-    // leaflet-velocity's own incremental redraw-on-move (clearRect + restart,
-    // internally wired to dragend/zoomend) leaves stale, wrongly-positioned
-    // particle trails behind after a pan/zoom — visible both as a transient
-    // flash of the pre-move frame and, worse, as permanent faint "shadow"
-    // artifacts that never get cleared (the canvas element gets repositioned
-    // to track the map, but its existing bitmap doesn't reliably get wiped
-    // first). Rather than fight that internal timing, force a fully fresh
-    // canvas (new DOM element, zero residual pixels) by tearing down and
-    // recreating the whole layer every time the view actually settles,
-    // instead of trusting the library to redraw itself correctly in place.
-    //
-    // This does mean a brief blank-then-repopulate after each pan (the
-    // particle field is inherently viewport-coupled and can't be preserved
-    // across a pan — leaflet-velocity indexes particles by screen pixel).
-    // The bulk of the visible gap was a hardcoded 750ms delay before the
-    // library starts drawing after any view change; patches/leaflet-
-    // velocity+2.1.4.patch cuts that to 120ms so the flow snaps back nearly
-    // immediately.
-    map.on("moveend", recreateLayer);
-
-    fetcher().then((result) => {
-      if (cancelled || !result) return;
-      data = result;
-      recreateLayer();
     });
 
     return () => {
       cancelled = true;
-      map.off("moveend", recreateLayer);
       if (layerRef.current) {
         map.removeLayer(layerRef.current);
         layerRef.current = null;
