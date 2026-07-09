@@ -895,8 +895,32 @@ var Windy = function Windy(params) {
   };
 
   var animationLoop;
+  // Bumped by every start() call; each animate()/frame() and each in-flight
+  // buildGrid/interpolateField callback chain captures the value current at
+  // its own start() and checks it before proceeding. buildGrid and
+  // interpolateField are asynchronous (interpolateField explicitly chunks
+  // itself across setTimeout calls for large fields) with no cancellation
+  // of their own -- calling start() again before an earlier call's chain
+  // has finished doesn't stop that chain, it just runs a second one
+  // alongside it. Whichever finishes later still calls animate(), so two
+  // (or more, after repeated rapid restarts) independent frame() loops end
+  // up running at once. They share this same `animationLoop` variable, so
+  // stop()'s cancelAnimationFrame can only ever cancel whichever loop most
+  // recently overwrote it -- any other concurrently-running loop leaks
+  // forever, keeps drawing with its own (possibly stale, wrong-zoom) bounds
+  // and field, and keeps re-applying draw()'s destination-in fade every
+  // real frame *again* on top of the other loop(s)' fade, compounding it.
+  // A user who pans/zooms a few times in quick succession -- exactly the
+  // drag-persistence behavior this file now enables -- was accumulating
+  // these leaked loops: each one's extra fade pass made trails vanish far
+  // faster than intended (reading as an instant blank flash), and enough
+  // concurrent loops fighting over the same canvas/rAF budget is what made
+  // zoom eventually get stuck. Checking this token lets every superseded
+  // loop and callback notice it's stale and quietly stop instead of
+  // leaking.
+  var currentGeneration = 0;
 
-  var animate = function animate(bounds, field) {
+  var animate = function animate(bounds, field, myGeneration) {
     function windIntensityColorScale(min, max) {
       colorScale.indexFor = function (m) {
         // map velocity speed to a style
@@ -993,6 +1017,10 @@ var Windy = function Windy(params) {
     var then = Date.now();
 
     (function frame() {
+      // A newer start() has begun since this loop's animate() call -- die
+      // quietly instead of continuing to fight the newer loop for the
+      // canvas and the shared `animationLoop` variable.
+      if (myGeneration !== currentGeneration) return;
       animationLoop = requestAnimationFrame(frame);
       var now = Date.now();
       var delta = now - then;
@@ -1014,19 +1042,36 @@ var Windy = function Windy(params) {
       width: width,
       height: height
     };
-    stop(); // build grid
+    stop(); // bumps currentGeneration and cancels the current loop
+    var myGeneration = currentGeneration; // build grid
 
     buildGrid(gridData, function (grid) {
-      // interpolateField
+      // A newer start() was called while this (async, possibly chunked-
+      // across-multiple-setTimeouts) buildGrid was still running -- its
+      // result is for a stale view/bounds, so drop it instead of handing
+      // it to interpolateField.
+      if (myGeneration !== currentGeneration) return; // interpolateField
+
       interpolateField(grid, buildBounds(bounds, width, height), mapBounds, function (bounds, field) {
-        // animate the canvas with random points
+        // Same check again -- interpolateField itself yields across
+        // multiple setTimeout batches for large fields, so a newer start()
+        // can just as easily supersede this call while it's still running.
+        if (myGeneration !== currentGeneration) return; // animate the canvas with random points
+
         windy.field = field;
-        animate(bounds, field);
+        animate(bounds, field, myGeneration);
       });
     });
   };
 
   var stop = function stop() {
+    // Invalidate any in-flight buildGrid/interpolateField chain and any
+    // still-running frame() loop from a previous start() -- not just the
+    // most recently started one. stop() is also called directly (on
+    // zoomstart) independent of start(), and without this bump here too, a
+    // stale chain already in flight from an earlier restart would still
+    // complete and spawn its own animate() loop even after this stop().
+    currentGeneration += 1;
     if (windy.field) windy.field.release();
     if (animationLoop) cancelAnimationFrame(animationLoop);
   };
