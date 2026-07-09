@@ -1,5 +1,3 @@
-import type { VelocityLayerRecord } from "leaflet";
-
 export interface Species {
   id: number;
   common_name: string;
@@ -181,9 +179,29 @@ export interface AdminSettings {
   available_models: string[];
 }
 
+export interface CurrentGridHeader {
+  parameterCategory: number;
+  parameterNumber: number;
+  nx: number;
+  ny: number;
+  lo1: number;
+  la1: number;
+  lo2: number;
+  la2: number;
+  dx: number;
+  dy: number;
+  refTime?: string;
+  forecastTime?: number;
+}
+
+export interface CurrentGridRecord {
+  header: CurrentGridHeader;
+  data: Array<number | null>;
+}
+
 export interface BayCurrentField {
   status: "ready" | "error";
-  records: VelocityLayerRecord[] | null;
+  records: CurrentGridRecord[] | null;
   sim_time_utc: string | null;
   error?: string | null;
 }
