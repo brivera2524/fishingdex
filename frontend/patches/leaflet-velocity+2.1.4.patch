@@ -1,8 +1,36 @@
 diff --git a/node_modules/leaflet-velocity/dist/leaflet-velocity.js b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
-index b69f598..b8289e2 100644
+index b69f598..4e93d51 100644
 --- a/node_modules/leaflet-velocity/dist/leaflet-velocity.js
 +++ b/node_modules/leaflet-velocity/dist/leaflet-velocity.js
-@@ -385,7 +385,8 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+@@ -338,7 +338,13 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+     if (this._windy) {
+       this._windy.setData(data);
+ 
+-      this._clearAndRestart();
++      // A real data reload (not a view-change resync) always needs a hard
++      // clear -- the old trails represent stale data, not just a stale
++      // scale, so _clearAndRestart's "skip the clear for a plain drag"
++      // logic doesn't apply here.
++      if (this._context) this._context.clearRect(0, 0, 3000, 3000);
++
++      this._startWindy();
+     }
+ 
+     this.fire("load");
+@@ -362,7 +368,11 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+ 
+       if (options.hasOwnProperty("data")) this._windy.setData(options.data);
+ 
+-      this._clearAndRestart();
++      // See setData above -- always a hard clear here too, never the
++      // conditional-on-zoom skip _clearAndRestart uses for view changes.
++      if (this._context) this._context.clearRect(0, 0, 3000, 3000);
++
++      this._startWindy();
+     }
+ 
+     this.fire("load");
+@@ -385,7 +395,8 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
      if (this._timer) clearTimeout(self._timer);
      this._timer = setTimeout(function () {
        self._startWindy();
@@ -12,7 +40,7 @@ index b69f598..b8289e2 100644
    },
    _startWindy: function _startWindy() {
      var bounds = this._map.getBounds();
-@@ -409,9 +410,16 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+@@ -409,11 +420,27 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
  
      this.onDrawLayer();
  
@@ -25,9 +53,49 @@ index b69f598..b8289e2 100644
 +    // with the map through the whole gesture instead of freezing mid-drag
 +    // and reshuffling on release. The field resyncs to the exact new
 +    // viewport on "moveend" below once the gesture settles, same as before.
++
++    this._map.on("moveend", self._clearAndRestart);
++
++    // Tracks whether the restart triggered by "moveend" below was preceded
++    // by a zoom, so _clearAndRestart knows whether a hard clear is actually
++    // needed (see the comment there).
++    this._zooming = false;
  
 -    this._map.on("dragend", self._clearAndRestart);
-+    this._map.on("moveend", self._clearAndRestart);
++    this._map.on("zoomstart", function () {
++      self._zooming = true;
  
-     this._map.on("zoomstart", self._windy.stop);
+-    this._map.on("zoomstart", self._windy.stop);
++      self._windy.stop();
++    });
  
+     this._map.on("zoomend", self._clearAndRestart);
+ 
+@@ -435,7 +462,26 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
+     }
+   },
+   _clearAndRestart: function _clearAndRestart() {
+-    if (this._context) this._context.clearRect(0, 0, 3000, 3000);
++    // Only hard-clear when this restart follows a zoom. A zoom actually
++    // changes the pixel<->lonlat scale, so the frozen pre-zoom bitmap (drawn
++    // at the old scale) would be genuinely misaligned with the new one if
++    // left to fade out on top of it -- worth the blank flash there.
++    //
++    // A plain drag doesn't change scale, so the existing frame is still
++    // geographically valid (just briefly approximate at the very edges).
++    // Clearing on every moveend regardless of cause was the actual "vanish
++    // then repopulate" bug: it wiped the canvas to blank before the new
++    // field's particles had spun up. Windy's own per-frame draw() already
++    // fades old trails via a "destination-in" fillRect rather than a hard
++    // clear, and _startWindy seeds its fresh particle array with randomized
++    // starting ages (not all-zero), so for a drag, skipping this clear lets
++    // the old (still-valid) frame fade out while the new field's particles
++    // draw on top from their very first frame, instead of a blank-then-rebuild.
++    if (this._zooming) {
++      if (this._context) this._context.clearRect(0, 0, 3000, 3000);
++      this._zooming = false;
++    }
++
+     if (this._windy) this._startWindy();
+   },
+   _clearWind: function _clearWind() {
