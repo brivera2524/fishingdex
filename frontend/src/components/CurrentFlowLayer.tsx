@@ -66,7 +66,15 @@ const ARTISTIC_PX_PER_SEC_PER_MPS = 220;
 // the same regardless of the device's actual frame rate. Long enough that
 // typical-speed cells read as a flowing streak rather than a fading dot.
 const TRAIL_DURATION_MS = 900;
-const TRAIL_MAX_POINTS = 24; // safety cap on array/path size at very high frame rates
+// Safety cap on array/path size, not a normal-case limit — at a typical
+// 60fps, a 900ms window needs ~54 points; this only kicks in on unusually
+// high-refresh-rate displays (120fps+). Set too low once already: a 24-pt
+// cap silently clipped every trail to ~400ms regardless of TRAIL_DURATION_MS,
+// which shrank most particles' start-to-end screen distance down to just a
+// few px — short enough that many rounded to visually-identical points, and
+// a canvas linear gradient between two coincident points renders as fully
+// transparent, making the (very common) slow-moving particles invisible.
+const TRAIL_MAX_POINTS = 120;
 
 interface HistoryPoint {
   lat: number;
