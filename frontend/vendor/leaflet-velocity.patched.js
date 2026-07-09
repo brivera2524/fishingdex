@@ -52,19 +52,6 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   getEvents: function getEvents() {
     var events = {
       resize: this._onLayerDidResize,
-      // Patched: also reposition on every "move" (fired continuously
-      // during a live drag, not just once at the end -- see Map.Drag's
-      // _onDrag), not only "moveend". Leaflet resets the map pane's live
-      // drag-compensation transform to identity the instant a drag ends,
-      // but this canvas's own position (set via L.DomUtil.setPosition
-      // below) only used to get corrected by the "moveend" listener --
-      // for one frame right at release, the canvas would sit at its
-      // stale mid-drag position with no compensating transform left to
-      // paper over it, which is what looked like the whole layer
-      // vanishing right when you let go. Repositioning continuously
-      // during the drag itself closes that race instead of chasing it
-      // after the fact.
-      move: this._onLayerDidMove,
       moveend: this._onLayerDidMove
     };
 
