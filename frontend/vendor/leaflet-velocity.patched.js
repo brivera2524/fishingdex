@@ -948,30 +948,40 @@ var Windy = function Windy(params) {
   };
 
   var animationLoop;
-  // Bumped by every start() call; each animate()/frame() and each in-flight
-  // buildGrid/interpolateField callback chain captures the value current at
-  // its own start() and checks it before proceeding. buildGrid and
-  // interpolateField are asynchronous (interpolateField explicitly chunks
-  // itself across setTimeout calls for large fields) with no cancellation
-  // of their own -- calling start() again before an earlier call's chain
-  // has finished doesn't stop that chain, it just runs a second one
-  // alongside it. Whichever finishes later still calls animate(), so two
-  // (or more, after repeated rapid restarts) independent frame() loops end
-  // up running at once. They share this same `animationLoop` variable, so
-  // stop()'s cancelAnimationFrame can only ever cancel whichever loop most
-  // recently overwrote it -- any other concurrently-running loop leaks
-  // forever, keeps drawing with its own (possibly stale, wrong-zoom) bounds
-  // and field, and keeps re-applying draw()'s destination-in fade every
-  // real frame *again* on top of the other loop(s)' fade, compounding it.
-  // A user who pans/zooms a few times in quick succession -- exactly the
-  // drag-persistence behavior this file now enables -- was accumulating
-  // these leaked loops: each one's extra fade pass made trails vanish far
-  // faster than intended (reading as an instant blank flash), and enough
-  // concurrent loops fighting over the same canvas/rAF budget is what made
-  // zoom eventually get stuck. Checking this token lets every superseded
-  // loop and callback notice it's stale and quietly stop instead of
-  // leaking.
+  // Two separate counters, deliberately not one:
+  //
+  // currentGeneration bumps on every start() call -- it marks "the latest
+  // requested rebuild." Each in-flight buildGrid/interpolateField callback
+  // chain captures the value current at its own start() and checks it
+  // before proceeding, so if a newer start() comes in before an older
+  // chain finishes (interpolateField explicitly chunks itself across
+  // setTimeout calls for large fields, so this is common), the stale one
+  // drops its result instead of handing it to the next stage. Without
+  // this, two independent frame() loops could end up running at once,
+  // sharing the single `animationLoop` variable so cancelAnimationFrame
+  // could only ever cancel whichever most recently overwrote it -- any
+  // other leaks forever, drawing with stale bounds and re-applying
+  // draw()'s destination-in fade on top of the other loop(s)' fade every
+  // real frame, compounding it. That's what made rapid pan/zoom
+  // interactions eventually break zoom outright and made trails vanish far
+  // faster than intended.
+  //
+  // activeGeneration marks which generation's frame() loop is actually
+  // allowed to keep animating. It's what frame() itself checks -- not
+  // currentGeneration -- and it only advances once a rebuild has *finished*
+  // and is ready to swap in, not the instant a new one is merely
+  // requested. That distinction is what lets a plain pan's restart keep
+  // the previous (still valid, just slightly stale) field animating
+  // uninterrupted while the real rebuild happens in the background,
+  // instead of stopping everything immediately and leaving nothing on
+  // screen until the rebuild completes -- which is what previously read as
+  // the whole flow field vanishing on every drag release. A zoom still
+  // stops immediately (see stop(), called directly on zoomstart): zoom
+  // actually changes the pixel<->geo scale, so continuing to animate the
+  // pre-zoom field against the new view would look outright wrong, not
+  // just briefly approximate.
   var currentGeneration = 0;
+  var activeGeneration = 0;
 
   var animate = function animate(bounds, field, myGeneration) {
     function windIntensityColorScale(min, max) {
@@ -1070,10 +1080,12 @@ var Windy = function Windy(params) {
     var then = Date.now();
 
     (function frame() {
-      // A newer start() has begun since this loop's animate() call -- die
-      // quietly instead of continuing to fight the newer loop for the
-      // canvas and the shared `animationLoop` variable.
-      if (myGeneration !== currentGeneration) return;
+      // A newer rebuild has actually finished and taken over since this
+      // loop's animate() call -- die quietly instead of continuing to
+      // fight the newer loop for the canvas and the shared
+      // `animationLoop` variable. (Checked against activeGeneration, not
+      // currentGeneration -- see the comment where these are declared.)
+      if (myGeneration !== activeGeneration) return;
       animationLoop = requestAnimationFrame(frame);
       var now = Date.now();
       var delta = now - then;
@@ -1095,7 +1107,15 @@ var Windy = function Windy(params) {
       width: width,
       height: height
     };
-    stop(); // bumps currentGeneration and cancels the current loop
+    // Deliberately not calling stop() here. Whatever's currently animating
+    // (activeGeneration's loop, if any) keeps running exactly as-is --
+    // against its own now slightly-stale bounds/field -- while this
+    // rebuild happens in the background. Real currents don't meaningfully
+    // change over however long this rebuild takes (typically well under
+    // 20ms after FIELD_PIXEL_STEP), so a moment of animating against the
+    // pre-restart field is imperceptible. Only once the rebuild actually
+    // finishes do we cut over to it, below.
+    currentGeneration += 1;
     var myGeneration = currentGeneration; // build grid
 
     buildGrid(gridData, function (grid) {
@@ -1109,8 +1129,14 @@ var Windy = function Windy(params) {
         // Same check again -- interpolateField itself yields across
         // multiple setTimeout batches for large fields, so a newer start()
         // can just as easily supersede this call while it's still running.
-        if (myGeneration !== currentGeneration) return; // animate the canvas with random points
+        if (myGeneration !== currentGeneration) return; // Now actually cut over: this rebuild is both finished and
+        // still the latest request, so stop whatever was animating before
+        // (if anything -- there may be nothing, on the very first start())
+        // and publish this as the new active generation.
 
+        if (windy.field) windy.field.release();
+        if (animationLoop) cancelAnimationFrame(animationLoop);
+        activeGeneration = myGeneration;
         windy.field = field;
         animate(bounds, field, myGeneration);
       });
@@ -1118,13 +1144,13 @@ var Windy = function Windy(params) {
   };
 
   var stop = function stop() {
-    // Invalidate any in-flight buildGrid/interpolateField chain and any
-    // still-running frame() loop from a previous start() -- not just the
-    // most recently started one. stop() is also called directly (on
-    // zoomstart) independent of start(), and without this bump here too, a
-    // stale chain already in flight from an earlier restart would still
-    // complete and spawn its own animate() loop even after this stop().
+    // Called directly (e.g. on zoomstart) independent of start(). Unlike
+    // start(), this stops immediately and unconditionally -- there's no
+    // "keep the old one running while rebuilding" option here, since
+    // whatever called stop() (a zoom) is explicitly saying the current
+    // field is no longer valid to keep displaying at all.
     currentGeneration += 1;
+    activeGeneration = currentGeneration; // nothing further should animate under any older generation
     if (windy.field) windy.field.release();
     if (animationLoop) cancelAnimationFrame(animationLoop);
   };
