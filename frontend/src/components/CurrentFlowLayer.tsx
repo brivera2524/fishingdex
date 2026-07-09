@@ -52,7 +52,11 @@ function speedRGB(metersPerSecond: number): [number, number, number] {
   return [c0[0] + (c1[0] - c0[0]) * f, c0[1] + (c1[1] - c0[1]) * f, c0[2] + (c1[2] - c0[2]) * f];
 }
 
-const N_PARTICLES = 900;
+// Was 900 when particles were seeded across the whole bay's data extent, so
+// most were always off-screen at any normal zoom. Now that seeding is
+// viewport-scoped, the full count actually renders on screen, so this can
+// go up without wasting particles off-canvas.
+const N_PARTICLES = 2200;
 const PARTICLE_LIFE_MIN = 60; // frames
 const PARTICLE_LIFE_MAX = 140;
 // Real speeds are too slow to see move at a literal 1:1 scale — this maps
@@ -333,8 +337,20 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
           const screenPt = map.latLngToContainerPoint([p.lat, p.lng]);
           const nextPt = L.point(screenPt.x + dirX * dragPx, screenPt.y + dirY * dragPx);
           const nextLatLng = map.containerPointToLatLng(nextPt);
-          p.lat = nextLatLng.lat;
-          p.lng = nextLatLng.lng;
+          // Validate before committing — the only check on this particle's
+          // position happens at the *top* of next frame's loop, one frame
+          // after it's already been drawn. Near any coastline (which is
+          // most of the visible area now that particles seed within the
+          // viewport rather than being diluted across the whole bay) an
+          // uncommitted step routinely lands on land, and that frame's head
+          // dot/trail segment would render there before getting caught —
+          // this is what the "red streaks over land" bug actually was.
+          if (grid.sample(nextLatLng.lat, nextLatLng.lng)) {
+            p.lat = nextLatLng.lat;
+            p.lng = nextLatLng.lng;
+          } else {
+            seedParticle(p, grid, map);
+          }
         }
       }
     }
