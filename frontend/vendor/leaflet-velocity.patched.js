@@ -880,6 +880,22 @@ var Windy = function Windy(params) {
     return [xy.x, xy.y];
   };
 
+  // Pixel spacing at which the background velocity lookup grid is actually
+  // sampled -- the rest of the pixels in each step are just filled with the
+  // nearest computed value (see the dx/dy fill loops below), not
+  // recomputed. This ran at a fixed 2px step regardless of viewport size,
+  // meaning a normal-sized viewport needed on the order of a few hundred
+  // thousand grid.interpolate()+distort() calls on every single restart --
+  // measured in production as several ~70ms "'setTimeout' handler took"
+  // main-thread violations right at drag release, which is what read as
+  // the field "disappearing" (the tab is too busy to render anything else
+  // while this runs) before "repopulating" once it finally finishes. 4px
+  // roughly quarters that cost for a ~1px-noticeable loss of lookup-grid
+  // precision -- particle positions and drawn trails are still full
+  // sub-pixel precision throughout; only the underlying velocity sampling
+  // grid this is querying got coarser.
+  var FIELD_PIXEL_STEP = 4;
+
   var interpolateField = function interpolateField(grid, bounds, extent, callback) {
     var projection = {}; // map.crs used instead
 
@@ -891,7 +907,7 @@ var Windy = function Windy(params) {
     function interpolateColumn(x) {
       var column = [];
 
-      for (var y = bounds.y; y <= bounds.yMax; y += 2) {
+      for (var y = bounds.y; y <= bounds.yMax; y += FIELD_PIXEL_STEP) {
         var coord = invert(x, y);
 
         if (coord) {
@@ -903,13 +919,14 @@ var Windy = function Windy(params) {
 
             if (wind) {
               wind = distort(projection, λ, φ, x, y, velocityScale, wind);
-              column[y + 1] = column[y] = wind;
+
+              for (var dy = 0; dy < FIELD_PIXEL_STEP; dy++) column[y + dy] = wind;
             }
           }
         }
       }
 
-      columns[x + 1] = columns[x] = column;
+      for (var dx = 0; dx < FIELD_PIXEL_STEP; dx++) columns[x + dx] = column;
     }
 
     (function batchInterpolate() {
@@ -917,7 +934,7 @@ var Windy = function Windy(params) {
 
       while (x < bounds.width) {
         interpolateColumn(x);
-        x += 2;
+        x += FIELD_PIXEL_STEP;
 
         if (Date.now() - start > 1000) {
           //MAX_TASK_TIME) {
