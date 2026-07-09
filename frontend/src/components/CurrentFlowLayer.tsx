@@ -125,6 +125,14 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
     // canvas (new DOM element, zero residual pixels) by tearing down and
     // recreating the whole layer every time the view actually settles,
     // instead of trusting the library to redraw itself correctly in place.
+    //
+    // This does mean a brief blank-then-repopulate after each pan (the
+    // particle field is inherently viewport-coupled and can't be preserved
+    // across a pan — leaflet-velocity indexes particles by screen pixel).
+    // The bulk of the visible gap was a hardcoded 750ms delay before the
+    // library starts drawing after any view change; patches/leaflet-
+    // velocity+2.1.4.patch cuts that to 120ms so the flow snaps back nearly
+    // immediately.
     map.on("moveend", recreateLayer);
 
     fetcher().then((result) => {
