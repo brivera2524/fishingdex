@@ -63,6 +63,12 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     // exact moment its rebuilt content actually takes over (see its
     // onReady callback into windy.start).
     try {
+      var rect = this._canvas.getBoundingClientRect();
+      console.log(
+        "[leaflet-velocity] moveend fired, canvas rect currently=(%s,%s)",
+        Math.round(rect.left),
+        Math.round(rect.top)
+      );
       this.drawLayer();
     } catch (err) {
       console.error("[leaflet-velocity] _onLayerDidMove threw:", err);
@@ -455,7 +461,18 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
         // CanvasLayer._onLayerDidMove for why that was wrong).
         try {
           var topLeft = self._map.containerPointToLayerPoint([0, 0]);
+          var rectBefore = self._canvasLayer._canvas.getBoundingClientRect();
           L.DomUtil.setPosition(self._canvasLayer._canvas, topLeft);
+          var rectAfter = self._canvasLayer._canvas.getBoundingClientRect();
+          console.log(
+            "[leaflet-velocity] onReady reposition: topLeft=(%s,%s) canvas rect before=(%s,%s) after=(%s,%s)",
+            topLeft.x,
+            topLeft.y,
+            Math.round(rectBefore.left),
+            Math.round(rectBefore.top),
+            Math.round(rectAfter.left),
+            Math.round(rectAfter.top)
+          );
         } catch (err) {
           console.error("[leaflet-velocity] _startWindy onReady threw:", err);
         }
