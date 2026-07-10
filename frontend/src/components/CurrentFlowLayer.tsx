@@ -79,17 +79,19 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
 
   useEffect(() => {
     let cancelled = false;
-    let data: L.VelocityLayerRecord[] | null = null;
 
-    function recreateLayer() {
-      if (!data) return;
-      if (layerRef.current) {
-        map.removeLayer(layerRef.current);
-        layerRef.current = null;
-      }
+    // The layer is created once and left alone for the lifetime of this
+    // effect -- no teardown/recreate on pan or zoom. vendor/leaflet-
+    // velocity.patched.js anchors its canvas to a fixed geographic area
+    // (buffered generously beyond the current viewport) instead of
+    // rebuilding for every view change, so it handles its own pan/zoom
+    // repositioning and only rebuilds itself internally when a pan
+    // actually exceeds that buffered area, or on a zoom.
+    fetcher().then((result) => {
+      if (cancelled || !result) return;
       const layer = L.velocityLayer({
         displayValues: false,
-        data,
+        data: result,
         minVelocity: 0,
         maxVelocity: MAX_VELOCITY,
         // Real speeds here (0.02-0.6 m/s) are physically too slow to read as
@@ -113,37 +115,10 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
       });
       layer.addTo(map);
       layerRef.current = layer;
-    }
-
-    // leaflet-velocity's own incremental redraw-on-move (clearRect + restart,
-    // internally wired to dragend/zoomend) leaves stale, wrongly-positioned
-    // particle trails behind after a pan/zoom — visible both as a transient
-    // flash of the pre-move frame and, worse, as permanent faint "shadow"
-    // artifacts that never get cleared (the canvas element gets repositioned
-    // to track the map, but its existing bitmap doesn't reliably get wiped
-    // first). Rather than fight that internal timing, force a fully fresh
-    // canvas (new DOM element, zero residual pixels) by tearing down and
-    // recreating the whole layer every time the view actually settles,
-    // instead of trusting the library to redraw itself correctly in place.
-    //
-    // This does mean a brief blank-then-repopulate after each pan (the
-    // particle field is inherently viewport-coupled and can't be preserved
-    // across a pan — leaflet-velocity indexes particles by screen pixel).
-    // The bulk of the visible gap was a hardcoded 750ms delay before the
-    // library starts drawing after any view change; patches/leaflet-
-    // velocity+2.1.4.patch cuts that to 120ms so the flow snaps back nearly
-    // immediately.
-    map.on("moveend", recreateLayer);
-
-    fetcher().then((result) => {
-      if (cancelled || !result) return;
-      data = result;
-      recreateLayer();
     });
 
     return () => {
       cancelled = true;
-      map.off("moveend", recreateLayer);
       if (layerRef.current) {
         map.removeLayer(layerRef.current);
         layerRef.current = null;

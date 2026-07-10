@@ -79,11 +79,20 @@ def _load_bank():
     scale = points.std(axis=0)
     tree = cKDTree(points / scale)
 
+    # Land/no-data cells are marked -128 in every snapshot (bay geometry
+    # doesn't change with tide state), but a weighted average of a -128
+    # sentinel with a real value almost never lands back on exactly -128 —
+    # so the mask has to be captured from the raw bank now, before
+    # interpolation blends it away, rather than re-derived from the
+    # interpolated output.
+    land_mask = data["u"][0] == -128
+
     _bank = {
         "tree": tree,
         "scale": scale,
         "u": data["u"],
         "v": data["v"],
+        "land_mask": land_mask,
         "header": meta["header"],
         "int8_scale": meta["int8_scale"],
     }
@@ -104,9 +113,9 @@ def _current_eta_state(cfg) -> tuple[float, float]:
     return eta, deta_dt
 
 
-def _dequantize(field: np.ndarray, int8_scale: float) -> np.ndarray:
+def _dequantize(field: np.ndarray, int8_scale: float, land_mask: np.ndarray) -> np.ndarray:
     out = field.astype(np.float32) / int8_scale
-    out[field == -128] = np.nan
+    out[land_mask] = np.nan
     return out
 
 
@@ -120,7 +129,10 @@ def _interpolate_field(bank: dict, eta: float, deta_dt: float) -> tuple[np.ndarr
 
     u = sum(w * bank["u"][i].astype(np.float32) for w, i in zip(weights, idx))
     v = sum(w * bank["v"][i].astype(np.float32) for w, i in zip(weights, idx))
-    return _dequantize(u, bank["int8_scale"]), _dequantize(v, bank["int8_scale"])
+    return (
+        _dequantize(u, bank["int8_scale"], bank["land_mask"]),
+        _dequantize(v, bank["int8_scale"], bank["land_mask"]),
+    )
 
 
 def _build_records(bank: dict, u: np.ndarray, v: np.ndarray, eta: float, deta_dt: float) -> list[dict]:
