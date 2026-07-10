@@ -457,7 +457,10 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     }
 
     this._lastTopLeft = topLeft;
-    L.DomUtil.setPosition(overlay.canvas, topLeft);
+    // Using this._canvasLayer._canvas rather than overlay.canvas -- _initWindy
+    // calls this method directly with no argument at all (see its last line),
+    // so `overlay` is undefined on that call and overlay.canvas would throw.
+    L.DomUtil.setPosition(this._canvasLayer._canvas, topLeft);
 
     if (this._timer) clearTimeout(self._timer);
     this._timer = setTimeout(function () {
