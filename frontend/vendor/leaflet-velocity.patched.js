@@ -155,9 +155,18 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     if (!this._bounds) return;
     var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
+    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+    console.log("[diag] _reset()", {
+      animatingZoom: this._map._animatingZoom,
+      mapZoom: this._map.getZoom(),
+      topLeft: topLeft,
+      bottomRight: bottomRight,
+      rectBefore: this._canvas.getBoundingClientRect()
+    });
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
     this._canvas.style.height = bottomRight.y - topLeft.y + "px";
+    console.log("[diag] _reset() applied", this._canvas.getBoundingClientRect());
   },
   //------------------------------------------------------------------------------
   // Same technique L.ImageOverlay uses for a smooth zoom transition:
@@ -169,12 +178,21 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   // during the transition -- the same tradeoff tiles make at every zoom
   // level change, familiar and expected rather than a bug.
   _animateZoom: function _animateZoom(e) {
+    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+    console.log("[diag] _animateZoom() fired", {
+      hasBounds: !!this._bounds,
+      eventZoom: e.zoom,
+      eventCenter: e.center,
+      mapZoom: this._map.getZoom(),
+      animatingZoom: this._map._animatingZoom
+    });
     if (!this._bounds) return;
 
     try {
       var scale = this._map.getZoomScale(e.zoom);
       var offset = this._map._latLngBoundsToNewLayerBounds(this._bounds, e.zoom, e.center).min;
       L.DomUtil.setTransform(this._canvas, offset, scale);
+      console.log("[diag] _animateZoom() applied", { scale: scale, offset: offset });
     } catch (err) {
       console.error("[leaflet-velocity] _animateZoom (zoomanim) threw:", err);
     }
@@ -407,6 +425,20 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     var self = this;
 
+    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+    // Logs the full lifecycle of a zoom/pan gesture (including pinch-zoom
+    // on touch, the specific reported trigger) so the actual event
+    // ordering and _animatingZoom state can be read back from a real
+    // device's console instead of guessed at.
+    ["zoomstart", "zoom", "zoomend", "movestart", "move", "moveend"].forEach(function (evtName) {
+      self._map.on(evtName, function () {
+        console.log("[diag] map event: " + evtName, {
+          mapZoom: self._map.getZoom(),
+          animatingZoom: self._map._animatingZoom
+        });
+      });
+    });
+
     this._map.on("zoomend resize", function () {
       // The only two things that ever invalidate this canvas now that it
       // always covers its full data extent regardless of pan: a zoom
@@ -504,7 +536,13 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var self = this;
     var bounds = this._dataBounds();
     if (!bounds) return;
-    var zoom = this._map.getZoom(); // Same technique the old viewport-buffered version used (project the
+    var zoom = this._map.getZoom();
+    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+    console.log("[diag] _rebuild() start", {
+      resizePixelBuffer: resizePixelBuffer,
+      zoom: zoom,
+      animatingZoom: this._map._animatingZoom
+    }); // Same technique the old viewport-buffered version used (project the
     // corners at the build zoom, take the pixel delta) applied to the
     // fixed data extent instead of a viewport-relative one, then capped --
     // see the MAX_BUILD_DIMENSION comment above for why a cap is needed
@@ -536,6 +574,12 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var extent = [[bounds.getWest(), bounds.getSouth()], [bounds.getEast(), bounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
+      // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+      console.log("[diag] _rebuild() onReady -> setBounds", {
+        builtForZoom: zoom,
+        currentMapZoom: self._map.getZoom(),
+        animatingZoom: self._map._animatingZoom
+      });
       self._canvasLayer.setBounds(bounds);
     });
   },
