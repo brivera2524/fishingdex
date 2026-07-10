@@ -11,11 +11,53 @@
 var diagLog = function () {
   var lines = [];
   var el = null;
+  var NORMAL_BG = "rgba(0,0,0,0.85)";
+  var TAPPED_BG = "rgba(0,90,0,0.95)"; // Clipboard API needs a secure context and isn't available in every
+  // in-app/embedded browser -- textarea+execCommand fallback covers those.
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+
+    try {
+      document.execCommand("copy");
+    } catch (err) {// Nothing more we can do -- the overlay's text is still readable/
+      // screenshot-able even if copying silently fails here.
+    }
+
+    document.body.removeChild(ta);
+  }
 
   function ensureEl() {
     if (el) return el;
     el = document.createElement("div");
-    el.style.cssText = "position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow-y:auto;" + "background:rgba(0,0,0,0.85);color:#0f0;font:10px/1.3 monospace;padding:6px;" + "z-index:999999;white-space:pre-wrap;pointer-events:auto;";
+    el.style.cssText = "position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow-y:auto;" + "background:" + NORMAL_BG + ";color:#0f0;font:10px/1.3 monospace;padding:6px;" + "z-index:999999;white-space:pre-wrap;pointer-events:auto;"; // Tap-to-copy: paste-ready output beats transcribing/screenshotting
+    // the overlay by hand. Flashes the background briefly as the only
+    // feedback, rather than replacing the text, so a tap can't clobber
+    // whatever line was just written.
+
+    el.addEventListener("click", function () {
+      copyToClipboard(lines.join("\n"));
+      el.style.background = TAPPED_BG;
+      setTimeout(function () {
+        el.style.background = NORMAL_BG;
+      }, 200);
+    });
     document.body.appendChild(el);
     return el;
   }
