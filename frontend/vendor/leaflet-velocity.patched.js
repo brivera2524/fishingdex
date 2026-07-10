@@ -1,108 +1,5 @@
 "use strict";
 
-// TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-// Mirrors every diagLog() call onto an on-page overlay, not just the
-// console -- reaching a phone's console normally means USB remote
-// debugging (chrome://inspect / Safari Web Inspector), which isn't
-// always available. This makes the same output readable (or
-// screenshot-able) directly on the device reproducing the bug, no
-// cable or desktop needed. Capped to the most recent lines so it
-// doesn't grow unbounded across a long session.
-var diagLog = function () {
-  var lines = [];
-  var el = null;
-  var NORMAL_BG = "rgba(0,0,0,0.85)";
-  var TAPPED_BG = "rgba(0,90,0,0.95)"; // Clipboard API needs a secure context and isn't available in every
-  // in-app/embedded browser -- textarea+execCommand fallback covers those.
-
-  function copyToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(function () {
-        fallbackCopy(text);
-      });
-    } else {
-      fallbackCopy(text);
-    }
-  }
-
-  function fallbackCopy(text) {
-    var ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-
-    try {
-      document.execCommand("copy");
-    } catch (err) {// Nothing more we can do -- the overlay's text is still readable/
-      // screenshot-able even if copying silently fails here.
-    }
-
-    document.body.removeChild(ta);
-  }
-
-  function ensureEl() {
-    if (el) return el;
-    el = document.createElement("div");
-    el.style.cssText = "position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow-y:auto;" + "background:" + NORMAL_BG + ";color:#0f0;font:10px/1.3 monospace;padding:6px;" + "z-index:999999;white-space:pre-wrap;pointer-events:auto;"; // Tap-to-copy: paste-ready output beats transcribing/screenshotting
-    // the overlay by hand. Flashes the background briefly as the only
-    // feedback, rather than replacing the text, so a tap can't clobber
-    // whatever line was just written.
-
-    el.addEventListener("click", function () {
-      copyToClipboard(lines.join("\n"));
-      el.style.background = TAPPED_BG;
-      setTimeout(function () {
-        el.style.background = NORMAL_BG;
-      }, 200);
-    });
-    document.body.appendChild(el);
-    return el;
-  }
-
-  var renderScheduled = false; // Only the DOM write is throttled (via rAF, coalescing any calls that
-
-  function scheduleRender() {
-    if (renderScheduled) return;
-    renderScheduled = true;
-    requestAnimationFrame(function () {
-      renderScheduled = false;
-      ensureEl().textContent = lines.join("\n");
-    });
-  } // land in the same frame into one paint) -- console.log and the in-memory
-  // `lines` array still capture every call synchronously, so nothing is
-  // lost even if a burst happens between two rAF ticks. This matters
-  // because _animateZoom fires repeatedly during a live touch pinch (not
-  // just once, unlike a discrete scroll-wheel zoom step) -- writing to
-  // the DOM synchronously on every one of those, on top of console.log,
-  // was itself expensive enough to risk starving the exact gesture being
-  // investigated.
-
-
-  return function diagLog(label, data) {
-    var line = new Date().toISOString().slice(11, 23) + " " + label + " " + JSON.stringify(data);
-    console.log("[diag] " + label, data);
-    lines.push(line);
-    if (lines.length > 60) lines.shift();
-    scheduleRender();
-  };
-}();
-
-// TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-// Terse, JSON-friendly summary of an element's on-page rect (a raw
-// DOMRect doesn't stringify usefully).
-var diagRect = function diagRect(el) {
-  var r = el.getBoundingClientRect();
-  return {
-    x: Math.round(r.x),
-    y: Math.round(r.y),
-    w: Math.round(r.width),
-    h: Math.round(r.height)
-  };
-};
-
 /*
  Generic  Canvas Layer for leaflet 0.7 and 1.0-rc,
  copyright Stanislav Sumbera,  2016 , sumbera.com , license MIT
@@ -137,6 +34,7 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     this._map = null;
     this._canvas = null;
     this._bounds = null;
+    this._zoom = null;
     this._delegate = null;
     L.setOptions(this, options);
   },
@@ -258,28 +156,13 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     if (!this._bounds) return;
     var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
-    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    // Includes the canvas's own pixel-buffer size (canvas.width/height --
-    // its internal bitmap resolution, set by setPixelSize) and its live
-    // CSS transform string alongside the on-screen rect, to catch a
-    // bitmap-vs-CSS-size mismatch that a rect alone wouldn't reveal.
-    diagLog("_reset()", {
-      animZoom: this._map._animatingZoom,
-      mapZoom: this._map.getZoom(),
-      topLeft: topLeft,
-      botRight: bottomRight,
-      rectBefore: diagRect(this._canvas),
-      bufBefore: { w: this._canvas.width, h: this._canvas.height },
-      transformBefore: this._canvas.style.transform
-    });
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
-    this._canvas.style.height = bottomRight.y - topLeft.y + "px";
-    diagLog("_reset() applied", {
-      rect: diagRect(this._canvas),
-      buf: { w: this._canvas.width, h: this._canvas.height },
-      transform: this._canvas.style.transform
-    });
+    this._canvas.style.height = bottomRight.y - topLeft.y + "px"; // Remembers the zoom this reset was performed at -- _animateZoom needs
+    // a *stable* reference zoom to scale from (see there for why), not
+    // whatever the live map zoom happens to read as by the time it runs.
+
+    this._zoom = this._map.getZoom();
   },
   //------------------------------------------------------------------------------
   // Same technique L.ImageOverlay uses for a smooth zoom transition:
@@ -290,26 +173,29 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   // zoom's resolution) through this, so it reads as slightly soft/blurry
   // during the transition -- the same tradeoff tiles make at every zoom
   // level change, familiar and expected rather than a bug.
+  //
+  // getZoomScale's second argument matters here and was the actual bug:
+  // omitting it (as this code did until diagnosed on a real device) makes
+  // it default to this._map.getZoom() -- the *live* map zoom at the exact
+  // instant this handler happens to run. For a discrete scroll/click zoom
+  // that's harmless (zoom jumps in one clean step, so the live value read
+  // here is stable). A finger pinch is continuous, though: the map's zoom
+  // keeps changing for as long as your fingers move, only snapping to a
+  // clean integer once you release. Reading the live zoom mid-pinch could
+  // catch it already ahead of (or behind) e.zoom's target, computing a
+  // scale relative to the wrong "from" and stretching this canvas out of
+  // sync with the map -- confirmed live: a zoom *in* (11->12) once logged
+  // mapZoom already at 12.07 by the time this ran, producing a *shrink*
+  // (0.951) instead of the expected growth. Passing this._zoom (this
+  // layer's own last-_reset()-at zoom, exactly what real ImageOverlay
+  // does) anchors the scale to a stable reference instead.
   _animateZoom: function _animateZoom(e) {
-    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    diagLog("_animateZoom() fired", {
-      hasBounds: !!this._bounds,
-      eventZoom: e.zoom,
-      mapZoom: this._map.getZoom(),
-      animZoom: this._map._animatingZoom
-    });
     if (!this._bounds) return;
 
     try {
-      var scale = this._map.getZoomScale(e.zoom);
+      var scale = this._map.getZoomScale(e.zoom, this._zoom);
       var offset = this._map._latLngBoundsToNewLayerBounds(this._bounds, e.zoom, e.center).min;
       L.DomUtil.setTransform(this._canvas, offset, scale);
-      diagLog("_animateZoom() applied", {
-        scale: scale,
-        offset: offset,
-        buf: { w: this._canvas.width, h: this._canvas.height },
-        transform: this._canvas.style.transform
-      });
     } catch (err) {
       console.error("[leaflet-velocity] _animateZoom (zoomanim) threw:", err);
     }
@@ -542,23 +428,6 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     var self = this;
 
-    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    // Logs the start/end lifecycle of a zoom/pan gesture (including
-    // pinch-zoom on touch, the specific reported trigger) so the actual
-    // event ordering and _animatingZoom state can be read back on-device.
-    // Deliberately not "zoom"/"move" (continuous, fires every frame of a
-    // gesture) -- those would flood the capped on-screen log and push out
-    // the moments that actually matter; _animateZoom's own diagLog below
-    // already captures the live-tracking behavior during a zoom.
-    ["zoomstart", "zoomend", "movestart", "moveend"].forEach(function (evtName) {
-      self._map.on(evtName, function () {
-        diagLog("map event: " + evtName, {
-          mapZoom: self._map.getZoom(),
-          animZoom: self._map._animatingZoom
-        });
-      });
-    });
-
     this._map.on("zoomend resize", function () {
       // The only two things that ever invalidate this canvas now that it
       // always covers its full data extent regardless of pan: a zoom
@@ -656,13 +525,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var self = this;
     var bounds = this._dataBounds();
     if (!bounds) return;
-    var zoom = this._map.getZoom();
-    // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    diagLog("_rebuild() start", {
-      resize: resizePixelBuffer,
-      zoom: zoom,
-      animZoom: this._map._animatingZoom
-    }); // Same technique the old viewport-buffered version used (project the
+    var zoom = this._map.getZoom(); // Same technique the old viewport-buffered version used (project the
     // corners at the build zoom, take the pixel delta) applied to the
     // fixed data extent instead of a viewport-relative one, then capped --
     // see the MAX_BUILD_DIMENSION comment above for why a cap is needed
@@ -694,12 +557,6 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var extent = [[bounds.getWest(), bounds.getSouth()], [bounds.getEast(), bounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
-      // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-      diagLog("_rebuild() onReady", {
-        builtForZoom: zoom,
-        curMapZoom: self._map.getZoom(),
-        animZoom: self._map._animatingZoom
-      });
       self._canvasLayer.setBounds(bounds);
     });
   },
