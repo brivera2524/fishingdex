@@ -138,15 +138,24 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   // Positions and sizes the canvas element from its fixed LatLngBounds --
   // identical in spirit to L.ImageOverlay._reset(). Since this._bounds
   // never changes for a plain pan (only VelocityLayer choosing to rebuild
-  // it, on zoom or panning outside it, changes it), this only actually
-  // needs to run on "zoom"/"viewreset" (handled by getEvents() above) plus
-  // once whenever setBounds() is called for a rebuild -- never on an
-  // ordinary pan, which Leaflet's own pane transform already carries this
-  // element through correctly with no repositioning needed at all.
+  // it, on zoom or panning outside it, changes it), the *only* caller is
+  // setBounds() -- getEvents() deliberately binds nothing to "zoom" or
+  // "viewreset" directly (see the comment there for why that was actively
+  // wrong for this layer), so nothing should invoke this except a rebuild
+  // that's already finished and ready to display.
   _reset: function _reset() {
     if (!this._bounds) return;
     var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
+    console.log(
+      "[leaflet-velocity] _reset() repositioning to bounds=%s topLeft=(%s,%s) size=(%s,%s)",
+      this._bounds.toBBoxString(),
+      Math.round(topLeft.x),
+      Math.round(topLeft.y),
+      Math.round(bottomRight.x - topLeft.x),
+      Math.round(bottomRight.y - topLeft.y)
+    );
+    console.trace("[leaflet-velocity] _reset() call stack");
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
     this._canvas.style.height = bottomRight.y - topLeft.y + "px";
@@ -497,7 +506,14 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   _onMapMoveEnd: function _onMapMoveEnd() {
     if (!this._windy || !this.options.data) return;
     var builtBounds = this._canvasLayer.getBounds();
-    if (builtBounds && builtBounds.contains(this._map.getBounds())) return;
+    var stillContained = builtBounds && builtBounds.contains(this._map.getBounds());
+    console.log(
+      "[leaflet-velocity] moveend: builtBounds=%s viewBounds=%s stillContained=%s",
+      builtBounds ? builtBounds.toBBoxString() : "(none)",
+      this._map.getBounds().toBBoxString(),
+      stillContained
+    );
+    if (stillContained) return;
     this._rebuild(false);
   },
   // resizePixelBuffer: true for the very first build, and for a genuine
@@ -511,6 +527,11 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var self = this;
     var viewBounds = this._map.getBounds();
     var bufferedBounds = viewBounds.pad(this.BUFFER_RATIO);
+    console.log(
+      "[leaflet-velocity] _rebuild(resizePixelBuffer=%s) requested. New bufferedBounds=%s",
+      resizePixelBuffer,
+      bufferedBounds.toBBoxString()
+    );
     var zoom = this._map.getZoom();
     var viewSize = this._map.getSize();
     var scale = 1 + this.BUFFER_RATIO * 2; // matches LatLngBounds.pad's own growth factor
@@ -536,6 +557,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var extent = [[bufferedBounds.getWest(), bufferedBounds.getSouth()], [bufferedBounds.getEast(), bufferedBounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
+      console.log("[leaflet-velocity] onReady: calling setBounds now for", bufferedBounds.toBBoxString());
       self._canvasLayer.setBounds(bufferedBounds);
     });
   },
