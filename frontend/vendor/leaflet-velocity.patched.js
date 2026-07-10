@@ -77,16 +77,29 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   },
   //-------------------------------------------------------------
   getEvents: function getEvents() {
-    // Deliberately no "moveend"/"resize" repositioning here -- a plain pan
-    // doesn't change this canvas's layer-point position at all (see the
-    // comment on _reset), and VelocityLayer itself listens for "moveend"
-    // directly to decide whether the view has panned far enough outside
-    // this canvas's bounds to warrant a rebuild, which is a different
-    // concern from repositioning.
-    var events = {
-      zoom: this._reset,
-      viewreset: this._reset
-    };
+    // Deliberately no "zoom"/"viewreset"/"moveend"/"resize" repositioning
+    // here at all -- unlike ImageOverlay (which this class's _reset/
+    // _animateZoom pattern is modeled on), this canvas's content isn't a
+    // static image that's always valid for its bounds; it has to be
+    // rebuilt for a new region on zoom, and VelocityLayer's own rebuild
+    // logic is what decides when a pan has exceeded the buffered region.
+    // Repositioning is gated on that rebuild actually finishing (see
+    // VelocityLayer._rebuild's onReady callback into windy.start, which
+    // calls setBounds() -- and setBounds() is what calls _reset()).
+    //
+    // Binding "viewreset" here directly (as ImageOverlay does) is actively
+    // wrong for this layer: Map.panBy has a "pan too far" workaround for a
+    // Chrome tile-rendering bug (#2602) that skips the normal smooth-pan
+    // animation and calls _resetView() directly instead for any pan
+    // larger than the map's own container size -- and _resetView() fires
+    // both "moveend" *and* "viewreset". That "viewreset" would reposition
+    // this canvas immediately, ungated, using this._bounds before
+    // VelocityLayer's rebuild (already triggered by the "moveend" that
+    // fired moments earlier) has had any chance to finish -- exactly the
+    // "repositioned before its content is ready" bug this whole onReady
+    // mechanism exists to prevent, and why it was only ever visible on
+    // large pans specifically.
+    var events = {};
 
     if (this._map.options.zoomAnimation && L.Browser.any3d) {
       events.zoomanim = this._animateZoom;
@@ -377,14 +390,25 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
       self._onMapMoveEnd();
     });
 
-    this._map.on("zoomend viewreset resize", function () {
-      // Any of these genuinely invalidate the built region -- a zoom
-      // changes the pixel resolution needed for the same on-screen
-      // density, a container resize changes how big the buffered canvas
-      // needs to be in the first place -- so always rebuild (and resize
-      // the pixel buffer) rather than only rebuilding if the buffer's
+    this._map.on("zoomend resize", function () {
+      // Both genuinely invalidate the built region's resolution -- a zoom
+      // changes the pixel density needed for the same on-screen detail, a
+      // container resize changes how big the buffered canvas needs to be
+      // in the first place -- so always rebuild (and resize the pixel
+      // buffer) here, rather than only rebuilding if the buffer's
       // geographic bounds were exceeded, which is the (much more common)
       // plain-pan check _onMapMoveEnd does instead.
+      //
+      // Deliberately not also listening for "viewreset" here, even though
+      // it can fire for reasons other than zoom (e.g. Map.panBy's "pan too
+      // far" workaround for a Chrome tile bug, which calls _resetView()
+      // directly for any pan larger than the map's own container size).
+      // _resetView() always fires "moveend" too, in every case including
+      // that one, so _onMapMoveEnd already reacts to it correctly as an
+      // ordinary (if large) pan -- forcing a resize/clear here as well
+      // would just be a wasted, wrong-diagnosis rebuild for what is
+      // really only a pan, discarding the "keep the old animation playing
+      // while rebuilding" continuity for no reason.
       self._rebuild(true);
     });
 
