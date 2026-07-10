@@ -1,5 +1,47 @@
 "use strict";
 
+// TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+// Mirrors every diagLog() call onto an on-page overlay, not just the
+// console -- reaching a phone's console normally means USB remote
+// debugging (chrome://inspect / Safari Web Inspector), which isn't
+// always available. This makes the same output readable (or
+// screenshot-able) directly on the device reproducing the bug, no
+// cable or desktop needed. Capped to the most recent lines so it
+// doesn't grow unbounded across a long session.
+var diagLog = function () {
+  var lines = [];
+  var el = null;
+
+  function ensureEl() {
+    if (el) return el;
+    el = document.createElement("div");
+    el.style.cssText = "position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow-y:auto;" + "background:rgba(0,0,0,0.85);color:#0f0;font:10px/1.3 monospace;padding:6px;" + "z-index:999999;white-space:pre-wrap;pointer-events:auto;";
+    document.body.appendChild(el);
+    return el;
+  }
+
+  return function diagLog(label, data) {
+    var line = new Date().toISOString().slice(11, 23) + " " + label + " " + JSON.stringify(data);
+    console.log("[diag] " + label, data);
+    lines.push(line);
+    if (lines.length > 60) lines.shift();
+    ensureEl().textContent = lines.join("\n");
+  };
+}();
+
+// TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+// Terse, JSON-friendly summary of an element's on-page rect (a raw
+// DOMRect doesn't stringify usefully).
+var diagRect = function diagRect(el) {
+  var r = el.getBoundingClientRect();
+  return {
+    x: Math.round(r.x),
+    y: Math.round(r.y),
+    w: Math.round(r.width),
+    h: Math.round(r.height)
+  };
+};
+
 /*
  Generic  Canvas Layer for leaflet 0.7 and 1.0-rc,
  copyright Stanislav Sumbera,  2016 , sumbera.com , license MIT
@@ -156,17 +198,17 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
     // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    console.log("[diag] _reset()", {
-      animatingZoom: this._map._animatingZoom,
+    diagLog("_reset()", {
+      animZoom: this._map._animatingZoom,
       mapZoom: this._map.getZoom(),
       topLeft: topLeft,
-      bottomRight: bottomRight,
-      rectBefore: this._canvas.getBoundingClientRect()
+      botRight: bottomRight,
+      rectBefore: diagRect(this._canvas)
     });
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
     this._canvas.style.height = bottomRight.y - topLeft.y + "px";
-    console.log("[diag] _reset() applied", this._canvas.getBoundingClientRect());
+    diagLog("_reset() applied", diagRect(this._canvas));
   },
   //------------------------------------------------------------------------------
   // Same technique L.ImageOverlay uses for a smooth zoom transition:
@@ -179,12 +221,11 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   // level change, familiar and expected rather than a bug.
   _animateZoom: function _animateZoom(e) {
     // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    console.log("[diag] _animateZoom() fired", {
+    diagLog("_animateZoom() fired", {
       hasBounds: !!this._bounds,
       eventZoom: e.zoom,
-      eventCenter: e.center,
       mapZoom: this._map.getZoom(),
-      animatingZoom: this._map._animatingZoom
+      animZoom: this._map._animatingZoom
     });
     if (!this._bounds) return;
 
@@ -192,7 +233,7 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
       var scale = this._map.getZoomScale(e.zoom);
       var offset = this._map._latLngBoundsToNewLayerBounds(this._bounds, e.zoom, e.center).min;
       L.DomUtil.setTransform(this._canvas, offset, scale);
-      console.log("[diag] _animateZoom() applied", { scale: scale, offset: offset });
+      diagLog("_animateZoom() applied", { scale: scale, offset: offset });
     } catch (err) {
       console.error("[leaflet-velocity] _animateZoom (zoomanim) threw:", err);
     }
@@ -426,15 +467,18 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var self = this;
 
     // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    // Logs the full lifecycle of a zoom/pan gesture (including pinch-zoom
-    // on touch, the specific reported trigger) so the actual event
-    // ordering and _animatingZoom state can be read back from a real
-    // device's console instead of guessed at.
-    ["zoomstart", "zoom", "zoomend", "movestart", "move", "moveend"].forEach(function (evtName) {
+    // Logs the start/end lifecycle of a zoom/pan gesture (including
+    // pinch-zoom on touch, the specific reported trigger) so the actual
+    // event ordering and _animatingZoom state can be read back on-device.
+    // Deliberately not "zoom"/"move" (continuous, fires every frame of a
+    // gesture) -- those would flood the capped on-screen log and push out
+    // the moments that actually matter; _animateZoom's own diagLog below
+    // already captures the live-tracking behavior during a zoom.
+    ["zoomstart", "zoomend", "movestart", "moveend"].forEach(function (evtName) {
       self._map.on(evtName, function () {
-        console.log("[diag] map event: " + evtName, {
+        diagLog("map event: " + evtName, {
           mapZoom: self._map.getZoom(),
-          animatingZoom: self._map._animatingZoom
+          animZoom: self._map._animatingZoom
         });
       });
     });
@@ -538,10 +582,10 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     if (!bounds) return;
     var zoom = this._map.getZoom();
     // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-    console.log("[diag] _rebuild() start", {
-      resizePixelBuffer: resizePixelBuffer,
+    diagLog("_rebuild() start", {
+      resize: resizePixelBuffer,
       zoom: zoom,
-      animatingZoom: this._map._animatingZoom
+      animZoom: this._map._animatingZoom
     }); // Same technique the old viewport-buffered version used (project the
     // corners at the build zoom, take the pixel delta) applied to the
     // fixed data extent instead of a viewport-relative one, then capped --
@@ -575,10 +619,10 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
       // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
-      console.log("[diag] _rebuild() onReady -> setBounds", {
+      diagLog("_rebuild() onReady", {
         builtForZoom: zoom,
-        currentMapZoom: self._map.getZoom(),
-        animatingZoom: self._map._animatingZoom
+        curMapZoom: self._map.getZoom(),
+        animZoom: self._map._animatingZoom
       });
       self._canvasLayer.setBounds(bounds);
     });
