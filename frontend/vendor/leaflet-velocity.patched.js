@@ -16,12 +16,24 @@ if (!L.DomUtil.setTransform) {
 } // -- support for both  0.0.7 and 1.0.0 rc2 leaflet
 
 
+// Rewritten from the original screen-pixel-indexed CanvasLayer (which
+// repositioned/resized itself relative to the current viewport on every
+// "moveend", requiring this content to be fully rebuilt on every single
+// pan) into a geographically-anchored layer modeled directly on Leaflet's
+// own ImageOverlay: the canvas represents a *fixed* LatLngBounds at a fixed
+// internal pixel resolution, and Leaflet's proven getEvents()/_reset()/
+// _animateZoom() pattern (the exact same one every tile and image overlay
+// uses) positions and scales it automatically during pan and zoom. A plain
+// pan within this canvas's bounds needs zero code from us at all -- the
+// map's own pane transform carries it along, the same as it does for
+// tiles. VelocityLayer only needs to rebuild the canvas (at a new,
+// re-centered LatLngBounds) when the view pans far enough to exceed it, or
+// on any zoom (since the pixel resolution needs to change to match).
 L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
-  // -- initialized is called on prototype
   initialize: function initialize(options) {
     this._map = null;
     this._canvas = null;
-    this._frame = null;
+    this._bounds = null;
     this._delegate = null;
     L.setOptions(this, options);
   },
@@ -29,45 +41,51 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     this._delegate = del;
     return this;
   },
-  needRedraw: function needRedraw() {
-    if (!this._frame) {
-      this._frame = L.Util.requestAnimFrame(this.drawLayer, this);
+  getBounds: function getBounds() {
+    return this._bounds;
+  },
+  // Updates which geographic extent this canvas represents (recentering
+  // on a new area, e.g. after panning outside the previously-built
+  // region). Deliberately does NOT touch the canvas's internal pixel
+  // buffer -- see setPixelSize for why that has to stay a separate call.
+  setBounds: function setBounds(bounds) {
+    this._bounds = bounds;
+
+    this._reset();
+    return this;
+  },
+  // Resizes the canvas's *internal* pixel buffer -- unlike setBounds
+  // above, this unavoidably clears whatever was drawn (that's just how
+  // canvas width/height assignment works in every browser, even when set
+  // to the same value it already was). Only called when the buffer's
+  // pixel dimensions actually need to change (built once at layer setup,
+  // and again only on an actual container resize) -- ordinary pan/zoom-
+  // triggered rebuilds keep the existing buffer size and just draw fresh
+  // content into it via setBounds, so the "keep the old animation playing
+  // while rebuilding" continuity (see start() in the Windy factory) isn't
+  // undermined by an incidental clear here.
+  setPixelSize: function setPixelSize(pixelWidth, pixelHeight) {
+    if (this._canvas) {
+      this._canvas.width = pixelWidth;
+      this._canvas.height = pixelHeight;
     }
 
     return this;
   },
-  //-------------------------------------------------------------
-  _onLayerDidResize: function _onLayerDidResize(resizeEvent) {
-    this._canvas.width = resizeEvent.newSize.x;
-    this._canvas.height = resizeEvent.newSize.y;
-  },
-  //-------------------------------------------------------------
-  _onLayerDidMove: function _onLayerDidMove() {
-    // Leaflet invokes this directly as a "moveend" listener with no
-    // try/catch of its own around the call -- an uncaught exception here
-    // would propagate straight back into whatever Leaflet internal function
-    // fired "moveend", potentially aborting code that runs *after* the
-    // fire() call in that function (see the "zoomanim" comment on
-    // _animateZoom below for a concrete case of exactly this doing real
-    // damage to Leaflet's own zoom state). Catch and log instead of
-    // letting anything from here reach Leaflet's dispatch loop.
-    //
-    // Repositioning happens in VelocityLayer.onDrawLayer (called via
-    // drawLayer() below), compensated against the currently-active stale
-    // particles so the reposition itself is invisible -- see the comment
-    // there for why a plain, uncompensated reposition here produced a
-    // real visible jump.
-    try {
-      this.drawLayer();
-    } catch (err) {
-      console.error("[leaflet-velocity] _onLayerDidMove threw:", err);
-    }
+  setOpacity: function setOpacity(opacity) {
+    if (this._canvas) this._canvas.style.opacity = opacity;
   },
   //-------------------------------------------------------------
   getEvents: function getEvents() {
+    // Deliberately no "moveend"/"resize" repositioning here -- a plain pan
+    // doesn't change this canvas's layer-point position at all (see the
+    // comment on _reset), and VelocityLayer itself listens for "moveend"
+    // directly to decide whether the view has panned far enough outside
+    // this canvas's bounds to warrant a rebuild, which is a different
+    // concern from repositioning.
     var events = {
-      resize: this._onLayerDidResize,
-      moveend: this._onLayerDidMove
+      zoom: this._reset,
+      viewreset: this._reset
     };
 
     if (this._map.options.zoomAnimation && L.Browser.any3d) {
@@ -80,12 +98,6 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   onAdd: function onAdd(map) {
     this._map = map;
     this._canvas = L.DomUtil.create("canvas", "leaflet-layer");
-    this.tiles = {};
-
-    var size = this._map.getSize();
-
-    this._canvas.width = size.x;
-    this._canvas.height = size.y;
     var animated = this._map.options.zoomAnimation && L.Browser.any3d;
     L.DomUtil.addClass(this._canvas, "leaflet-zoom-" + (animated ? "animated" : "hide"));
     this.options.pane.appendChild(this._canvas);
@@ -93,11 +105,7 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     var del = this._delegate || this;
     del.onLayerDidMount && del.onLayerDidMount(); // -- callback
 
-    this.needRedraw();
-    var self = this;
-    setTimeout(function () {
-      self._onLayerDidMove();
-    }, 0);
+    if (this._bounds) this._reset();
   },
   //-------------------------------------------------------------
   onRemove: function onRemove(map) {
@@ -114,55 +122,37 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     return this;
   },
   //------------------------------------------------------------------------------
-  drawLayer: function drawLayer() {
-    // -- todo make the viewInfo properties  flat objects.
-    var size = this._map.getSize();
-
-    var bounds = this._map.getBounds();
-
-    var zoom = this._map.getZoom();
-
-    var center = this._map.options.crs.project(this._map.getCenter());
-
-    var corner = this._map.options.crs.project(this._map.containerPointToLatLng(this._map.getSize()));
-
-    var del = this._delegate || this;
-    del.onDrawLayer && del.onDrawLayer({
-      layer: this,
-      canvas: this._canvas,
-      bounds: bounds,
-      size: size,
-      zoom: zoom,
-      center: center,
-      corner: corner
-    });
-    this._frame = null;
-  },
-  // -- L.DomUtil.setTransform from leaflet 1.0.0 to work on 0.0.7
-  //------------------------------------------------------------------------------
-  _setTransform: function _setTransform(el, offset, scale) {
-    var pos = offset || new L.Point(0, 0);
-    el.style[L.DomUtil.TRANSFORM] = (L.Browser.ie3d ? "translate(" + pos.x + "px," + pos.y + "px)" : "translate3d(" + pos.x + "px," + pos.y + "px,0)") + (scale ? " scale(" + scale + ")" : "");
+  // Positions and sizes the canvas element from its fixed LatLngBounds --
+  // identical in spirit to L.ImageOverlay._reset(). Since this._bounds
+  // never changes for a plain pan (only VelocityLayer choosing to rebuild
+  // it, on zoom or panning outside it, changes it), this only actually
+  // needs to run on "zoom"/"viewreset" (handled by getEvents() above) plus
+  // once whenever setBounds() is called for a rebuild -- never on an
+  // ordinary pan, which Leaflet's own pane transform already carries this
+  // element through correctly with no repositioning needed at all.
+  _reset: function _reset() {
+    if (!this._bounds) return;
+    var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
+    var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
+    L.DomUtil.setPosition(this._canvas, topLeft);
+    this._canvas.style.width = bottomRight.x - topLeft.x + "px";
+    this._canvas.style.height = bottomRight.y - topLeft.y + "px";
   },
   //------------------------------------------------------------------------------
+  // Same technique L.ImageOverlay uses for a smooth zoom transition:
+  // CSS-transform the element to its *target* zoom-level position/scale for
+  // the duration of the animated zoom, rather than leaving it at its
+  // pre-zoom position/size until _reset() catches up at zoomend. The
+  // canvas's own pixel content stays exactly what it was (at the old
+  // zoom's resolution) through this, so it reads as slightly soft/blurry
+  // during the transition -- the same tradeoff tiles make at every zoom
+  // level change, familiar and expected rather than a bug.
   _animateZoom: function _animateZoom(e) {
-    // Leaflet's own Map._animateZoom calls `this.fire('zoomanim', ...)`
-    // synchronously and, critically, its *own* zoom-finalizing this._move()
-    // call and the setTimeout fallback that resets _animatingZoom both sit
-    // textually *after* that fire() call in the same function -- if any
-    // "zoomanim" listener throws (this one included), those never run.
-    // _animatingZoom then stays stuck true forever, since there's no other
-    // path that resets it, and Leaflet's _tryAnimatedZoom guards every
-    // subsequent zoom attempt on `!this._map._animatingZoom` -- so every
-    // future zoom silently no-ops. That's "zoom stops working after a
-    // single zoom in," and it doesn't require this specific handler to be
-    // the one throwing: *any* zoomanim listener on the map throwing has the
-    // same effect. Guarding this one removes it as a possible cause and
-    // logs instead of failing silently into that stuck state.
-    try {
-      var scale = this._map.getZoomScale(e.zoom); // -- different calc of offset in leaflet 1.0.0 and 0.0.7 thanks for 1.0.0-rc2 calc @jduggan1
+    if (!this._bounds) return;
 
-      var offset = L.Layer ? this._map._latLngToNewLayerPoint(this._map.getBounds().getNorthWest(), e.zoom, e.center) : this._map._getCenterOffset(e.center)._multiplyBy(-scale).subtract(this._map._getMapPanePos());
+    try {
+      var scale = this._map.getZoomScale(e.zoom);
+      var offset = this._map._latLngBoundsToNewLayerBounds(this._bounds, e.zoom, e.center).min;
       L.DomUtil.setTransform(this._canvas, offset, scale);
     } catch (err) {
       console.error("[leaflet-velocity] _animateZoom (zoomanim) threw:", err);
@@ -170,8 +160,8 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   }
 });
 
-L.canvasLayer = function (pane) {
-  return new L.CanvasLayer(pane);
+L.canvasLayer = function (options) {
+  return new L.CanvasLayer(options);
 };
 
 L.Control.Velocity = L.Control.extend({
@@ -331,8 +321,23 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   _canvasLayer: null,
   _windy: null,
   _context: null,
-  _timer: 0,
   _mouseControl: null,
+  // How generously to buffer the built region beyond the current viewport,
+  // as a fraction of the viewport's own width/height added to *each* side
+  // (0.75 means the buffered region ends up 2.5x the viewport's own
+  // width/height -- see LatLngBounds.pad, used below, which grows by
+  // exactly this factor). Panning within this buffered area needs no
+  // rebuild, canvas reposition, or any other code at all: this canvas is
+  // anchored to a fixed geographic area (see project()/invert() in the
+  // Windy factory below), and Leaflet's own pane transform already
+  // carries any pane child through a pan correctly, the same way it does
+  // for tiles -- that's the whole point of this rewrite (see git history
+  // around 2026-07-10 for the viewport-relative version this replaced,
+  // and the various position/compensation patches that were needed to
+  // paper over it). Only exceeding this buffer, or any zoom (which
+  // changes the pixel resolution needed for the same on-screen density),
+  // triggers an actual rebuild.
+  BUFFER_RATIO: 0.75,
   initialize: function initialize(options) {
     L.setOptions(this, options);
   },
@@ -359,6 +364,27 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     this._canvasLayer.addTo(map);
 
     this._map = map;
+
+    this._initWindy();
+
+    var self = this;
+
+    this._map.on("moveend", function () {
+      self._onMapMoveEnd();
+    });
+
+    this._map.on("zoomend viewreset resize", function () {
+      // Any of these genuinely invalidate the built region -- a zoom
+      // changes the pixel resolution needed for the same on-screen
+      // density, a container resize changes how big the buffered canvas
+      // needs to be in the first place -- so always rebuild (and resize
+      // the pixel buffer) rather than only rebuilding if the buffer's
+      // geographic bounds were exceeded, which is the (much more common)
+      // plain-pan check _onMapMoveEnd does instead.
+      self._rebuild(true);
+    });
+
+    this._initMouseHandler(false);
   },
   onRemove: function onRemove(map) {
     this._destroyWind();
@@ -369,13 +395,13 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     if (this._windy) {
       this._windy.setData(data);
 
-      // A real data reload (not a view-change resync) always needs a hard
-      // clear -- the old trails represent stale data, not just a stale
-      // scale, so _clearAndRestart's "skip the clear for a plain drag"
-      // logic doesn't apply here.
-      if (this._context) this._context.clearRect(0, 0, 3000, 3000);
+      // A real data reload always needs a hard clear -- the old trails
+      // represent stale data, not just a stale (but still geographically
+      // valid) view, so the no-clear treatment ordinary rebuilds get in
+      // start() (Windy factory) doesn't apply here.
+      this._hardClear();
 
-      this._startWindy();
+      this._rebuild(false);
     }
 
     this.fire("load");
@@ -399,154 +425,72 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
       if (options.hasOwnProperty("data")) this._windy.setData(options.data);
 
-      // See setData above -- always a hard clear here too, never the
-      // conditional-on-zoom skip _clearAndRestart uses for view changes.
-      if (this._context) this._context.clearRect(0, 0, 3000, 3000);
+      this._hardClear(); // see setData above
 
-      this._startWindy();
+
+      this._rebuild(false);
     }
 
     this.fire("load");
   },
 
   /*------------------------------------ PRIVATE ------------------------------------------*/
-  onDrawLayer: function onDrawLayer(overlay, params) {
-    var self = this;
-
-    if (!this._windy) {
-      this._initWindy(this);
-
-      return;
-    }
-
-    if (!this.options.data) {
-      return;
-    } // Reposition the canvas immediately (every "moveend" calls this, via
-    // _onLayerDidMove -> drawLayer -> here), not just once the debounced
-    // rebuild below finishes. Confirmed with real numbers (not just
-    // reasoning about it) that this canvas's resting position is always
-    // the same page-relative point regardless of how far you've panned --
-    // it's pinned to the viewport corner, since its content is drawn in
-    // viewport-relative pixels. That pin is correct on its own, but
-    // applying it produces a real jump in the *previous* frame's still-
-    // showing stale particles, which don't know to move with it. Shifting
-    // those particles by the exact opposite of this reposition's delta
-    // makes the reposition itself invisible -- the particles end up
-    // exactly where they visually were the instant before, and only the
-    // debounced rebuild's fresh, geographically-accurate content actually
-    // changes what's shown, not this repositioning step.
-
-
-    var topLeft = this._map.containerPointToLayerPoint([0, 0]);
-
-    if (this._lastTopLeft) {
-      var dx = topLeft.x - this._lastTopLeft.x;
-      var dy = topLeft.y - this._lastTopLeft.y;
-
-      if (dx || dy) {
-        if (this._windy.activeParticles) {
-          this._windy.activeParticles.forEach(function (p) {
-            p.x -= dx;
-            p.y -= dy;
-
-            if (p.xt !== undefined) {
-              p.xt -= dx;
-              p.yt -= dy;
-            }
-          });
-        } // Shifting particle coordinates only affects *future* strokes drawn
-        // from the next frame onward -- this canvas never fully clears
-        // (draw() fades it via a slow destination-in composite, not a hard
-        // clear), so most of what's actually visible at any moment is
-        // pixels already baked into the bitmap from many previous frames.
-        // Repositioning the canvas element moves all of that existing
-        // content on the page too; only actually shifting the bitmap
-        // itself (not just where future strokes land) keeps existing,
-        // still-fading trails visually in place through the reposition.
-
-
-        var ctx = this._canvasLayer._canvas.getContext("2d");
-        var prevComposite = ctx.globalCompositeOperation;
-        ctx.globalCompositeOperation = "copy"; // replace destination outright, no blending with the shifted-out-of-place source
-
-        ctx.drawImage(this._canvasLayer._canvas, -dx, -dy);
-        ctx.globalCompositeOperation = prevComposite;
-      }
-    }
-
-    this._lastTopLeft = topLeft;
-    // Using this._canvasLayer._canvas rather than overlay.canvas -- _initWindy
-    // calls this method directly with no argument at all (see its last line),
-    // so `overlay` is undefined on that call and overlay.canvas would throw.
-    L.DomUtil.setPosition(this._canvasLayer._canvas, topLeft);
-
-    if (this._timer) clearTimeout(self._timer);
-    this._timer = setTimeout(function () {
-      self._startWindy();
-    }, 120); // patched down from 750ms so the flow snaps back almost
-             // immediately after a pan/zoom settles (see CurrentFlowLayer.tsx)
-  },
-  _startWindy: function _startWindy() {
-    var bounds = this._map.getBounds();
-
-    var size = this._map.getSize(); // bounds, width, height, extent
-
-    // Canvas repositioning happens immediately in onDrawLayer (compensated
-    // against the stale particles so it's invisible), not here -- this
-    // just kicks off the actual geographically-accurate rebuild.
-
-    this._windy.start([[0, 0], [size.x, size.y]], size.x, size.y, [[bounds._southWest.lng, bounds._southWest.lat], [bounds._northEast.lng, bounds._northEast.lat]]);
-  },
-  _initWindy: function _initWindy(self) {
-    // windy object, copy options
+  _initWindy: function _initWindy() {
     var options = Object.assign({
-      canvas: self._canvasLayer._canvas,
+      canvas: this._canvasLayer._canvas,
       map: this._map
-    }, self.options);
-    this._windy = new Windy(options); // prepare context global var, start drawing
-
+    }, this.options);
+    this._windy = new Windy(options);
     this._context = this._canvasLayer._canvas.getContext("2d");
 
     this._canvasLayer._canvas.classList.add("velocity-overlay");
 
-    this.onDrawLayer();
+    if (this.options.data) this._rebuild(true);
+  },
+  // Checked on every plain "moveend" -- the common case, and the one this
+  // whole rewrite is about making cheap. If the view hasn't panned outside
+  // the region this canvas was last built for, there is *nothing to do*:
+  // no reposition, no rebuild, no compensation -- Leaflet's own pane
+  // transform has already carried this canvas to the geographically
+  // correct place, same as it does for every tile.
+  _onMapMoveEnd: function _onMapMoveEnd() {
+    if (!this._windy || !this.options.data) return;
+    var builtBounds = this._canvasLayer.getBounds();
+    if (builtBounds && builtBounds.contains(this._map.getBounds())) return;
+    this._rebuild(false);
+  },
+  // resizePixelBuffer: true for the very first build, and for a genuine
+  // zoom/container-resize (where the pixel resolution actually needs to
+  // change); false for an ordinary pan-exceeded-the-buffer rebuild, which
+  // reuses the existing pixel buffer size and therefore doesn't clear the
+  // canvas -- letting the "keep the old animation playing while rebuilding"
+  // continuity in the Windy factory's start() work as intended.
+  _rebuild: function _rebuild(resizePixelBuffer) {
+    if (!this._windy || !this.options.data) return;
+    var viewBounds = this._map.getBounds();
+    var bufferedBounds = viewBounds.pad(this.BUFFER_RATIO);
+    var zoom = this._map.getZoom();
+    var viewSize = this._map.getSize();
+    var scale = 1 + this.BUFFER_RATIO * 2; // matches LatLngBounds.pad's own growth factor
 
-    // Patched out (was `this._map.on("dragstart", self._windy.stop)`): a
-    // pan doesn't invalidate the projection the way a zoom does, so there's
-    // no need to freeze the animation for it. Leaflet drags this canvas
-    // along via the overlay pane's own CSS transform like any other layer,
-    // so the already-running particle animation keeps playing and moving
-    // with the map through the whole gesture instead of freezing mid-drag
-    // and reshuffling on release. The field resyncs to the exact new
-    // viewport on "moveend" below once the gesture settles, same as before.
+    var pixelWidth = Math.round(viewSize.x * scale);
+    var pixelHeight = Math.round(viewSize.y * scale);
 
-    this._map.on("moveend", self._clearAndRestart);
+    if (resizePixelBuffer || pixelWidth !== this._builtPixelWidth || pixelHeight !== this._builtPixelHeight) {
+      this._canvasLayer.setPixelSize(pixelWidth, pixelHeight);
+      this._builtPixelWidth = pixelWidth;
+      this._builtPixelHeight = pixelHeight;
+    }
 
-    // Tracks whether the restart triggered by "moveend" below was preceded
-    // by a zoom, so _clearAndRestart knows whether a hard clear is actually
-    // needed (see the comment there).
-    this._zooming = false;
+    this._canvasLayer.setBounds(bufferedBounds);
+    var extent = [[bufferedBounds.getWest(), bufferedBounds.getSouth()], [bufferedBounds.getEast(), bufferedBounds.getNorth()]];
 
-    this._map.on("zoomstart", function () {
-      // Same reasoning as _animateZoom above: "zoomstart" is fired from
-      // inside Map._moveStart, which _tryAnimatedZoom calls chained
-      // straight into _animateZoom (".` _moveStart(...)._animateZoom(...)`)
-      // -- an uncaught throw here would skip that chained _animateZoom
-      // call entirely for this zoom attempt. Not the same failure mode as
-      // the zoomanim case, but no reason to risk it either.
-      try {
-        self._zooming = true;
-        if (self._windy) self._windy.stop();
-      } catch (err) {
-        console.error("[leaflet-velocity] zoomstart handler threw:", err);
-      }
-    });
-
-    this._map.on("zoomend", self._clearAndRestart);
-
-    this._map.on("resize", self._clearWind);
-
-    this._initMouseHandler(false);
+    this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom);
+  },
+  _hardClear: function _hardClear() {
+    if (this._context && this._canvasLayer._canvas) {
+      this._context.clearRect(0, 0, this._canvasLayer._canvas.width, this._canvasLayer._canvas.height);
+    }
   },
   _initMouseHandler: function _initMouseHandler(voidPrevious) {
     if (voidPrevious) {
@@ -561,37 +505,11 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
       this._mouseControl = L.control.velocity(options).addTo(this._map);
     }
   },
-  _clearAndRestart: function _clearAndRestart() {
-    // Only hard-clear when this restart follows a zoom. A zoom actually
-    // changes the pixel<->lonlat scale, so the frozen pre-zoom bitmap (drawn
-    // at the old scale) would be genuinely misaligned with the new one if
-    // left to fade out on top of it -- worth the blank flash there.
-    //
-    // A plain drag doesn't change scale, so the existing frame is still
-    // geographically valid (just briefly approximate at the very edges).
-    // Clearing on every moveend regardless of cause was the actual "vanish
-    // then repopulate" bug: it wiped the canvas to blank before the new
-    // field's particles had spun up. Windy's own per-frame draw() already
-    // fades old trails via a "destination-in" fillRect rather than a hard
-    // clear, and _startWindy seeds its fresh particle array with randomized
-    // starting ages (not all-zero), so for a drag, skipping this clear lets
-    // the old (still-valid) frame fade out while the new field's particles
-    // draw on top from their very first frame, instead of a blank-then-rebuild.
-    if (this._zooming) {
-      if (this._context) this._context.clearRect(0, 0, 3000, 3000);
-      this._zooming = false;
-    }
-
-    if (this._windy) this._startWindy();
-  },
-  _clearWind: function _clearWind() {
-    if (this._windy) this._windy.stop();
-    if (this._context) this._context.clearRect(0, 0, 3000, 3000);
-  },
   _destroyWind: function _destroyWind() {
-    if (this._timer) clearTimeout(this._timer);
     if (this._windy) this._windy.stop();
-    if (this._context) this._context.clearRect(0, 0, 3000, 3000);
+
+    this._hardClear();
+
     if (this._mouseControl) this._map.removeControl(this._mouseControl);
     this._mouseControl = null;
     this._windy = null;
@@ -934,14 +852,29 @@ var Windy = function Windy(params) {
     return deg / 180 * Math.PI;
   };
 
+  // referenceZoom/originPoint anchor this canvas's internal pixel space to
+  // a fixed geographic frame instead of the current viewport: set once per
+  // rebuild (see start(), below) from map.project(bounds.getNorthWest(),
+  // zoomAtBuildTime) -- a pure function of (latlng, zoom) that Leaflet
+  // itself uses for tile positioning, entirely independent of the current
+  // pan position. Panning the map afterward doesn't change what these
+  // functions compute at all, which is the whole point: this content
+  // doesn't need to know a pan happened, because it was never expressed in
+  // viewport-relative terms to begin with. (A zoom *does* invalidate this
+  // frame -- see the rebuild-on-zoom logic in VelocityLayer.)
+  var referenceZoom = null;
+  var originPoint = null;
+
   var invert = function invert(x, y, windy) {
-    var latlon = params.map.containerPointToLatLng(L.point(x, y));
+    if (referenceZoom === null) return null;
+    var latlon = params.map.unproject(L.point(x + originPoint.x, y + originPoint.y), referenceZoom);
     return [latlon.lng, latlon.lat];
   };
 
   var project = function project(lat, lon, windy) {
-    var xy = params.map.latLngToContainerPoint(L.latLng(lat, lon));
-    return [xy.x, xy.y];
+    if (referenceZoom === null) return null;
+    var xy = params.map.project(L.latLng(lat, lon), referenceZoom);
+    return [xy.x - originPoint.x, xy.y - originPoint.y];
   };
 
   // Pixel spacing at which the background velocity lookup grid is actually
@@ -1074,14 +1007,7 @@ var Windy = function Windy(params) {
       particles.push(field.randomize({
         age: Math.floor(Math.random() * MAX_PARTICLE_AGE) + 0
       }));
-    } // Exposed so VelocityLayer can compensate these positions by the exact
-    // opposite of any canvas-repositioning delta (see onDrawLayer) -- this
-    // array is mutated in place, so the running frame() loop below (which
-    // closes over this same `particles` reference) picks up the
-    // compensation immediately on its next tick.
-
-
-    windy.activeParticles = particles;
+    }
 
     function evolve() {
       buckets.forEach(function (bucket) {
@@ -1169,7 +1095,7 @@ var Windy = function Windy(params) {
     })();
   };
 
-  var start = function start(bounds, width, height, extent) {
+  var start = function start(bounds, width, height, extent, refZoomAtBuild) {
     var mapBounds = {
       south: deg2rad(extent[0][1]),
       north: deg2rad(extent[1][1]),
@@ -1177,8 +1103,15 @@ var Windy = function Windy(params) {
       west: deg2rad(extent[0][0]),
       width: width,
       height: height
-    };
-    // Deliberately not calling stop() here. Whatever's currently animating
+    }; // Fix this rebuild's reference frame *before* any interpolation runs --
+    // invert()/project() (used throughout buildGrid/interpolateField) read
+    // referenceZoom/originPoint directly. Canvas-local (0,0) is defined to
+    // be extent's northwest corner at refZoomAtBuild, matching exactly what
+    // CanvasLayer._reset() positions the element's own (0,0) at (see the
+    // comment there) -- this is what keeps the two consistent.
+
+    referenceZoom = refZoomAtBuild;
+    originPoint = params.map.project(L.latLng(extent[1][1], extent[0][0]), refZoomAtBuild); // Deliberately not calling stop() here. Whatever's currently animating
     // (activeGeneration's loop, if any) keeps running exactly as-is --
     // against its own now slightly-stale bounds/field -- while this
     // rebuild happens in the background. Real currents don't meaningfully
