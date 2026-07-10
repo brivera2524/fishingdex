@@ -52,23 +52,12 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     // damage to Leaflet's own zoom state). Catch and log instead of
     // letting anything from here reach Leaflet's dispatch loop.
     //
-    // Deliberately NOT repositioning the canvas here anymore. This
-    // layer's content (the particle field) is drawn in viewport-relative
-    // pixels that only become valid again once VelocityLayer's rebuild for
-    // the new view actually finishes -- repositioning the canvas element
-    // immediately on every "moveend" moved it out ahead of that content,
-    // so for however long the rebuild took, the still-showing stale
-    // content was flying past its own container. VelocityLayer's
-    // _startWindy now repositions the canvas itself, synchronized to the
-    // exact moment its rebuilt content actually takes over (see its
-    // onReady callback into windy.start).
+    // Repositioning happens in VelocityLayer.onDrawLayer (called via
+    // drawLayer() below), compensated against the currently-active stale
+    // particles so the reposition itself is invisible -- see the comment
+    // there for why a plain, uncompensated reposition here produced a
+    // real visible jump.
     try {
-      var rect = this._canvas.getBoundingClientRect();
-      console.log(
-        "[leaflet-velocity] moveend fired, canvas rect currently=(%s,%s)",
-        Math.round(rect.left),
-        Math.round(rect.top)
-      );
       this.drawLayer();
     } catch (err) {
       console.error("[leaflet-velocity] _onLayerDidMove threw:", err);
@@ -432,7 +421,43 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     if (!this.options.data) {
       return;
+    } // Reposition the canvas immediately (every "moveend" calls this, via
+    // _onLayerDidMove -> drawLayer -> here), not just once the debounced
+    // rebuild below finishes. Confirmed with real numbers (not just
+    // reasoning about it) that this canvas's resting position is always
+    // the same page-relative point regardless of how far you've panned --
+    // it's pinned to the viewport corner, since its content is drawn in
+    // viewport-relative pixels. That pin is correct on its own, but
+    // applying it produces a real jump in the *previous* frame's still-
+    // showing stale particles, which don't know to move with it. Shifting
+    // those particles by the exact opposite of this reposition's delta
+    // makes the reposition itself invisible -- the particles end up
+    // exactly where they visually were the instant before, and only the
+    // debounced rebuild's fresh, geographically-accurate content actually
+    // changes what's shown, not this repositioning step.
+
+
+    var topLeft = this._map.containerPointToLayerPoint([0, 0]);
+
+    if (this._lastTopLeft) {
+      var dx = topLeft.x - this._lastTopLeft.x;
+      var dy = topLeft.y - this._lastTopLeft.y;
+
+      if ((dx || dy) && this._windy.activeParticles) {
+        this._windy.activeParticles.forEach(function (p) {
+          p.x -= dx;
+          p.y -= dy;
+
+          if (p.xt !== undefined) {
+            p.xt -= dx;
+            p.yt -= dy;
+          }
+        });
+      }
     }
+
+    this._lastTopLeft = topLeft;
+    L.DomUtil.setPosition(overlay.canvas, topLeft);
 
     if (this._timer) clearTimeout(self._timer);
     this._timer = setTimeout(function () {
@@ -441,43 +466,15 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
              // immediately after a pan/zoom settles (see CurrentFlowLayer.tsx)
   },
   _startWindy: function _startWindy() {
-    var self = this;
     var bounds = this._map.getBounds();
 
     var size = this._map.getSize(); // bounds, width, height, extent
 
+    // Canvas repositioning happens immediately in onDrawLayer (compensated
+    // against the stale particles so it's invisible), not here -- this
+    // just kicks off the actual geographically-accurate rebuild.
 
-    this._windy.start(
-      [[0, 0], [size.x, size.y]],
-      size.x,
-      size.y,
-      [[bounds._southWest.lng, bounds._southWest.lat], [bounds._northEast.lng, bounds._northEast.lat]],
-      function onReady() {
-        // Called the instant windy's rebuilt field/particles actually take
-        // over (see the generation-swap comments in start() below) --
-        // reposition the canvas now, in the same breath its content
-        // becomes valid for the current view, instead of independently on
-        // every "moveend" (see the comment removed from
-        // CanvasLayer._onLayerDidMove for why that was wrong).
-        try {
-          var topLeft = self._map.containerPointToLayerPoint([0, 0]);
-          var rectBefore = self._canvasLayer._canvas.getBoundingClientRect();
-          L.DomUtil.setPosition(self._canvasLayer._canvas, topLeft);
-          var rectAfter = self._canvasLayer._canvas.getBoundingClientRect();
-          console.log(
-            "[leaflet-velocity] onReady reposition: topLeft=(%s,%s) canvas rect before=(%s,%s) after=(%s,%s)",
-            topLeft.x,
-            topLeft.y,
-            Math.round(rectBefore.left),
-            Math.round(rectBefore.top),
-            Math.round(rectAfter.left),
-            Math.round(rectAfter.top)
-          );
-        } catch (err) {
-          console.error("[leaflet-velocity] _startWindy onReady threw:", err);
-        }
-      }
-    );
+    this._windy.start([[0, 0], [size.x, size.y]], size.x, size.y, [[bounds._southWest.lng, bounds._southWest.lat], [bounds._northEast.lng, bounds._northEast.lat]]);
   },
   _initWindy: function _initWindy(self) {
     // windy object, copy options
@@ -1056,7 +1053,14 @@ var Windy = function Windy(params) {
       particles.push(field.randomize({
         age: Math.floor(Math.random() * MAX_PARTICLE_AGE) + 0
       }));
-    }
+    } // Exposed so VelocityLayer can compensate these positions by the exact
+    // opposite of any canvas-repositioning delta (see onDrawLayer) -- this
+    // array is mutated in place, so the running frame() loop below (which
+    // closes over this same `particles` reference) picks up the
+    // compensation immediately on its next tick.
+
+
+    windy.activeParticles = particles;
 
     function evolve() {
       buckets.forEach(function (bucket) {
@@ -1144,7 +1148,7 @@ var Windy = function Windy(params) {
     })();
   };
 
-  var start = function start(bounds, width, height, extent, onReady) {
+  var start = function start(bounds, width, height, extent) {
     var mapBounds = {
       south: deg2rad(extent[0][1]),
       north: deg2rad(extent[1][1]),
@@ -1185,11 +1189,6 @@ var Windy = function Windy(params) {
         activeGeneration = myGeneration;
         windy.field = field;
         animate(bounds, field, myGeneration);
-        // Content just became valid for the current view -- tell the
-        // caller (VelocityLayer._startWindy) so it can reposition the
-        // canvas element in the same breath, instead of that happening
-        // independently (and prematurely) elsewhere.
-        if (onReady) onReady();
       });
     });
   };
