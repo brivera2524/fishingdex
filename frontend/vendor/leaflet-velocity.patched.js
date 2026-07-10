@@ -145,20 +145,24 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   // that's already finished and ready to display.
   _reset: function _reset() {
     if (!this._bounds) return;
+    var rectBefore = this._canvas.getBoundingClientRect();
     var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
-    console.log(
-      "[leaflet-velocity] _reset() repositioning to bounds=%s topLeft=(%s,%s) size=(%s,%s)",
-      this._bounds.toBBoxString(),
-      Math.round(topLeft.x),
-      Math.round(topLeft.y),
-      Math.round(bottomRight.x - topLeft.x),
-      Math.round(bottomRight.y - topLeft.y)
-    );
-    console.trace("[leaflet-velocity] _reset() call stack");
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
     this._canvas.style.height = bottomRight.y - topLeft.y + "px";
+    var rectAfter = this._canvas.getBoundingClientRect();
+    console.log(
+      "[leaflet-velocity] _reset() page rect before=(%s,%s,%sx%s) after=(%s,%s,%sx%s)",
+      Math.round(rectBefore.left),
+      Math.round(rectBefore.top),
+      Math.round(rectBefore.width),
+      Math.round(rectBefore.height),
+      Math.round(rectAfter.left),
+      Math.round(rectAfter.top),
+      Math.round(rectAfter.width),
+      Math.round(rectAfter.height)
+    );
   },
   //------------------------------------------------------------------------------
   // Same technique L.ImageOverlay uses for a smooth zoom transition:
@@ -410,6 +414,15 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     this._map.on("moveend", function () {
       self._onMapMoveEnd();
+    }); // TEMPORARY diagnostic: log the canvas's actual on-screen rect on
+    // every "move" (fired continuously during a live drag), not just
+    // "moveend", to see whether it visually jumps mid-gesture rather than
+    // only at an explicit _reset() call.
+
+    this._map.on("move", function () {
+      if (!self._canvasLayer._canvas) return;
+      var rect = self._canvasLayer._canvas.getBoundingClientRect();
+      console.log("[leaflet-velocity] move: canvas page rect=(%s,%s,%sx%s)", Math.round(rect.left), Math.round(rect.top), Math.round(rect.width), Math.round(rect.height));
     });
 
     this._map.on("zoomend resize", function () {
