@@ -21,20 +21,30 @@ if (!L.DomUtil.setTransform) {
 // "moveend", requiring this content to be fully rebuilt on every single
 // pan) into a geographically-anchored layer modeled directly on Leaflet's
 // own ImageOverlay: the canvas represents a *fixed* LatLngBounds at a fixed
-// internal pixel resolution, and Leaflet's proven getEvents()/_reset()/
-// _animateZoom() pattern (the exact same one every tile and image overlay
-// uses) positions and scales it automatically during pan and zoom. A plain
-// pan within this canvas's bounds needs zero code from us at all -- the
-// map's own pane transform carries it along, the same as it does for
-// tiles. VelocityLayer only needs to rebuild the canvas (at a new,
-// re-centered LatLngBounds) when the view pans far enough to exceed it, or
-// on any zoom (since the pixel resolution needs to change to match).
+// internal pixel resolution, and _reset() (see below) positions and sizes
+// it from that whenever it's called. A plain pan within this canvas's
+// bounds needs zero code from us at all -- the map's own pane transform
+// carries it along, the same as it does for tiles. VelocityLayer only
+// needs to rebuild the canvas (at a new, re-centered LatLngBounds) when
+// the view pans far enough to exceed it, or on any zoom (since the pixel
+// resolution needs to change to match).
+//
+// Unlike ImageOverlay, this canvas does *not* implement its own
+// "zoomanim" handler to live-track a zoom gesture's CSS transition --
+// that was tried (twice, including matching ImageOverlay's own
+// getZoomScale(e.zoom, this._zoom) call signature exactly) and still
+// produced a stretched/misaligned result specifically on a real device's
+// finger pinch (a continuous gesture, unlike a discrete scroll/click
+// zoom step). Instead this canvas uses the "leaflet-zoom-hide" class
+// (see onAdd) -- Leaflet's own built-in answer for a layer that doesn't
+// track the animation: hidden for the transition's ~250ms, reappearing
+// already correctly positioned via _reset() at zoomend. No custom
+// zoom-transition math left to get wrong.
 L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   initialize: function initialize(options) {
     this._map = null;
     this._canvas = null;
     this._bounds = null;
-    this._zoom = null;
     this._delegate = null;
     L.setOptions(this, options);
   },
@@ -78,50 +88,54 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   },
   //-------------------------------------------------------------
   getEvents: function getEvents() {
-    // Deliberately no "zoom"/"viewreset"/"moveend"/"resize" repositioning
-    // here at all -- unlike ImageOverlay (which this class's _reset/
-    // _animateZoom pattern is modeled on), this canvas's content isn't a
-    // static image that's always valid for its bounds; it has to be
-    // rebuilt for a new region on zoom, and VelocityLayer's own rebuild
-    // logic is what decides when a pan has exceeded the buffered region.
-    // Repositioning is gated on that rebuild actually finishing (see
-    // VelocityLayer._rebuild's onReady callback into windy.start, which
-    // calls setBounds() -- and setBounds() is what calls _reset()).
+    // Deliberately no event bindings here at all -- not "zoom"/"viewreset"/
+    // "moveend"/"resize", and not "zoomanim" either (see onAdd's
+    // "leaflet-zoom-hide" comment for why the latter was removed).
     //
-    // Binding "viewreset" here directly (as ImageOverlay does) is actively
-    // wrong for this layer: Map.panBy has a "pan too far" workaround for a
-    // Chrome tile-rendering bug (#2602) that skips the normal smooth-pan
-    // animation and calls _resetView() directly instead for any pan
-    // larger than the map's own container size -- and _resetView() fires
-    // both "moveend" *and* "viewreset". That "viewreset" would reposition
-    // this canvas immediately, ungated, using this._bounds before
-    // VelocityLayer's rebuild (already triggered by the "moveend" that
-    // fired moments earlier) has had any chance to finish -- exactly the
-    // "repositioned before its content is ready" bug this whole onReady
-    // mechanism exists to prevent, and why it was only ever visible on
-    // large pans specifically.
-    var events = {};
-
-    if (this._map.options.zoomAnimation && L.Browser.any3d) {
-      events.zoomanim = this._animateZoom;
-    }
-
-    return events;
+    // This canvas's content isn't a static image that's always valid for
+    // its bounds; it has to be rebuilt for a new region on zoom, and
+    // VelocityLayer's own rebuild logic is what decides when a pan has
+    // exceeded the buffered region. Repositioning is gated on that
+    // rebuild actually finishing (see VelocityLayer._rebuild's onReady
+    // callback into windy.start, which calls setBounds() -- and
+    // setBounds() is what calls _reset()).
+    //
+    // Binding "viewreset" here directly (as ImageOverlay does) would
+    // actively be wrong for this layer: Map.panBy has a "pan too far"
+    // workaround for a Chrome tile-rendering bug (#2602) that skips the
+    // normal smooth-pan animation and calls _resetView() directly instead
+    // for any pan larger than the map's own container size -- and
+    // _resetView() fires both "moveend" *and* "viewreset". That
+    // "viewreset" would reposition this canvas immediately, ungated,
+    // using this._bounds before VelocityLayer's rebuild (already
+    // triggered by the "moveend" that fired moments earlier) has had any
+    // chance to finish -- exactly the "repositioned before its content is
+    // ready" bug this whole onReady mechanism exists to prevent, and why
+    // it was only ever visible on large pans specifically.
+    return {};
   },
   //-------------------------------------------------------------
   onAdd: function onAdd(map) {
     this._map = map;
-    this._canvas = L.DomUtil.create("canvas", "leaflet-layer");
-    var animated = this._map.options.zoomAnimation && L.Browser.any3d;
-    L.DomUtil.addClass(this._canvas, "leaflet-zoom-" + (animated ? "animated" : "hide"));
-    // No CSS transition on this element's transform: a `transition: transform`
-    // was tried briefly to soften _reset()'s reposition, but the swap to a
-    // new generation now hard-clears the canvas first (see Windy's start()),
-    // so by the time _reset() moves it there's nothing but blank pixels on
-    // it -- animating that move just reads as the (still-empty) canvas
-    // visibly sliding in from the wrong spot before repopulating. Snapping
-    // straight to the correct position is the better tradeoff now that the
-    // clear makes the snap itself invisible.
+    this._canvas = L.DomUtil.create("canvas", "leaflet-layer"); // "leaflet-zoom-hide" (not "leaflet-zoom-animated") -- this canvas
+    // deliberately does not try to live-track a zoom gesture via its own
+    // "zoomanim" transform. A hand-rolled _animateZoom attempt (matching
+    // real L.ImageOverlay's own getZoomScale(e.zoom, this._zoom) pattern
+    // exactly) was tried and, even so, still produced a stretched/
+    // misaligned result specifically on a real device's finger pinch --
+    // a gesture whose zoom is continuous while your fingers move, unlike
+    // a discrete scroll/click zoom step, and apparently still not
+    // something this custom transform math gets right in practice.
+    // Leaflet has a built-in, zero-custom-math answer for exactly this
+    // case: "leaflet-zoom-hide" is the standard class for layers that
+    // don't support a smooth zoom transition -- Leaflet hides them for
+    // the animation's duration and nothing more is needed. This canvas
+    // simply disappears for that brief (~250ms) window and reappears
+    // already correctly positioned the instant _reset() runs at
+    // zoomend/onReady -- no scale/offset math of our own left to get
+    // wrong.
+
+    L.DomUtil.addClass(this._canvas, "leaflet-zoom-hide");
     this.options.pane.appendChild(this._canvas);
     map.on(this.getEvents(), this);
     var del = this._delegate || this;
@@ -158,47 +172,7 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
-    this._canvas.style.height = bottomRight.y - topLeft.y + "px"; // Remembers the zoom this reset was performed at -- _animateZoom needs
-    // a *stable* reference zoom to scale from (see there for why), not
-    // whatever the live map zoom happens to read as by the time it runs.
-
-    this._zoom = this._map.getZoom();
-  },
-  //------------------------------------------------------------------------------
-  // Same technique L.ImageOverlay uses for a smooth zoom transition:
-  // CSS-transform the element to its *target* zoom-level position/scale for
-  // the duration of the animated zoom, rather than leaving it at its
-  // pre-zoom position/size until _reset() catches up at zoomend. The
-  // canvas's own pixel content stays exactly what it was (at the old
-  // zoom's resolution) through this, so it reads as slightly soft/blurry
-  // during the transition -- the same tradeoff tiles make at every zoom
-  // level change, familiar and expected rather than a bug.
-  //
-  // getZoomScale's second argument matters here and was the actual bug:
-  // omitting it (as this code did until diagnosed on a real device) makes
-  // it default to this._map.getZoom() -- the *live* map zoom at the exact
-  // instant this handler happens to run. For a discrete scroll/click zoom
-  // that's harmless (zoom jumps in one clean step, so the live value read
-  // here is stable). A finger pinch is continuous, though: the map's zoom
-  // keeps changing for as long as your fingers move, only snapping to a
-  // clean integer once you release. Reading the live zoom mid-pinch could
-  // catch it already ahead of (or behind) e.zoom's target, computing a
-  // scale relative to the wrong "from" and stretching this canvas out of
-  // sync with the map -- confirmed live: a zoom *in* (11->12) once logged
-  // mapZoom already at 12.07 by the time this ran, producing a *shrink*
-  // (0.951) instead of the expected growth. Passing this._zoom (this
-  // layer's own last-_reset()-at zoom, exactly what real ImageOverlay
-  // does) anchors the scale to a stable reference instead.
-  _animateZoom: function _animateZoom(e) {
-    if (!this._bounds) return;
-
-    try {
-      var scale = this._map.getZoomScale(e.zoom, this._zoom);
-      var offset = this._map._latLngBoundsToNewLayerBounds(this._bounds, e.zoom, e.center).min;
-      L.DomUtil.setTransform(this._canvas, offset, scale);
-    } catch (err) {
-      console.error("[leaflet-velocity] _animateZoom (zoomanim) threw:", err);
-    }
+    this._canvas.style.height = bottomRight.y - topLeft.y + "px";
   }
 });
 
@@ -1050,14 +1024,14 @@ var Windy = function Windy(params) {
   // valid field animating uninterrupted in the background instead of
   // stopping everything immediately and leaving nothing on screen until
   // the new one is ready. A zoom doesn't need a separate freeze the way it
-  // once did: CanvasLayer._animateZoom already CSS-transforms the whole
-  // canvas element (translate + scale) to track the zoom transition
-  // visually, so whatever's still being drawn underneath in the old
-  // coordinate space gets carried along with it, the same way a tile
-  // looks correct (if a little soft) mid-zoom before a sharper one loads.
-  // stop() itself is now only ever called on layer teardown (see
-  // _destroyWind) -- every rebuild, pan or zoom, goes through start()'s
-  // own generation-swap logic below instead.
+  // once did: the canvas element itself is hidden for a zoom's brief
+  // transition (CanvasLayer's "leaflet-zoom-hide" class -- see there),
+  // so whatever generation is still animating underneath during that
+  // window is simply not visible regardless, and reappears (via _reset())
+  // already showing whichever generation is active by the time the
+  // transition ends. stop() itself is now only ever called on layer
+  // teardown (see _destroyWind) -- every rebuild, pan or zoom, goes
+  // through start()'s own generation-swap logic below instead.
   var currentGeneration = 0;
   var activeGeneration = 0;
 
