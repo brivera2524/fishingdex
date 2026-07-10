@@ -51,9 +51,18 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     // _animateZoom below for a concrete case of exactly this doing real
     // damage to Leaflet's own zoom state). Catch and log instead of
     // letting anything from here reach Leaflet's dispatch loop.
+    //
+    // Deliberately NOT repositioning the canvas here anymore. This
+    // layer's content (the particle field) is drawn in viewport-relative
+    // pixels that only become valid again once VelocityLayer's rebuild for
+    // the new view actually finishes -- repositioning the canvas element
+    // immediately on every "moveend" moved it out ahead of that content,
+    // so for however long the rebuild took, the still-showing stale
+    // content was flying past its own container. VelocityLayer's
+    // _startWindy now repositions the canvas itself, synchronized to the
+    // exact moment its rebuilt content actually takes over (see its
+    // onReady callback into windy.start).
     try {
-      var topLeft = this._map.containerPointToLayerPoint([0, 0]);
-      L.DomUtil.setPosition(this._canvas, topLeft);
       this.drawLayer();
     } catch (err) {
       console.error("[leaflet-velocity] _onLayerDidMove threw:", err);
@@ -426,12 +435,32 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
              // immediately after a pan/zoom settles (see CurrentFlowLayer.tsx)
   },
   _startWindy: function _startWindy() {
+    var self = this;
     var bounds = this._map.getBounds();
 
     var size = this._map.getSize(); // bounds, width, height, extent
 
 
-    this._windy.start([[0, 0], [size.x, size.y]], size.x, size.y, [[bounds._southWest.lng, bounds._southWest.lat], [bounds._northEast.lng, bounds._northEast.lat]]);
+    this._windy.start(
+      [[0, 0], [size.x, size.y]],
+      size.x,
+      size.y,
+      [[bounds._southWest.lng, bounds._southWest.lat], [bounds._northEast.lng, bounds._northEast.lat]],
+      function onReady() {
+        // Called the instant windy's rebuilt field/particles actually take
+        // over (see the generation-swap comments in start() below) --
+        // reposition the canvas now, in the same breath its content
+        // becomes valid for the current view, instead of independently on
+        // every "moveend" (see the comment removed from
+        // CanvasLayer._onLayerDidMove for why that was wrong).
+        try {
+          var topLeft = self._map.containerPointToLayerPoint([0, 0]);
+          L.DomUtil.setPosition(self._canvasLayer._canvas, topLeft);
+        } catch (err) {
+          console.error("[leaflet-velocity] _startWindy onReady threw:", err);
+        }
+      }
+    );
   },
   _initWindy: function _initWindy(self) {
     // windy object, copy options
@@ -1098,7 +1127,7 @@ var Windy = function Windy(params) {
     })();
   };
 
-  var start = function start(bounds, width, height, extent) {
+  var start = function start(bounds, width, height, extent, onReady) {
     var mapBounds = {
       south: deg2rad(extent[0][1]),
       north: deg2rad(extent[1][1]),
@@ -1139,6 +1168,11 @@ var Windy = function Windy(params) {
         activeGeneration = myGeneration;
         windy.field = field;
         animate(bounds, field, myGeneration);
+        // Content just became valid for the current view -- tell the
+        // caller (VelocityLayer._startWindy) so it can reposition the
+        // canvas element in the same breath, instead of that happening
+        // independently (and prematurely) elsewhere.
+        if (onReady) onReady();
       });
     });
   };
