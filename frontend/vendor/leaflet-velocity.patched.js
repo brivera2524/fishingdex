@@ -345,37 +345,37 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   _mouseControl: null,
   // Pixel dimensions the canvas's internal buffer was last built at --
   // undefined until the first _rebuild() call. Compared against the
-  // freshly-computed target size on every _rebuild() so an ordinary pan
-  // (same viewport size, just a different center) skips the resize (and
-  // the clear it would otherwise cause) entirely.
+  // freshly-computed target size on every _rebuild() so a rebuild at the
+  // same effective resolution (e.g. re-hitting the MAX_BUILD_DIMENSION cap
+  // at a different zoom) skips the resize (and the clear it would
+  // otherwise cause) entirely.
   _builtPixelWidth: undefined,
   _builtPixelHeight: undefined,
-  // How generously to buffer the built region beyond the current viewport,
-  // as a fraction of the viewport's own width/height added to *each* side
-  // (0.25 means the buffered region ends up 1.5x the viewport's own
-  // width/height, i.e. ~2.25x its area -- see LatLngBounds.pad, used
-  // below, which grows by exactly this factor). Panning within this
-  // buffered area needs no rebuild, canvas reposition, or any other code
-  // at all: this canvas is anchored to a fixed geographic area (see
-  // project()/invert() in the Windy factory below), and Leaflet's own
-  // pane transform already carries any pane child through a pan
-  // correctly, the same way it does for tiles. Only exceeding this
-  // buffer, or any zoom (which changes the pixel resolution needed for
-  // the same on-screen density), triggers an actual rebuild.
+  // The canvas always covers this layer's *entire* data extent (the served
+  // field's own geographic bounding box -- see _dataBounds), not just the
+  // current viewport. A plain pan therefore never needs a rebuild at all:
+  // the fixed-bounds canvas is anchored geographically (see project()/
+  // invert() in the Windy factory below) and Leaflet's own pane transform
+  // carries it through a pan correctly, same as a tile. Only a zoom or
+  // container resize (which change the pixel density needed for the same
+  // on-screen detail) or a genuine data reload ever rebuilds.
   //
-  // Deliberately kept modest rather than very generous: interpolateField's
-  // cost scales with this region's area, and the only way to keep a much
-  // larger buffer cheap is a coarser FIELD_PIXEL_STEP -- which directly
-  // widens the land-mask "bleed" radius at every coastline (a coarser
-  // step fills a bigger block around each sample with that one sample's
-  // land/water value). A previous attempt used a much larger buffer
-  // (0.75) with a coarser step (8px) to compensate, which reintroduced
-  // exactly that bug -- real current visibly bleeding onto land. Rebuilds
-  // being somewhat more frequent with a smaller buffer is an acceptable
-  // trade against that; they're fast (see FIELD_PIXEL_STEP) and don't
-  // interrupt the animation (see the generation-swap continuity in
-  // start(), below).
-  BUFFER_RATIO: 0.25,
+  // The one thing this trades away: at high enough zoom, the *ideal* pixel
+  // size for this fixed geographic extent (computed via map.project, same
+  // technique the old viewport-buffered version used) keeps growing --
+  // unlike a viewport-relative buffer, which stays roughly screen-sized at
+  // any zoom, since a "viewport" covers less ground the more you zoom in.
+  // Capped here at MAX_BUILD_DIMENSION per side rather than left
+  // unbounded, both because canvases this large risk hitting real browser
+  // size/memory limits (especially on the phones this PWA targets) and
+  // because interpolateField's cost scales with the built area. Past
+  // whatever zoom level first hits the cap, the canvas stops gaining
+  // resolution and instead just gets progressively more CSS-upscaled (the
+  // same soft-past-max-zoom look every raster tile layer has) -- an
+  // acceptable tradeoff given how coarse the underlying current data
+  // already is (see FIELD_PIXEL_STEP, and the land-mask precision limits
+  // noted below).
+  MAX_BUILD_DIMENSION: 4096,
   initialize: function initialize(options) {
     L.setOptions(this, options);
   },
@@ -407,29 +407,14 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     var self = this;
 
-    this._map.on("moveend", function () {
-      self._onMapMoveEnd();
-    });
-
     this._map.on("zoomend resize", function () {
-      // Both genuinely invalidate the built region's resolution -- a zoom
+      // The only two things that ever invalidate this canvas now that it
+      // always covers its full data extent regardless of pan: a zoom
       // changes the pixel density needed for the same on-screen detail, a
-      // container resize changes how big the buffered canvas needs to be
-      // in the first place -- so always rebuild (and resize the pixel
-      // buffer) here, rather than only rebuilding if the buffer's
-      // geographic bounds were exceeded, which is the (much more common)
-      // plain-pan check _onMapMoveEnd does instead.
-      //
-      // Deliberately not also listening for "viewreset" here, even though
-      // it can fire for reasons other than zoom (e.g. Map.panBy's "pan too
-      // far" workaround for a Chrome tile bug, which calls _resetView()
-      // directly for any pan larger than the map's own container size).
-      // _resetView() always fires "moveend" too, in every case including
-      // that one, so _onMapMoveEnd already reacts to it correctly as an
-      // ordinary (if large) pan -- forcing a resize/clear here as well
-      // would just be a wasted, wrong-diagnosis rebuild for what is
-      // really only a pan, discarding the "keep the old animation playing
-      // while rebuilding" continuity for no reason.
+      // container resize changes how big the canvas needs to be to keep
+      // covering that same fixed geographic extent at 1:1 density. Plain
+      // panning needs no listener at all -- see the class-level comment
+      // above MAX_BUILD_DIMENSION.
       self._rebuild(true);
     });
 
@@ -496,55 +481,62 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     if (this.options.data) this._rebuild(true);
   },
-  // Checked on every plain "moveend" -- the common case, and the one this
-  // whole rewrite is about making cheap. If the view hasn't panned outside
-  // the region this canvas was last built for, there is *nothing to do*:
-  // no reposition, no rebuild, no compensation -- Leaflet's own pane
-  // transform has already carried this canvas to the geographically
-  // correct place, same as it does for every tile.
-  _onMapMoveEnd: function _onMapMoveEnd() {
-    if (!this._windy || !this.options.data) return;
-    var builtBounds = this._canvasLayer.getBounds();
-    if (builtBounds && builtBounds.contains(this._map.getBounds())) return;
-    this._rebuild(false);
+  // This layer's data is a fixed geographic grid (see each record's header:
+  // la1/lo1 is the NW corner, la2/lo2 the SE corner -- both backend sources
+  // this app uses, ocean_current.py and sdbay_remap.py, populate all four
+  // directly rather than requiring la2/lo2 to be derived from dx/dy/nx/ny).
+  // Reading them straight off the header sidesteps needing to replicate
+  // buildGrid's own scanMode-direction handling here.
+  _dataBounds: function _dataBounds() {
+    var records = this.options.data;
+    if (!records || !records.length) return null;
+    var header = records[0].header;
+    return L.latLngBounds([header.la2, header.lo1], [header.la1, header.lo2]);
   },
   // resizePixelBuffer: true for the very first build, and for a genuine
-  // zoom/container-resize (where the pixel resolution actually needs to
-  // change); false for an ordinary pan-exceeded-the-buffer rebuild, which
-  // reuses the existing pixel buffer size and therefore doesn't clear the
-  // canvas -- letting the "keep the old animation playing while rebuilding"
-  // continuity in the Windy factory's start() work as intended.
+  // zoom/container-resize (where the target pixel size actually changes);
+  // false for a data reload at the same view, which reuses the existing
+  // pixel buffer size and therefore doesn't clear the canvas -- letting
+  // the "keep the old animation playing while rebuilding" continuity in
+  // the Windy factory's start() work as intended.
   _rebuild: function _rebuild(resizePixelBuffer) {
     if (!this._windy || !this.options.data) return;
     var self = this;
-    var viewBounds = this._map.getBounds();
-    var bufferedBounds = viewBounds.pad(this.BUFFER_RATIO);
-    var zoom = this._map.getZoom();
-    var viewSize = this._map.getSize();
-    var scale = 1 + this.BUFFER_RATIO * 2; // matches LatLngBounds.pad's own growth factor
+    var bounds = this._dataBounds();
+    if (!bounds) return;
+    var zoom = this._map.getZoom(); // Same technique the old viewport-buffered version used (project the
+    // corners at the build zoom, take the pixel delta) applied to the
+    // fixed data extent instead of a viewport-relative one, then capped --
+    // see the MAX_BUILD_DIMENSION comment above for why a cap is needed
+    // here where it wasn't for a viewport-sized buffer.
 
-    var pixelWidth = Math.round(viewSize.x * scale);
-    var pixelHeight = Math.round(viewSize.y * scale);
+    var nw = this._map.project(bounds.getNorthWest(), zoom);
+    var se = this._map.project(bounds.getSouthEast(), zoom);
+    var idealWidth = Math.abs(se.x - nw.x);
+    var idealHeight = Math.abs(se.y - nw.y);
+    var capScale = Math.min(1, this.MAX_BUILD_DIMENSION / Math.max(idealWidth, idealHeight));
+    var pixelWidth = Math.max(1, Math.round(idealWidth * capScale));
+    var pixelHeight = Math.max(1, Math.round(idealHeight * capScale));
 
     if (resizePixelBuffer || pixelWidth !== this._builtPixelWidth || pixelHeight !== this._builtPixelHeight) {
       this._canvasLayer.setPixelSize(pixelWidth, pixelHeight);
       this._builtPixelWidth = pixelWidth;
       this._builtPixelHeight = pixelHeight;
     } // Deliberately not repositioning the canvas here. interpolateField's
-    // cost scales with this buffered region's area, and can take long
-    // enough (a single synchronous burst, well within its own 1000ms
-    // yield threshold) to visibly block a frame or two -- repositioning
-    // the element immediately would move it to the new bounds while it's
+    // cost scales with this region's area, and can take long enough (a
+    // single synchronous burst, well within its own 1000ms yield
+    // threshold) to visibly block a frame or two -- repositioning the
+    // element immediately would move it to the new bounds while it's
     // still showing the *previous* bounds' content, which is exactly what
     // read as "reappearing in a different location." windy.start()'s
     // onReady callback repositions it at the same instant fresh content
     // actually becomes valid instead.
 
 
-    var extent = [[bufferedBounds.getWest(), bufferedBounds.getSouth()], [bufferedBounds.getEast(), bufferedBounds.getNorth()]];
+    var extent = [[bounds.getWest(), bounds.getSouth()], [bounds.getEast(), bounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
-      self._canvasLayer.setBounds(bufferedBounds);
+      self._canvasLayer.setBounds(bounds);
     });
   },
   _hardClear: function _hardClear() {
@@ -944,18 +936,18 @@ var Windy = function Windy(params) {
   // size, causing several ~70ms main-thread violations on every single
   // restart (measured in production); 4px roughly quarters that cost.
   //
-  // Deliberately NOT raised further to compensate for VelocityLayer now
-  // building a buffered region larger than a single viewport (see
-  // BUFFER_RATIO) -- a coarser step doesn't just lose lookup-grid
-  // precision in open water (harmless, since real currents vary smoothly
-  // over tens of meters), it also widens the "bleed" radius of the
-  // land/water mask at every coastline: a single sample that happens to
-  // land on water fills the *entire* step x step block around it with
-  // that water value, even where part of that block is actually land on
-  // the basemap. Raising this to 8px to afford a larger buffer reintroduced
+  // Deliberately not raised further, even though VelocityLayer now builds
+  // this layer's entire data extent (see MAX_BUILD_DIMENSION there) rather
+  // than a viewport-sized region -- a coarser step doesn't just lose
+  // lookup-grid precision in open water (harmless, since real currents
+  // vary smoothly over tens of meters), it also widens the "bleed" radius
+  // of the land/water mask at every coastline: a single sample that
+  // happens to land on water fills the *entire* step x step block around
+  // it with that water value, even where part of that block is actually
+  // land on the basemap. Raising this to 8px previously reintroduced
   // exactly that as a real, visible bug (current visibly crossing onto
-  // land); BUFFER_RATIO is what actually got tuned down to compensate for
-  // cost instead, since shrinking the buffer doesn't cost any precision.
+  // land) when the built region grew; MAX_BUILD_DIMENSION's cap is what
+  // keeps this cost bounded now instead.
   var FIELD_PIXEL_STEP = 4;
 
   var interpolateField = function interpolateField(grid, bounds, extent, callback) {
@@ -1048,16 +1040,7 @@ var Windy = function Windy(params) {
   var currentGeneration = 0;
   var activeGeneration = 0;
 
-  // How many virtual frames of trail buildup to pre-render offscreen before
-  // a generation swap reveals itself, and how many of those to run per real
-  // animation-frame tick (batching several per tick so the wall-clock delay
-  // before cutover stays short even though full trail density -- governed
-  // by OPACITY's per-frame decay -- would otherwise take dozens of frames to
-  // approach). See the priming block inside animate() for how this is used.
-  var PRIME_TICKS = 15;
-  var PRIME_STEPS_PER_TICK = 4;
-
-  var animate = function animate(bounds, field, myGeneration, onReady) {
+  var animate = function animate(bounds, field, myGeneration) {
     function windIntensityColorScale(min, max) {
       colorScale.indexFor = function (m) {
         // map velocity speed to a style
@@ -1123,104 +1106,50 @@ var Windy = function Windy(params) {
       });
     }
 
-    // Takes the target 2D context explicitly rather than closing over one --
-    // priming draws into a scratch offscreen canvas, the real frame loop
-    // (below, after cutover) draws into params.canvas, and both need this
-    // same fade+stroke logic.
-    function draw(context) {
-      context.lineWidth = PARTICLE_LINE_WIDTH; // Fade existing particle trails.
+    var g = params.canvas.getContext("2d");
+    g.lineWidth = PARTICLE_LINE_WIDTH;
+    g.fillStyle = fadeFillStyle;
 
-      context.fillStyle = fadeFillStyle;
-      context.globalCompositeOperation = "destination-in";
-      context.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-      context.globalCompositeOperation = "source-over";
-      context.globalAlpha = OPACITY === 0 ? 0 : OPACITY * 0.9; // Draw new particle trails.
+    function draw() {
+      // Fade existing particle trails.
+      g.globalCompositeOperation = "destination-in";
+      g.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      g.globalCompositeOperation = "source-over";
+      g.globalAlpha = OPACITY === 0 ? 0 : OPACITY * 0.9; // Draw new particle trails.
 
       buckets.forEach(function (bucket, i) {
         if (bucket.length > 0) {
-          context.beginPath();
-          context.strokeStyle = colorStyles[i];
+          g.beginPath();
+          g.strokeStyle = colorStyles[i];
           bucket.forEach(function (particle) {
-            context.moveTo(particle.x, particle.y);
-            context.lineTo(particle.xt, particle.yt);
+            g.moveTo(particle.x, particle.y);
+            g.lineTo(particle.xt, particle.yt);
             particle.x = particle.xt;
             particle.y = particle.yt;
           });
-          context.stroke();
+          g.stroke();
         }
       });
     }
 
-    // Prime an offscreen buffer with several virtual frames of trail
-    // buildup before this generation ever touches the visible canvas.
-    // draw() only ever partially fades the previous frame (destination-in),
-    // so a canvas that's just been hard-cleared reads as sparse/blank for
-    // quite a few real frames while trails accumulate back up to steady
-    // density -- exactly the "blank frame or two" on every rebuild. Priming
-    // offscreen means whatever's currently on the *visible* canvas (the
-    // previous generation, if any) is left completely undisturbed and kept
-    // animating right up until this generation is already fully populated
-    // and ready to reveal in one shot.
-    var primeCanvas = document.createElement("canvas");
-    primeCanvas.width = params.canvas.width;
-    primeCanvas.height = params.canvas.height;
-    var primeCtx = primeCanvas.getContext("2d");
-    var primeTicksDone = 0;
+    var then = Date.now();
 
-    (function primeFrame() {
-      // A newer start() superseded this one before it ever got to reveal
-      // itself -- die quietly, same as the frame() loop's own check below.
-      if (myGeneration !== currentGeneration) return;
+    (function frame() {
+      // A newer rebuild has actually finished and taken over since this
+      // loop's animate() call -- die quietly instead of continuing to
+      // fight the newer loop for the canvas and the shared
+      // `animationLoop` variable. (Checked against activeGeneration, not
+      // currentGeneration -- see the comment where these are declared.)
+      if (myGeneration !== activeGeneration) return;
+      animationLoop = requestAnimationFrame(frame);
+      var now = Date.now();
+      var delta = now - then;
 
-      for (var step = 0; step < PRIME_STEPS_PER_TICK; step++) {
+      if (delta > FRAME_TIME) {
+        then = now - delta % FRAME_TIME;
         evolve();
-        draw(primeCtx);
+        draw();
       }
-
-      primeTicksDone += 1;
-
-      if (primeTicksDone < PRIME_TICKS) {
-        requestAnimationFrame(primeFrame);
-        return;
-      } // Priming is done -- cut over now: retire whatever was previously
-      // active (if anything), reveal this generation's already-populated
-      // buffer in a single paint (no partial-fade blank period on the real
-      // canvas at all), and keep the same particles animating forward from
-      // here via the normal frame loop.
-
-
-      if (windy.field) windy.field.release();
-      if (animationLoop) cancelAnimationFrame(animationLoop);
-      var g = params.canvas.getContext("2d");
-      g.clearRect(0, 0, params.canvas.width, params.canvas.height);
-      g.drawImage(primeCanvas, 0, 0);
-      activeGeneration = myGeneration;
-      windy.field = field;
-      var then = Date.now();
-
-      (function frame() {
-        // A newer rebuild has actually finished and taken over since this
-        // loop started -- die quietly instead of continuing to fight the
-        // newer loop for the canvas and the shared `animationLoop`
-        // variable. (Checked against activeGeneration, not
-        // currentGeneration -- see the comment where these are declared.)
-        if (myGeneration !== activeGeneration) return;
-        animationLoop = requestAnimationFrame(frame);
-        var now = Date.now();
-        var delta = now - then;
-
-        if (delta > FRAME_TIME) {
-          then = now - delta % FRAME_TIME;
-          evolve();
-          draw(g);
-        }
-      })(); // Fresh content just became valid *and visible* -- tell the caller
-      // (VelocityLayer._rebuild) so it can reposition the canvas element in
-      // the same breath, instead of moving it before this generation was
-      // ready to be seen.
-
-
-      if (onReady) onReady();
     })();
   };
 
@@ -1264,15 +1193,39 @@ var Windy = function Windy(params) {
         // Same check again -- interpolateField itself yields across
         // multiple setTimeout batches for large fields, so a newer start()
         // can just as easily supersede this call while it's still running.
-        if (myGeneration !== currentGeneration) return; // The actual cutover (releasing the old field, cancelling its loop,
-        // publishing this as the active generation, and calling onReady) is
-        // deferred until animate() has finished priming an offscreen buffer
-        // for this generation -- see the priming block there for why:
-        // revealing this generation the instant its field finishes
-        // computing, before it has any accumulated trail density, is
-        // exactly what read as a blank/sparse flash on every rebuild.
+        if (myGeneration !== currentGeneration) return; // Now actually cut over: this rebuild is both finished and
+        // still the latest request, so stop whatever was animating before
+        // (if anything -- there may be nothing, on the very first start())
+        // and publish this as the new active generation.
 
-        animate(bounds, field, myGeneration, onReady);
+        if (windy.field) windy.field.release();
+        if (animationLoop) cancelAnimationFrame(animationLoop);
+        // Hard-clear before handing off, rather than letting the new
+        // generation's draw() (which only ever does a partial destination-in
+        // fade, never a full clear) paint over whatever's still on the
+        // canvas. The old generation's pixels were laid out under its own
+        // referenceZoom/originPoint -- a different coordinate mapping for
+        // the same canvas-local pixel grid -- so for anything but a tiny
+        // pan they land nowhere near where the new generation's content
+        // means them to be. Left uncleared, the still-fading old frame and
+        // the fresh new one read as two separate, misaligned visualizations
+        // briefly overlapping instead of one cutting over to the other. An
+        // offscreen-priming approach (build up trail density before ever
+        // touching the visible canvas) was tried to avoid the resulting
+        // blank/sparse moment, but didn't read as an improvement live, so
+        // back to the simple version -- the always-render-the-full-extent
+        // change in VelocityLayer._rebuild is the real fix for how often
+        // this swap (and its blank moment) happens at all.
+        params.canvas.getContext("2d").clearRect(0, 0, params.canvas.width, params.canvas.height);
+        activeGeneration = myGeneration;
+        windy.field = field;
+        animate(bounds, field, myGeneration); // Fresh content just became valid for this rebuild's bounds -- tell
+        // the caller (VelocityLayer._rebuild) so it can reposition the
+        // canvas element in the same breath, instead of moving it the
+        // instant _rebuild() was called and leaving still-stale content
+        // sitting at the new position until this finishes.
+
+        if (onReady) onReady();
       });
     });
   };
