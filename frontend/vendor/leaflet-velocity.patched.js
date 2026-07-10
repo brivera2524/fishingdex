@@ -415,27 +415,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
       // covering that same fixed geographic extent at 1:1 density. Plain
       // panning needs no listener at all -- see the class-level comment
       // above MAX_BUILD_DIMENSION.
-      //
-      // Debounced rather than rebuilding on every single "zoomend": this
-      // build can now be a canvas up to MAX_BUILD_DIMENSION per side
-      // (much larger, and much more expensive to interpolateField, than
-      // the old viewport-sized buffer), and setPixelSize always clears
-      // the bitmap the instant it's called. A scroll-wheel or pinch zoom
-      // fires several "zoomend"s in quick succession -- rebuilding
-      // (clear + recompute) on every one of them meant the canvas spent
-      // the whole gesture being wiped and superseded before any one
-      // rebuild finished, reading as "frozen and detached from the map"
-      // rather than tracking it. _animateZoom's live CSS-transform
-      // tracking (bound above, same mechanism tiles use) already keeps
-      // the existing bitmap correctly positioned and scaled through
-      // every intermediate step on its own, softening only until the
-      // debounced rebuild below sharpens it -- the same tradeoff
-      // MAX_BUILD_DIMENSION's cap already accepts past its own limit.
-      if (self._zoomRebuildTimer) clearTimeout(self._zoomRebuildTimer);
-      self._zoomRebuildTimer = setTimeout(function () {
-        self._zoomRebuildTimer = null;
-        self._rebuild(true);
-      }, 200);
+      self._rebuild(true);
     });
 
     this._initMouseHandler(false);
@@ -556,39 +536,8 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var extent = [[bounds.getWest(), bounds.getSouth()], [bounds.getEast(), bounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
-      self._setBoundsWhenSafe(bounds);
-    });
-  },
-  // interpolateField can take long enough that a *new* zoom gesture has
-  // started since the rebuild calling this kicked off. _reset() (inside
-  // setBounds) sets an absolute, non-animated position/size via
-  // L.DomUtil.setPosition -- calling it mid-gesture would stomp on
-  // _animateZoom's own live transform for the zoom actually in progress,
-  // freezing the canvas at this (already-stale) target while the map
-  // keeps visibly animating around it.
-  //
-  // Deferred rather than skipped outright: skipping relied on the
-  // in-progress gesture's own "zoomend" re-triggering a rebuild later to
-  // ever correct this -- fine normally, but this._map._animatingZoom is a
-  // known-fragile flag (see the zoomanim try/catch below, added after it
-  // got stuck true *permanently* once before, breaking every future zoom)
-  // and pinch-zoom on touch has been observed to leave it stuck here too.
-  // A stuck flag would mean no "zoomend" (or none _animatingZoom actually
-  // clears for) ever comes, permanently freezing this layer instead of
-  // just delaying one reposition. The timeout forces it regardless after
-  // a short wait, so a stuck flag costs one possibly-mid-gesture-stale
-  // frame instead of a permanent freeze.
-  _setBoundsWhenSafe: function _setBoundsWhenSafe(bounds) {
-    var self = this;
-
-    if (!this._map._animatingZoom) {
-      this._canvasLayer.setBounds(bounds);
-      return;
-    }
-
-    setTimeout(function () {
       self._canvasLayer.setBounds(bounds);
-    }, 300);
+    });
   },
   _hardClear: function _hardClear() {
     if (this._context && this._canvasLayer._canvas) {
@@ -609,11 +558,6 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     }
   },
   _destroyWind: function _destroyWind() {
-    if (this._zoomRebuildTimer) {
-      clearTimeout(this._zoomRebuildTimer);
-      this._zoomRebuildTimer = null;
-    }
-
     if (this._windy) this._windy.stop();
 
     this._hardClear();
