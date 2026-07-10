@@ -415,7 +415,27 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
       // covering that same fixed geographic extent at 1:1 density. Plain
       // panning needs no listener at all -- see the class-level comment
       // above MAX_BUILD_DIMENSION.
-      self._rebuild(true);
+      //
+      // Debounced rather than rebuilding on every single "zoomend": this
+      // build can now be a canvas up to MAX_BUILD_DIMENSION per side
+      // (much larger, and much more expensive to interpolateField, than
+      // the old viewport-sized buffer), and setPixelSize always clears
+      // the bitmap the instant it's called. A scroll-wheel or pinch zoom
+      // fires several "zoomend"s in quick succession -- rebuilding
+      // (clear + recompute) on every one of them meant the canvas spent
+      // the whole gesture being wiped and superseded before any one
+      // rebuild finished, reading as "frozen and detached from the map"
+      // rather than tracking it. _animateZoom's live CSS-transform
+      // tracking (bound above, same mechanism tiles use) already keeps
+      // the existing bitmap correctly positioned and scaled through
+      // every intermediate step on its own, softening only until the
+      // debounced rebuild below sharpens it -- the same tradeoff
+      // MAX_BUILD_DIMENSION's cap already accepts past its own limit.
+      if (self._zoomRebuildTimer) clearTimeout(self._zoomRebuildTimer);
+      self._zoomRebuildTimer = setTimeout(function () {
+        self._zoomRebuildTimer = null;
+        self._rebuild(true);
+      }, 200);
     });
 
     this._initMouseHandler(false);
@@ -558,6 +578,11 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     }
   },
   _destroyWind: function _destroyWind() {
+    if (this._zoomRebuildTimer) {
+      clearTimeout(this._zoomRebuildTimer);
+      this._zoomRebuildTimer = null;
+    }
+
     if (this._windy) this._windy.stop();
 
     this._hardClear();
