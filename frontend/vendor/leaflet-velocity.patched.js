@@ -113,22 +113,14 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     this._canvas = L.DomUtil.create("canvas", "leaflet-layer");
     var animated = this._map.options.zoomAnimation && L.Browser.any3d;
     L.DomUtil.addClass(this._canvas, "leaflet-zoom-" + (animated ? "animated" : "hide"));
-    // Since this canvas's buffered region is always re-centered on the
-    // *current* viewport on rebuild (see VelocityLayer._rebuild), and the
-    // viewport itself always occupies the same fixed spot on the page,
-    // _reset()'s resulting position is always the same fixed offset
-    // regardless of how far you've panned -- correct in principle, but for
-    // a large pan that resting position can be far from wherever the live
-    // drag (tracked via the map pane's own transform, which this canvas
-    // inherits as a pane child) left it, so snapping there instantly reads
-    // as a jarring backward jump proportional to the pan distance. This
-    // transition doesn't fix that snap -- it makes it a brief, smooth
-    // settle instead of an instant jump. It only ever applies to our own
-    // explicit _reset() calls (a handful of setBounds()-triggered
-    // repositions per session); the live-drag tracking itself is the
-    // map pane's own transform, a different element entirely, unaffected
-    // by this.
-    this._canvas.style.transition = "transform 0.2s ease-out";
+    // No CSS transition on this element's transform: a `transition: transform`
+    // was tried briefly to soften _reset()'s reposition, but the swap to a
+    // new generation now hard-clears the canvas first (see Windy's start()),
+    // so by the time _reset() moves it there's nothing but blank pixels on
+    // it -- animating that move just reads as the (still-empty) canvas
+    // visibly sliding in from the wrong spot before repopulating. Snapping
+    // straight to the correct position is the better tradeoff now that the
+    // clear makes the snap itself invisible.
     this.options.pane.appendChild(this._canvas);
     map.on(this.getEvents(), this);
     var del = this._delegate || this;
