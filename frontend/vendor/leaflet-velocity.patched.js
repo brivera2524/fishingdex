@@ -467,6 +467,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   // continuity in the Windy factory's start() work as intended.
   _rebuild: function _rebuild(resizePixelBuffer) {
     if (!this._windy || !this.options.data) return;
+    var self = this;
     var viewBounds = this._map.getBounds();
     var bufferedBounds = viewBounds.pad(this.BUFFER_RATIO);
     var zoom = this._map.getZoom();
@@ -480,12 +481,22 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
       this._canvasLayer.setPixelSize(pixelWidth, pixelHeight);
       this._builtPixelWidth = pixelWidth;
       this._builtPixelHeight = pixelHeight;
-    }
+    } // Deliberately not repositioning the canvas here. interpolateField's
+    // cost scales with this buffered region's area, and can take long
+    // enough (a single synchronous burst, well within its own 1000ms
+    // yield threshold) to visibly block a frame or two -- repositioning
+    // the element immediately would move it to the new bounds while it's
+    // still showing the *previous* bounds' content, which is exactly what
+    // read as "reappearing in a different location." windy.start()'s
+    // onReady callback repositions it at the same instant fresh content
+    // actually becomes valid instead.
 
-    this._canvasLayer.setBounds(bufferedBounds);
+
     var extent = [[bufferedBounds.getWest(), bufferedBounds.getSouth()], [bufferedBounds.getEast(), bufferedBounds.getNorth()]];
 
-    this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom);
+    this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
+      self._canvasLayer.setBounds(bufferedBounds);
+    });
   },
   _hardClear: function _hardClear() {
     if (this._context && this._canvasLayer._canvas) {
@@ -880,18 +891,20 @@ var Windy = function Windy(params) {
   // Pixel spacing at which the background velocity lookup grid is actually
   // sampled -- the rest of the pixels in each step are just filled with the
   // nearest computed value (see the dx/dy fill loops below), not
-  // recomputed. This ran at a fixed 2px step regardless of viewport size,
-  // meaning a normal-sized viewport needed on the order of a few hundred
-  // thousand grid.interpolate()+distort() calls on every single restart --
-  // measured in production as several ~70ms "'setTimeout' handler took"
-  // main-thread violations right at drag release, which is what read as
-  // the field "disappearing" (the tab is too busy to render anything else
-  // while this runs) before "repopulating" once it finally finishes. 4px
-  // roughly quarters that cost for a ~1px-noticeable loss of lookup-grid
-  // precision -- particle positions and drawn trails are still full
-  // sub-pixel precision throughout; only the underlying velocity sampling
-  // grid this is querying got coarser.
-  var FIELD_PIXEL_STEP = 4;
+  // recomputed. Originally ran at a fixed 2px step regardless of viewport
+  // size, causing several ~70ms main-thread violations on every single
+  // restart (measured in production). Now that VelocityLayer builds a
+  // *buffered* region (2.5x the viewport's width and height, i.e. ~6.25x
+  // the area of a single viewport -- see BUFFER_RATIO) rather than the
+  // viewport alone, that same per-pixel cost needs a correspondingly
+  // coarser step to stay cheap: 8px keeps a single rebuild's cost in the
+  // same rough ballpark as the original viewport-sized build was at 4px,
+  // despite covering ~6x the area. Real currents vary smoothly over tens
+  // of meters (many screen pixels at any normal zoom), so this shouldn't
+  // be visually distinguishable -- particle positions and drawn trails
+  // remain full sub-pixel precision throughout; only the resolution of
+  // the velocity grid they're *querying* got coarser.
+  var FIELD_PIXEL_STEP = 8;
 
   var interpolateField = function interpolateField(grid, bounds, extent, callback) {
     var projection = {}; // map.crs used instead
@@ -1095,7 +1108,7 @@ var Windy = function Windy(params) {
     })();
   };
 
-  var start = function start(bounds, width, height, extent, refZoomAtBuild) {
+  var start = function start(bounds, width, height, extent, refZoomAtBuild, onReady) {
     var mapBounds = {
       south: deg2rad(extent[0][1]),
       north: deg2rad(extent[1][1]),
@@ -1142,7 +1155,13 @@ var Windy = function Windy(params) {
         if (animationLoop) cancelAnimationFrame(animationLoop);
         activeGeneration = myGeneration;
         windy.field = field;
-        animate(bounds, field, myGeneration);
+        animate(bounds, field, myGeneration); // Fresh content just became valid for this rebuild's bounds -- tell
+        // the caller (VelocityLayer._rebuild) so it can reposition the
+        // canvas element in the same breath, instead of moving it the
+        // instant _rebuild() was called and leaving still-stale content
+        // sitting at the new position until this finishes.
+
+        if (onReady) onReady();
       });
     });
   };
