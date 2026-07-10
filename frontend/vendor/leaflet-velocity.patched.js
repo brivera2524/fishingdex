@@ -31,15 +31,17 @@ if (!L.DomUtil.setTransform) {
 //
 // Unlike ImageOverlay, this canvas does *not* implement its own
 // "zoomanim" handler to live-track a zoom gesture's CSS transition --
-// that was tried (twice, including matching ImageOverlay's own
-// getZoomScale(e.zoom, this._zoom) call signature exactly) and still
-// produced a stretched/misaligned result specifically on a real device's
-// finger pinch (a continuous gesture, unlike a discrete scroll/click
-// zoom step). Instead this canvas uses the "leaflet-zoom-hide" class
-// (see onAdd) -- Leaflet's own built-in answer for a layer that doesn't
-// track the animation: hidden for the transition's ~250ms, reappearing
-// already correctly positioned via _reset() at zoomend. No custom
-// zoom-transition math left to get wrong.
+// that was tried (matching ImageOverlay's own getZoomScale(e.zoom,
+// this._zoom) call signature exactly) and still produced a stretched/
+// misaligned result specifically on a real device's finger pinch (a
+// continuous gesture, unlike a discrete scroll/click zoom step).
+// Leaflet's built-in "leaflet-zoom-hide" class -- the standard answer
+// for a layer that doesn't track the animation -- doesn't help either:
+// it only takes effect during a *discrete* zoom's CSS transition, never
+// during a live pinch (a long-standing Leaflet gap, see onAdd's
+// comment). VelocityLayer instead toggles this canvas's visibility
+// directly on "zoomstart"/onReady, covering the whole gesture either
+// way -- no scale/offset math of our own left to get wrong.
 L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   initialize: function initialize(options) {
     this._map = null;
@@ -117,25 +119,30 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   //-------------------------------------------------------------
   onAdd: function onAdd(map) {
     this._map = map;
-    this._canvas = L.DomUtil.create("canvas", "leaflet-layer"); // "leaflet-zoom-hide" (not "leaflet-zoom-animated") -- this canvas
-    // deliberately does not try to live-track a zoom gesture via its own
-    // "zoomanim" transform. A hand-rolled _animateZoom attempt (matching
-    // real L.ImageOverlay's own getZoomScale(e.zoom, this._zoom) pattern
-    // exactly) was tried and, even so, still produced a stretched/
-    // misaligned result specifically on a real device's finger pinch --
-    // a gesture whose zoom is continuous while your fingers move, unlike
-    // a discrete scroll/click zoom step, and apparently still not
-    // something this custom transform math gets right in practice.
-    // Leaflet has a built-in, zero-custom-math answer for exactly this
-    // case: "leaflet-zoom-hide" is the standard class for layers that
-    // don't support a smooth zoom transition -- Leaflet hides them for
-    // the animation's duration and nothing more is needed. This canvas
-    // simply disappears for that brief (~250ms) window and reappears
-    // already correctly positioned the instant _reset() runs at
-    // zoomend/onReady -- no scale/offset math of our own left to get
-    // wrong.
+    this._canvas = L.DomUtil.create("canvas", "leaflet-layer"); // This canvas deliberately does not try to live-track a zoom gesture via
+    // its own "zoomanim" transform. A hand-rolled _animateZoom attempt
+    // (matching real L.ImageOverlay's own getZoomScale(e.zoom, this._zoom)
+    // call signature exactly) was tried and still produced a stretched/
+    // misaligned result specifically on a real device's finger pinch -- a
+    // gesture whose zoom is continuous while your fingers move, unlike a
+    // discrete scroll/click zoom step.
+    //
+    // The obvious next idea -- Leaflet's own "leaflet-zoom-hide" class,
+    // which just hides a layer for a zoom transition instead of trying to
+    // track it -- turned out not to help either: it only takes effect
+    // while an ancestor carries "leaflet-zoom-anim", which Leaflet only
+    // ever applies around a *discrete* zoom's CSS transition. A live
+    // finger pinch never gets that class at all (a long-standing Leaflet
+    // gap -- see github.com/Leaflet/Leaflet/issues/3135, open since
+    // 2015), so it never actually hid anything during the gesture itself,
+    // only possibly for the brief final snap-to-integer-zoom animation
+    // after release.
+    //
+    // VelocityLayer instead toggles this._canvas.style.visibility
+    // directly on "zoomstart"/onReady -- covers the whole gesture
+    // (pinch or otherwise) regardless of that Leaflet gap, with no
+    // scale/offset math of our own left to get wrong either way.
 
-    L.DomUtil.addClass(this._canvas, "leaflet-zoom-hide");
     this.options.pane.appendChild(this._canvas);
     map.on(this.getEvents(), this);
     var del = this._delegate || this;
@@ -402,6 +409,23 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     var self = this;
 
+    // Leaflet only applies "leaflet-zoom-anim" to the map pane (the class
+    // "leaflet-zoom-hide" depends on an ancestor having) around a
+    // discrete, CSS-transition zoom -- a long-standing Leaflet gap means
+    // it's never applied for the *live* portion of a real finger pinch,
+    // only possibly for the brief final snap-to-integer-zoom animation
+    // once you release (see github.com/Leaflet/Leaflet/issues/3135,
+    // open since 2015). That's exactly why relying on that class left
+    // this canvas visibly stretched for the whole gesture and only
+    // hidden right at release. Toggling visibility ourselves here
+    // instead covers the entire gesture regardless of that gap: hidden
+    // from the moment any zoom starts (pinch or otherwise), revealed
+    // again in _rebuild()'s onReady once this canvas is actually
+    // correctly positioned for wherever the zoom ends up.
+    this._map.on("zoomstart", function () {
+      self._canvasLayer._canvas.style.visibility = "hidden";
+    });
+
     this._map.on("zoomend resize", function () {
       // The only two things that ever invalidate this canvas now that it
       // always covers its full data extent regardless of pan: a zoom
@@ -531,7 +555,13 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var extent = [[bounds.getWest(), bounds.getSouth()], [bounds.getEast(), bounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
-      self._canvasLayer.setBounds(bounds);
+      self._canvasLayer.setBounds(bounds); // Reveals again after any "zoomstart" hide (see there) -- correctly
+      // positioned for the zoom that just finished, whether this rebuild
+      // was triggered by that zoom or was already in flight for another
+      // reason (e.g. a data reload); harmless to set on every rebuild
+      // regardless, since it's a no-op if already visible.
+
+      self._canvasLayer._canvas.style.visibility = "visible";
     });
   },
   _hardClear: function _hardClear() {
