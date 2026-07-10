@@ -443,16 +443,34 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
       var dx = topLeft.x - this._lastTopLeft.x;
       var dy = topLeft.y - this._lastTopLeft.y;
 
-      if ((dx || dy) && this._windy.activeParticles) {
-        this._windy.activeParticles.forEach(function (p) {
-          p.x -= dx;
-          p.y -= dy;
+      if (dx || dy) {
+        if (this._windy.activeParticles) {
+          this._windy.activeParticles.forEach(function (p) {
+            p.x -= dx;
+            p.y -= dy;
 
-          if (p.xt !== undefined) {
-            p.xt -= dx;
-            p.yt -= dy;
-          }
-        });
+            if (p.xt !== undefined) {
+              p.xt -= dx;
+              p.yt -= dy;
+            }
+          });
+        } // Shifting particle coordinates only affects *future* strokes drawn
+        // from the next frame onward -- this canvas never fully clears
+        // (draw() fades it via a slow destination-in composite, not a hard
+        // clear), so most of what's actually visible at any moment is
+        // pixels already baked into the bitmap from many previous frames.
+        // Repositioning the canvas element moves all of that existing
+        // content on the page too; only actually shifting the bitmap
+        // itself (not just where future strokes land) keeps existing,
+        // still-fading trails visually in place through the reposition.
+
+
+        var ctx = this._canvasLayer._canvas.getContext("2d");
+        var prevComposite = ctx.globalCompositeOperation;
+        ctx.globalCompositeOperation = "copy"; // replace destination outright, no blending with the shifted-out-of-place source
+
+        ctx.drawImage(this._canvasLayer._canvas, -dx, -dy);
+        ctx.globalCompositeOperation = prevComposite;
       }
     }
 
