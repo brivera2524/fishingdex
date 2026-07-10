@@ -433,12 +433,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
       // MAX_BUILD_DIMENSION's cap already accepts past its own limit.
       if (self._zoomRebuildTimer) clearTimeout(self._zoomRebuildTimer);
       self._zoomRebuildTimer = setTimeout(function () {
-        self._zoomRebuildTimer = null; // Another zoom gesture has already started since this "zoomend" --
-        // rebuilding now would be for an already-stale target zoom, and
-        // that gesture's own eventual "zoomend" re-triggers this same
-        // debounce anyway once it settles, so just skip.
-
-        if (self._map._animatingZoom) return;
+        self._zoomRebuildTimer = null;
         self._rebuild(true);
       }, 200);
     });
@@ -561,19 +556,39 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var extent = [[bounds.getWest(), bounds.getSouth()], [bounds.getEast(), bounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
-      // interpolateField can take long enough that a *new* zoom gesture
-      // has started since this rebuild kicked off. _reset() (inside
-      // setBounds) sets an absolute, non-animated position/size via
-      // L.DomUtil.setPosition -- calling it now would stomp on
-      // _animateZoom's own live transform for the gesture actually in
-      // progress, freezing the canvas at this (already-stale) target
-      // while the map keeps visibly zooming around it. Skip; the
-      // gesture in progress ends in its own "zoomend", which
-      // re-triggers the debounced rebuild above and repositions once
-      // *that* settles instead.
-      if (self._map._animatingZoom) return;
-      self._canvasLayer.setBounds(bounds);
+      self._setBoundsWhenSafe(bounds);
     });
+  },
+  // interpolateField can take long enough that a *new* zoom gesture has
+  // started since the rebuild calling this kicked off. _reset() (inside
+  // setBounds) sets an absolute, non-animated position/size via
+  // L.DomUtil.setPosition -- calling it mid-gesture would stomp on
+  // _animateZoom's own live transform for the zoom actually in progress,
+  // freezing the canvas at this (already-stale) target while the map
+  // keeps visibly animating around it.
+  //
+  // Deferred rather than skipped outright: skipping relied on the
+  // in-progress gesture's own "zoomend" re-triggering a rebuild later to
+  // ever correct this -- fine normally, but this._map._animatingZoom is a
+  // known-fragile flag (see the zoomanim try/catch below, added after it
+  // got stuck true *permanently* once before, breaking every future zoom)
+  // and pinch-zoom on touch has been observed to leave it stuck here too.
+  // A stuck flag would mean no "zoomend" (or none _animatingZoom actually
+  // clears for) ever comes, permanently freezing this layer instead of
+  // just delaying one reposition. The timeout forces it regardless after
+  // a short wait, so a stuck flag costs one possibly-mid-gesture-stale
+  // frame instead of a permanent freeze.
+  _setBoundsWhenSafe: function _setBoundsWhenSafe(bounds) {
+    var self = this;
+
+    if (!this._map._animatingZoom) {
+      this._canvasLayer.setBounds(bounds);
+      return;
+    }
+
+    setTimeout(function () {
+      self._canvasLayer.setBounds(bounds);
+    }, 300);
   },
   _hardClear: function _hardClear() {
     if (this._context && this._canvasLayer._canvas) {
