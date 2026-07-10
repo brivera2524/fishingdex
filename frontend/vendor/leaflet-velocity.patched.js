@@ -62,12 +62,31 @@ var diagLog = function () {
     return el;
   }
 
+  var renderScheduled = false; // Only the DOM write is throttled (via rAF, coalescing any calls that
+
+  function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(function () {
+      renderScheduled = false;
+      ensureEl().textContent = lines.join("\n");
+    });
+  } // land in the same frame into one paint) -- console.log and the in-memory
+  // `lines` array still capture every call synchronously, so nothing is
+  // lost even if a burst happens between two rAF ticks. This matters
+  // because _animateZoom fires repeatedly during a live touch pinch (not
+  // just once, unlike a discrete scroll-wheel zoom step) -- writing to
+  // the DOM synchronously on every one of those, on top of console.log,
+  // was itself expensive enough to risk starving the exact gesture being
+  // investigated.
+
+
   return function diagLog(label, data) {
     var line = new Date().toISOString().slice(11, 23) + " " + label + " " + JSON.stringify(data);
     console.log("[diag] " + label, data);
     lines.push(line);
     if (lines.length > 60) lines.shift();
-    ensureEl().textContent = lines.join("\n");
+    scheduleRender();
   };
 }();
 
@@ -240,17 +259,27 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
     // TEMP DIAGNOSTIC (zoom-freeze investigation) -- remove once resolved.
+    // Includes the canvas's own pixel-buffer size (canvas.width/height --
+    // its internal bitmap resolution, set by setPixelSize) and its live
+    // CSS transform string alongside the on-screen rect, to catch a
+    // bitmap-vs-CSS-size mismatch that a rect alone wouldn't reveal.
     diagLog("_reset()", {
       animZoom: this._map._animatingZoom,
       mapZoom: this._map.getZoom(),
       topLeft: topLeft,
       botRight: bottomRight,
-      rectBefore: diagRect(this._canvas)
+      rectBefore: diagRect(this._canvas),
+      bufBefore: { w: this._canvas.width, h: this._canvas.height },
+      transformBefore: this._canvas.style.transform
     });
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
     this._canvas.style.height = bottomRight.y - topLeft.y + "px";
-    diagLog("_reset() applied", diagRect(this._canvas));
+    diagLog("_reset() applied", {
+      rect: diagRect(this._canvas),
+      buf: { w: this._canvas.width, h: this._canvas.height },
+      transform: this._canvas.style.transform
+    });
   },
   //------------------------------------------------------------------------------
   // Same technique L.ImageOverlay uses for a smooth zoom transition:
@@ -275,7 +304,12 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
       var scale = this._map.getZoomScale(e.zoom);
       var offset = this._map._latLngBoundsToNewLayerBounds(this._bounds, e.zoom, e.center).min;
       L.DomUtil.setTransform(this._canvas, offset, scale);
-      diagLog("_animateZoom() applied", { scale: scale, offset: offset });
+      diagLog("_animateZoom() applied", {
+        scale: scale,
+        offset: offset,
+        buf: { w: this._canvas.width, h: this._canvas.height },
+        transform: this._canvas.style.transform
+      });
     } catch (err) {
       console.error("[leaflet-velocity] _animateZoom (zoomanim) threw:", err);
     }
