@@ -1218,6 +1218,17 @@ var Windy = function Windy(params) {
 
         if (windy.field) windy.field.release();
         if (animationLoop) cancelAnimationFrame(animationLoop);
+        // Hard-clear before handing off, rather than letting the new
+        // generation's draw() (which only ever does a partial destination-in
+        // fade, never a full clear) paint over whatever's still on the
+        // canvas. The old generation's pixels were laid out under its own
+        // referenceZoom/originPoint -- a different coordinate mapping for
+        // the same canvas-local pixel grid -- so for anything but a tiny
+        // pan they land nowhere near where the new generation's content
+        // means them to be. Left uncleared, the still-fading old frame and
+        // the fresh new one read as two separate, misaligned visualizations
+        // briefly overlapping instead of one cutting over to the other.
+        params.canvas.getContext("2d").clearRect(0, 0, params.canvas.width, params.canvas.height);
         activeGeneration = myGeneration;
         windy.field = field;
         animate(bounds, field, myGeneration); // Fresh content just became valid for this rebuild's bounds -- tell
