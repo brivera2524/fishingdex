@@ -344,17 +344,30 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   _builtPixelHeight: undefined,
   // How generously to buffer the built region beyond the current viewport,
   // as a fraction of the viewport's own width/height added to *each* side
-  // (0.75 means the buffered region ends up 2.5x the viewport's own
-  // width/height -- see LatLngBounds.pad, used below, which grows by
-  // exactly this factor). Panning within this buffered area needs no
-  // rebuild, canvas reposition, or any other code at all: this canvas is
-  // anchored to a fixed geographic area (see project()/invert() in the
-  // Windy factory below), and Leaflet's own pane transform already
-  // carries any pane child through a pan correctly, the same way it does
-  // for tiles. Only exceeding this buffer, or any zoom (which changes the
-  // pixel resolution needed for the same on-screen density), triggers an
-  // actual rebuild.
-  BUFFER_RATIO: 0.75,
+  // (0.25 means the buffered region ends up 1.5x the viewport's own
+  // width/height, i.e. ~2.25x its area -- see LatLngBounds.pad, used
+  // below, which grows by exactly this factor). Panning within this
+  // buffered area needs no rebuild, canvas reposition, or any other code
+  // at all: this canvas is anchored to a fixed geographic area (see
+  // project()/invert() in the Windy factory below), and Leaflet's own
+  // pane transform already carries any pane child through a pan
+  // correctly, the same way it does for tiles. Only exceeding this
+  // buffer, or any zoom (which changes the pixel resolution needed for
+  // the same on-screen density), triggers an actual rebuild.
+  //
+  // Deliberately kept modest rather than very generous: interpolateField's
+  // cost scales with this region's area, and the only way to keep a much
+  // larger buffer cheap is a coarser FIELD_PIXEL_STEP -- which directly
+  // widens the land-mask "bleed" radius at every coastline (a coarser
+  // step fills a bigger block around each sample with that one sample's
+  // land/water value). A previous attempt used a much larger buffer
+  // (0.75) with a coarser step (8px) to compensate, which reintroduced
+  // exactly that bug -- real current visibly bleeding onto land. Rebuilds
+  // being somewhat more frequent with a smaller buffer is an acceptable
+  // trade against that; they're fast (see FIELD_PIXEL_STEP) and don't
+  // interrupt the animation (see the generation-swap continuity in
+  // start(), below).
+  BUFFER_RATIO: 0.25,
   initialize: function initialize(options) {
     L.setOptions(this, options);
   },
@@ -921,18 +934,21 @@ var Windy = function Windy(params) {
   // nearest computed value (see the dx/dy fill loops below), not
   // recomputed. Originally ran at a fixed 2px step regardless of viewport
   // size, causing several ~70ms main-thread violations on every single
-  // restart (measured in production). Now that VelocityLayer builds a
-  // *buffered* region (2.5x the viewport's width and height, i.e. ~6.25x
-  // the area of a single viewport -- see BUFFER_RATIO) rather than the
-  // viewport alone, that same per-pixel cost needs a correspondingly
-  // coarser step to stay cheap: 8px keeps a single rebuild's cost in the
-  // same rough ballpark as the original viewport-sized build was at 4px,
-  // despite covering ~6x the area. Real currents vary smoothly over tens
-  // of meters (many screen pixels at any normal zoom), so this shouldn't
-  // be visually distinguishable -- particle positions and drawn trails
-  // remain full sub-pixel precision throughout; only the resolution of
-  // the velocity grid they're *querying* got coarser.
-  var FIELD_PIXEL_STEP = 8;
+  // restart (measured in production); 4px roughly quarters that cost.
+  //
+  // Deliberately NOT raised further to compensate for VelocityLayer now
+  // building a buffered region larger than a single viewport (see
+  // BUFFER_RATIO) -- a coarser step doesn't just lose lookup-grid
+  // precision in open water (harmless, since real currents vary smoothly
+  // over tens of meters), it also widens the "bleed" radius of the
+  // land/water mask at every coastline: a single sample that happens to
+  // land on water fills the *entire* step x step block around it with
+  // that water value, even where part of that block is actually land on
+  // the basemap. Raising this to 8px to afford a larger buffer reintroduced
+  // exactly that as a real, visible bug (current visibly crossing onto
+  // land); BUFFER_RATIO is what actually got tuned down to compensate for
+  // cost instead, since shrinking the buffer doesn't cost any precision.
+  var FIELD_PIXEL_STEP = 4;
 
   var interpolateField = function interpolateField(grid, bounds, extent, callback) {
     var projection = {}; // map.crs used instead
