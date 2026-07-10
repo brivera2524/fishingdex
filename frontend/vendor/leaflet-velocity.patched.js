@@ -113,6 +113,22 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     this._canvas = L.DomUtil.create("canvas", "leaflet-layer");
     var animated = this._map.options.zoomAnimation && L.Browser.any3d;
     L.DomUtil.addClass(this._canvas, "leaflet-zoom-" + (animated ? "animated" : "hide"));
+    // Since this canvas's buffered region is always re-centered on the
+    // *current* viewport on rebuild (see VelocityLayer._rebuild), and the
+    // viewport itself always occupies the same fixed spot on the page,
+    // _reset()'s resulting position is always the same fixed offset
+    // regardless of how far you've panned -- correct in principle, but for
+    // a large pan that resting position can be far from wherever the live
+    // drag (tracked via the map pane's own transform, which this canvas
+    // inherits as a pane child) left it, so snapping there instantly reads
+    // as a jarring backward jump proportional to the pan distance. This
+    // transition doesn't fix that snap -- it makes it a brief, smooth
+    // settle instead of an instant jump. It only ever applies to our own
+    // explicit _reset() calls (a handful of setBounds()-triggered
+    // repositions per session); the live-drag tracking itself is the
+    // map pane's own transform, a different element entirely, unaffected
+    // by this.
+    this._canvas.style.transition = "transform 0.2s ease-out";
     this.options.pane.appendChild(this._canvas);
     map.on(this.getEvents(), this);
     var del = this._delegate || this;
@@ -145,24 +161,11 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   // that's already finished and ready to display.
   _reset: function _reset() {
     if (!this._bounds) return;
-    var rectBefore = this._canvas.getBoundingClientRect();
     var topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest());
     var bottomRight = this._map.latLngToLayerPoint(this._bounds.getSouthEast());
     L.DomUtil.setPosition(this._canvas, topLeft);
     this._canvas.style.width = bottomRight.x - topLeft.x + "px";
     this._canvas.style.height = bottomRight.y - topLeft.y + "px";
-    var rectAfter = this._canvas.getBoundingClientRect();
-    console.log(
-      "[leaflet-velocity] _reset() page rect before=(%s,%s,%sx%s) after=(%s,%s,%sx%s)",
-      Math.round(rectBefore.left),
-      Math.round(rectBefore.top),
-      Math.round(rectBefore.width),
-      Math.round(rectBefore.height),
-      Math.round(rectAfter.left),
-      Math.round(rectAfter.top),
-      Math.round(rectAfter.width),
-      Math.round(rectAfter.height)
-    );
   },
   //------------------------------------------------------------------------------
   // Same technique L.ImageOverlay uses for a smooth zoom transition:
@@ -414,15 +417,6 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
 
     this._map.on("moveend", function () {
       self._onMapMoveEnd();
-    }); // TEMPORARY diagnostic: log the canvas's actual on-screen rect on
-    // every "move" (fired continuously during a live drag), not just
-    // "moveend", to see whether it visually jumps mid-gesture rather than
-    // only at an explicit _reset() call.
-
-    this._map.on("move", function () {
-      if (!self._canvasLayer._canvas) return;
-      var rect = self._canvasLayer._canvas.getBoundingClientRect();
-      console.log("[leaflet-velocity] move: canvas page rect=(%s,%s,%sx%s)", Math.round(rect.left), Math.round(rect.top), Math.round(rect.width), Math.round(rect.height));
     });
 
     this._map.on("zoomend resize", function () {
@@ -519,14 +513,7 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   _onMapMoveEnd: function _onMapMoveEnd() {
     if (!this._windy || !this.options.data) return;
     var builtBounds = this._canvasLayer.getBounds();
-    var stillContained = builtBounds && builtBounds.contains(this._map.getBounds());
-    console.log(
-      "[leaflet-velocity] moveend: builtBounds=%s viewBounds=%s stillContained=%s",
-      builtBounds ? builtBounds.toBBoxString() : "(none)",
-      this._map.getBounds().toBBoxString(),
-      stillContained
-    );
-    if (stillContained) return;
+    if (builtBounds && builtBounds.contains(this._map.getBounds())) return;
     this._rebuild(false);
   },
   // resizePixelBuffer: true for the very first build, and for a genuine
@@ -540,11 +527,6 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var self = this;
     var viewBounds = this._map.getBounds();
     var bufferedBounds = viewBounds.pad(this.BUFFER_RATIO);
-    console.log(
-      "[leaflet-velocity] _rebuild(resizePixelBuffer=%s) requested. New bufferedBounds=%s",
-      resizePixelBuffer,
-      bufferedBounds.toBBoxString()
-    );
     var zoom = this._map.getZoom();
     var viewSize = this._map.getSize();
     var scale = 1 + this.BUFFER_RATIO * 2; // matches LatLngBounds.pad's own growth factor
@@ -570,7 +552,6 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
     var extent = [[bufferedBounds.getWest(), bufferedBounds.getSouth()], [bufferedBounds.getEast(), bufferedBounds.getNorth()]];
 
     this._windy.start([[0, 0], [pixelWidth, pixelHeight]], pixelWidth, pixelHeight, extent, zoom, function onReady() {
-      console.log("[leaflet-velocity] onReady: calling setBounds now for", bufferedBounds.toBBoxString());
       self._canvasLayer.setBounds(bufferedBounds);
     });
   },
