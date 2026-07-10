@@ -9,9 +9,9 @@
 // deploy's cached install) -- at that point a diff's context no longer
 // matches, and even a string-replace's "from" text may no longer be
 // present, so every subsequent deploy restores that same stale, wrongly-
-// patched cache and fails identically. This bit us three separate times
-// (see git history around 2026-07-09/10) while iterating on this file's
-// drag-persistence behavior.
+// patched cache and fails identically -- and it recurs on every commit
+// that changes the patch, since the poisoned cache never has a reason to
+// invalidate itself.
 //
 // A wholesale copy has no such dependency: `vendor/leaflet-velocity.patched.js`
 // is the single source of truth for what this file should contain, and this

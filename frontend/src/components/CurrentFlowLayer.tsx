@@ -80,29 +80,13 @@ export default function CurrentFlowLayer({ fetcher }: CurrentFlowLayerProps) {
   useEffect(() => {
     let cancelled = false;
 
-    // Used to tear down and recreate the whole L.velocityLayer (new canvas
-    // DOM element, brand new internal Windy state) on every "moveend",
-    // because leaflet-velocity's own internal redraw-on-move left stale
-    // visual artifacts if trusted to redraw itself in place. That was a
-    // real problem at the time, but it's a much bigger hammer than the
-    // artifact needed, and it has a much larger cost than it looks like:
-    // destroying and rebuilding the entire layer on every pan release also
-    // destroys the currently-playing particle animation and its canvas,
-    // unconditionally, before anything new exists to replace it -- no
-    // internal fix to leaflet-velocity's own restart logic could ever
-    // matter while this was happening, since the whole layer (and that
-    // logic along with it) got thrown away first.
-    //
-    // vendor/leaflet-velocity.patched.js now fixes the underlying problems
-    // directly instead: the canvas repositions correctly on "moveend"
-    // (_onLayerDidMove), a plain pan no longer hard-clears before
-    // rebuilding (only a zoom does, since only a zoom actually invalidates
-    // the pixel<->geo scale), and critically, the currently-playing
-    // animation is no longer stopped before its replacement is ready --
-    // the rebuild happens in the background and only cuts over once
-    // finished. With all of that in place, creating the layer once and
-    // letting leaflet-velocity handle its own view-change restarts is both
-    // simpler and strictly better than tearing it down every time.
+    // The layer is created once and left alone for the lifetime of this
+    // effect -- no teardown/recreate on pan or zoom. vendor/leaflet-
+    // velocity.patched.js anchors its canvas to a fixed geographic area
+    // (buffered generously beyond the current viewport) instead of
+    // rebuilding for every view change, so it handles its own pan/zoom
+    // repositioning and only rebuilds itself internally when a pan
+    // actually exceeds that buffered area, or on a zoom.
     fetcher().then((result) => {
       if (cancelled || !result) return;
       const layer = L.velocityLayer({

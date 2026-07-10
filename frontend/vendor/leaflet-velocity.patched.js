@@ -322,6 +322,13 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   _windy: null,
   _context: null,
   _mouseControl: null,
+  // Pixel dimensions the canvas's internal buffer was last built at --
+  // undefined until the first _rebuild() call. Compared against the
+  // freshly-computed target size on every _rebuild() so an ordinary pan
+  // (same viewport size, just a different center) skips the resize (and
+  // the clear it would otherwise cause) entirely.
+  _builtPixelWidth: undefined,
+  _builtPixelHeight: undefined,
   // How generously to buffer the built region beyond the current viewport,
   // as a fraction of the viewport's own width/height added to *each* side
   // (0.75 means the buffered region ends up 2.5x the viewport's own
@@ -331,12 +338,9 @@ L.VelocityLayer = (L.Layer ? L.Layer : L.Class).extend({
   // anchored to a fixed geographic area (see project()/invert() in the
   // Windy factory below), and Leaflet's own pane transform already
   // carries any pane child through a pan correctly, the same way it does
-  // for tiles -- that's the whole point of this rewrite (see git history
-  // around 2026-07-10 for the viewport-relative version this replaced,
-  // and the various position/compensation patches that were needed to
-  // paper over it). Only exceeding this buffer, or any zoom (which
-  // changes the pixel resolution needed for the same on-screen density),
-  // triggers an actual rebuild.
+  // for tiles. Only exceeding this buffer, or any zoom (which changes the
+  // pixel resolution needed for the same on-screen density), triggers an
+  // actual rebuild.
   BUFFER_RATIO: 0.75,
   initialize: function initialize(options) {
     L.setOptions(this, options);
@@ -980,16 +984,19 @@ var Windy = function Windy(params) {
   // allowed to keep animating. It's what frame() itself checks -- not
   // currentGeneration -- and it only advances once a rebuild has *finished*
   // and is ready to swap in, not the instant a new one is merely
-  // requested. That distinction is what lets a plain pan's restart keep
-  // the previous (still valid, just slightly stale) field animating
-  // uninterrupted while the real rebuild happens in the background,
-  // instead of stopping everything immediately and leaving nothing on
-  // screen until the rebuild completes -- which is what previously read as
-  // the whole flow field vanishing on every drag release. A zoom still
-  // stops immediately (see stop(), called directly on zoomstart): zoom
-  // actually changes the pixel<->geo scale, so continuing to animate the
-  // pre-zoom field against the new view would look outright wrong, not
-  // just briefly approximate.
+  // requested. That distinction is what lets any rebuild (a plain pan
+  // exceeding the buffered region, or a zoom) keep the previous, still-
+  // valid field animating uninterrupted in the background instead of
+  // stopping everything immediately and leaving nothing on screen until
+  // the new one is ready. A zoom doesn't need a separate freeze the way it
+  // once did: CanvasLayer._animateZoom already CSS-transforms the whole
+  // canvas element (translate + scale) to track the zoom transition
+  // visually, so whatever's still being drawn underneath in the old
+  // coordinate space gets carried along with it, the same way a tile
+  // looks correct (if a little soft) mid-zoom before a sharper one loads.
+  // stop() itself is now only ever called on layer teardown (see
+  // _destroyWind) -- every rebuild, pan or zoom, goes through start()'s
+  // own generation-swap logic below instead.
   var currentGeneration = 0;
   var activeGeneration = 0;
 
@@ -1124,14 +1131,16 @@ var Windy = function Windy(params) {
     // comment there) -- this is what keeps the two consistent.
 
     referenceZoom = refZoomAtBuild;
-    originPoint = params.map.project(L.latLng(extent[1][1], extent[0][0]), refZoomAtBuild); // Deliberately not calling stop() here. Whatever's currently animating
+    originPoint = params.map.project(L.latLng(extent[1][1], extent[0][0]), refZoomAtBuild); // Deliberately not calling stop() here, for a pan-triggered rebuild or a
+    // zoom-triggered one alike. Whatever's currently animating
     // (activeGeneration's loop, if any) keeps running exactly as-is --
     // against its own now slightly-stale bounds/field -- while this
     // rebuild happens in the background. Real currents don't meaningfully
-    // change over however long this rebuild takes (typically well under
-    // 20ms after FIELD_PIXEL_STEP), so a moment of animating against the
-    // pre-restart field is imperceptible. Only once the rebuild actually
-    // finishes do we cut over to it, below.
+    // change over however long a rebuild takes (a single-digit-to-low-
+    // tens-of-milliseconds synchronous burst -- see FIELD_PIXEL_STEP), so
+    // a moment of animating against the pre-rebuild field is
+    // imperceptible. Only once the rebuild actually finishes do we cut
+    // over to it, below.
     currentGeneration += 1;
     var myGeneration = currentGeneration; // build grid
 
@@ -1167,11 +1176,11 @@ var Windy = function Windy(params) {
   };
 
   var stop = function stop() {
-    // Called directly (e.g. on zoomstart) independent of start(). Unlike
-    // start(), this stops immediately and unconditionally -- there's no
-    // "keep the old one running while rebuilding" option here, since
-    // whatever called stop() (a zoom) is explicitly saying the current
-    // field is no longer valid to keep displaying at all.
+    // Only ever called directly on layer teardown (see _destroyWind) --
+    // every rebuild, whether from a pan or a zoom, goes through start()'s
+    // own generation-swap instead, which keeps the previous field
+    // animating until the new one is actually ready rather than stopping
+    // immediately like this does.
     currentGeneration += 1;
     activeGeneration = currentGeneration; // nothing further should animate under any older generation
     if (windy.field) windy.field.release();
