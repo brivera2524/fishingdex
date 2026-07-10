@@ -1048,7 +1048,16 @@ var Windy = function Windy(params) {
   var currentGeneration = 0;
   var activeGeneration = 0;
 
-  var animate = function animate(bounds, field, myGeneration) {
+  // How many virtual frames of trail buildup to pre-render offscreen before
+  // a generation swap reveals itself, and how many of those to run per real
+  // animation-frame tick (batching several per tick so the wall-clock delay
+  // before cutover stays short even though full trail density -- governed
+  // by OPACITY's per-frame decay -- would otherwise take dozens of frames to
+  // approach). See the priming block inside animate() for how this is used.
+  var PRIME_TICKS = 15;
+  var PRIME_STEPS_PER_TICK = 4;
+
+  var animate = function animate(bounds, field, myGeneration, onReady) {
     function windIntensityColorScale(min, max) {
       colorScale.indexFor = function (m) {
         // map velocity speed to a style
@@ -1114,52 +1123,104 @@ var Windy = function Windy(params) {
       });
     }
 
-    var g = params.canvas.getContext("2d");
-    g.lineWidth = PARTICLE_LINE_WIDTH;
-    g.fillStyle = fadeFillStyle;
-    g.globalAlpha = 0.6;
+    // Takes the target 2D context explicitly rather than closing over one --
+    // priming draws into a scratch offscreen canvas, the real frame loop
+    // (below, after cutover) draws into params.canvas, and both need this
+    // same fade+stroke logic.
+    function draw(context) {
+      context.lineWidth = PARTICLE_LINE_WIDTH; // Fade existing particle trails.
 
-    function draw() {
-      // Fade existing particle trails.
-      var prev = "lighter";
-      g.globalCompositeOperation = "destination-in";
-      g.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-      g.globalCompositeOperation = prev;
-      g.globalAlpha = OPACITY === 0 ? 0 : OPACITY * 0.9; // Draw new particle trails.
+      context.fillStyle = fadeFillStyle;
+      context.globalCompositeOperation = "destination-in";
+      context.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      context.globalCompositeOperation = "source-over";
+      context.globalAlpha = OPACITY === 0 ? 0 : OPACITY * 0.9; // Draw new particle trails.
 
       buckets.forEach(function (bucket, i) {
         if (bucket.length > 0) {
-          g.beginPath();
-          g.strokeStyle = colorStyles[i];
+          context.beginPath();
+          context.strokeStyle = colorStyles[i];
           bucket.forEach(function (particle) {
-            g.moveTo(particle.x, particle.y);
-            g.lineTo(particle.xt, particle.yt);
+            context.moveTo(particle.x, particle.y);
+            context.lineTo(particle.xt, particle.yt);
             particle.x = particle.xt;
             particle.y = particle.yt;
           });
-          g.stroke();
+          context.stroke();
         }
       });
     }
 
-    var then = Date.now();
+    // Prime an offscreen buffer with several virtual frames of trail
+    // buildup before this generation ever touches the visible canvas.
+    // draw() only ever partially fades the previous frame (destination-in),
+    // so a canvas that's just been hard-cleared reads as sparse/blank for
+    // quite a few real frames while trails accumulate back up to steady
+    // density -- exactly the "blank frame or two" on every rebuild. Priming
+    // offscreen means whatever's currently on the *visible* canvas (the
+    // previous generation, if any) is left completely undisturbed and kept
+    // animating right up until this generation is already fully populated
+    // and ready to reveal in one shot.
+    var primeCanvas = document.createElement("canvas");
+    primeCanvas.width = params.canvas.width;
+    primeCanvas.height = params.canvas.height;
+    var primeCtx = primeCanvas.getContext("2d");
+    var primeTicksDone = 0;
 
-    (function frame() {
-      // A newer rebuild has actually finished and taken over since this
-      // loop's animate() call -- die quietly instead of continuing to
-      // fight the newer loop for the canvas and the shared
-      // `animationLoop` variable. (Checked against activeGeneration, not
-      // currentGeneration -- see the comment where these are declared.)
-      if (myGeneration !== activeGeneration) return;
-      animationLoop = requestAnimationFrame(frame);
-      var now = Date.now();
-      var delta = now - then;
+    (function primeFrame() {
+      // A newer start() superseded this one before it ever got to reveal
+      // itself -- die quietly, same as the frame() loop's own check below.
+      if (myGeneration !== currentGeneration) return;
 
-      if (delta > FRAME_TIME) {
-        then = now - delta % FRAME_TIME;
+      for (var step = 0; step < PRIME_STEPS_PER_TICK; step++) {
         evolve();
-        draw();
+        draw(primeCtx);
       }
+
+      primeTicksDone += 1;
+
+      if (primeTicksDone < PRIME_TICKS) {
+        requestAnimationFrame(primeFrame);
+        return;
+      } // Priming is done -- cut over now: retire whatever was previously
+      // active (if anything), reveal this generation's already-populated
+      // buffer in a single paint (no partial-fade blank period on the real
+      // canvas at all), and keep the same particles animating forward from
+      // here via the normal frame loop.
+
+
+      if (windy.field) windy.field.release();
+      if (animationLoop) cancelAnimationFrame(animationLoop);
+      var g = params.canvas.getContext("2d");
+      g.clearRect(0, 0, params.canvas.width, params.canvas.height);
+      g.drawImage(primeCanvas, 0, 0);
+      activeGeneration = myGeneration;
+      windy.field = field;
+      var then = Date.now();
+
+      (function frame() {
+        // A newer rebuild has actually finished and taken over since this
+        // loop started -- die quietly instead of continuing to fight the
+        // newer loop for the canvas and the shared `animationLoop`
+        // variable. (Checked against activeGeneration, not
+        // currentGeneration -- see the comment where these are declared.)
+        if (myGeneration !== activeGeneration) return;
+        animationLoop = requestAnimationFrame(frame);
+        var now = Date.now();
+        var delta = now - then;
+
+        if (delta > FRAME_TIME) {
+          then = now - delta % FRAME_TIME;
+          evolve();
+          draw(g);
+        }
+      })(); // Fresh content just became valid *and visible* -- tell the caller
+      // (VelocityLayer._rebuild) so it can reposition the canvas element in
+      // the same breath, instead of moving it before this generation was
+      // ready to be seen.
+
+
+      if (onReady) onReady();
     })();
   };
 
@@ -1203,33 +1264,15 @@ var Windy = function Windy(params) {
         // Same check again -- interpolateField itself yields across
         // multiple setTimeout batches for large fields, so a newer start()
         // can just as easily supersede this call while it's still running.
-        if (myGeneration !== currentGeneration) return; // Now actually cut over: this rebuild is both finished and
-        // still the latest request, so stop whatever was animating before
-        // (if anything -- there may be nothing, on the very first start())
-        // and publish this as the new active generation.
+        if (myGeneration !== currentGeneration) return; // The actual cutover (releasing the old field, cancelling its loop,
+        // publishing this as the active generation, and calling onReady) is
+        // deferred until animate() has finished priming an offscreen buffer
+        // for this generation -- see the priming block there for why:
+        // revealing this generation the instant its field finishes
+        // computing, before it has any accumulated trail density, is
+        // exactly what read as a blank/sparse flash on every rebuild.
 
-        if (windy.field) windy.field.release();
-        if (animationLoop) cancelAnimationFrame(animationLoop);
-        // Hard-clear before handing off, rather than letting the new
-        // generation's draw() (which only ever does a partial destination-in
-        // fade, never a full clear) paint over whatever's still on the
-        // canvas. The old generation's pixels were laid out under its own
-        // referenceZoom/originPoint -- a different coordinate mapping for
-        // the same canvas-local pixel grid -- so for anything but a tiny
-        // pan they land nowhere near where the new generation's content
-        // means them to be. Left uncleared, the still-fading old frame and
-        // the fresh new one read as two separate, misaligned visualizations
-        // briefly overlapping instead of one cutting over to the other.
-        params.canvas.getContext("2d").clearRect(0, 0, params.canvas.width, params.canvas.height);
-        activeGeneration = myGeneration;
-        windy.field = field;
-        animate(bounds, field, myGeneration); // Fresh content just became valid for this rebuild's bounds -- tell
-        // the caller (VelocityLayer._rebuild) so it can reposition the
-        // canvas element in the same breath, instead of moving it the
-        // instant _rebuild() was called and leaving still-stale content
-        // sitting at the new position until this finishes.
-
-        if (onReady) onReady();
+        animate(bounds, field, myGeneration, onReady);
       });
     });
   };
