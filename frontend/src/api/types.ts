@@ -188,6 +188,8 @@ export interface BayCurrentField {
   error?: string | null;
 }
 
+export type MissionBayCurrentField = BayCurrentField;
+
 export interface RecentCatch {
   id: number;
   user_id: number;

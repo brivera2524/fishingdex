@@ -20,7 +20,7 @@ import type { MapCatch, Spot } from "../api/types";
 import LocationPickerModal from "../components/LocationPickerModal";
 import type { LatLng } from "../components/LocationPicker";
 import CurrentFlowLayer from "../components/CurrentFlowLayer";
-import { fetchBayCurrentField } from "../lib/currentField";
+import { fetchBayCurrentField, fetchMissionBayCurrentField } from "../lib/currentField";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
 import MoonPhaseBadge from "../components/MoonPhaseBadge";
@@ -639,6 +639,11 @@ export default function MapPage() {
             per product decision, not a bug. Re-add `fetchCurrentField` when
             open-water current is wanted again. */}
         {!drawMode && currentEnabled && <CurrentFlowLayer fetcher={fetchBayCurrentField} />}
+        {/* Mission Bay is a separate embayment with its own inlet, not covered
+            by San Diego Bay's own current bank — a second, independent
+            CurrentFlowLayer instance under the same toggle (each layer
+            self-anchors to its own data's geographic bounds). */}
+        {!drawMode && currentEnabled && <CurrentFlowLayer fetcher={fetchMissionBayCurrentField} />}
         {myLocation && (
           <Marker position={[myLocation.lat, myLocation.lng]} icon={currentLocationIcon} interactive={false} />
         )}
