@@ -23,6 +23,7 @@ import CurrentFlowLayer from "../components/CurrentFlowLayer";
 import { fetchBayCurrentField } from "../lib/currentField";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
+import MoonPhaseBadge from "../components/MoonPhaseBadge";
 import TimeWindowRuler from "../components/TimeWindowRuler";
 import WindBadge from "../components/WindBadge";
 import WindDetailSheet from "../components/WindDetailSheet";
@@ -95,7 +96,12 @@ export default function MapPage() {
   const [currentEnabled, setCurrentEnabled] = useState(false);
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
   const [maxDaysSpan, setMaxDaysSpan] = useState(DEFAULT_WINDOW_DAYS);
-  const [windowRange, setWindowRange] = useState({ start: DEFAULT_WINDOW_DAYS, end: 0 });
+  // Defaults to "All" (matching WINDOW_PRESETS' own Infinity for that
+  // preset) rather than DEFAULT_WINDOW_DAYS -- startDaysAgo below clamps
+  // this to maxDaysSpan once the real catch history loads, so this just
+  // means "show everything" until the user explicitly narrows it via a
+  // preset or the ruler.
+  const [windowRange, setWindowRange] = useState({ start: Infinity, end: 0 });
   const [scrollToken, setScrollToken] = useState(0);
   const [timeExpanded, setTimeExpanded] = useState(false);
   const [spots, setSpots] = useState<Spot[]>([]);
@@ -339,7 +345,10 @@ export default function MapPage() {
 
   return (
     <div className="map-page">
-      <TideBadge />
+      <div className="map-topleft-badges">
+        <TideBadge />
+        <MoonPhaseBadge />
+      </div>
       <div className="map-badge">
         {loading
           ? "Loading..."

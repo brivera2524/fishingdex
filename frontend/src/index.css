@@ -1448,11 +1448,17 @@ button:disabled {
   box-shadow: var(--shadow-md);
 }
 
-.tide-badge {
+.map-topleft-badges {
   position: absolute;
   top: 12px;
   left: 12px;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tide-badge {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1532,6 +1538,47 @@ button:disabled {
   width: 100%;
   height: auto;
   margin: 14px 0;
+}
+
+.moon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--surface);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  min-height: auto;
+}
+
+.moon-badge-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.moon-detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.moon-detail-emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.moon-detail-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.moon-detail-phase {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .tide-chart-line {
