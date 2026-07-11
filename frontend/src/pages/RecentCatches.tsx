@@ -8,7 +8,6 @@ import CommentThread from "../components/CommentThread";
 import AnglerDetail from "../components/AnglerDetail";
 import PullToRefresh from "../components/PullToRefresh";
 import ViewOnMapButton from "../components/ViewOnMapButton";
-import { getMoonPhase } from "../lib/moonPhase";
 
 interface SelectedAngler {
   id: number;
@@ -53,7 +52,7 @@ export default function RecentCatches() {
                 {c.weight != null && <span className="card-stat">{c.weight} lb</span>}
               </div>
               <span className="card-meta">
-                {c.display_name} · {getMoonPhase(c.caught_at).emoji} {new Date(c.caught_at).toLocaleString()}
+                {c.display_name} · {new Date(c.caught_at).toLocaleString()}
               </span>
             </li>
           ))}
@@ -88,9 +87,6 @@ export default function RecentCatches() {
                   {selectedCatch.tide_direction === "rising" ? "↑" : "↓"} {selectedCatch.tide_height_ft}ft tide
                 </span>
               )}
-              <span className="card-stat">
-                {getMoonPhase(selectedCatch.caught_at).emoji} {getMoonPhase(selectedCatch.caught_at).name}
-              </span>
             </div>
             <p className="card-meta">{new Date(selectedCatch.caught_at).toLocaleString()}</p>
             {selectedCatch.latitude != null && (

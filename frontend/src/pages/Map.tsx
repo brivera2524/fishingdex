@@ -23,7 +23,6 @@ import CurrentFlowLayer from "../components/CurrentFlowLayer";
 import { fetchBayCurrentField } from "../lib/currentField";
 import HeatmapLayer from "../components/HeatmapLayer";
 import TideBadge from "../components/TideBadge";
-import MoonPhaseBadge from "../components/MoonPhaseBadge";
 import TimeWindowRuler from "../components/TimeWindowRuler";
 import WindBadge from "../components/WindBadge";
 import WindDetailSheet from "../components/WindDetailSheet";
@@ -341,7 +340,6 @@ export default function MapPage() {
   return (
     <div className="map-page">
       <TideBadge />
-      <MoonPhaseBadge />
       <div className="map-badge">
         {loading
           ? "Loading..."

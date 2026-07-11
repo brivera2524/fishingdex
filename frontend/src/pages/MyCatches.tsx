@@ -6,7 +6,6 @@ import BottomSheet from "../components/BottomSheet";
 import CatchPhotoGallery from "../components/CatchPhotoGallery";
 import CommentThread from "../components/CommentThread";
 import ViewOnMapButton from "../components/ViewOnMapButton";
-import { getMoonPhase } from "../lib/moonPhase";
 
 interface MyCatchesProps {
   embedded?: boolean;
@@ -91,9 +90,7 @@ export default function MyCatches({
               <img className="catch-photo" src={`${API_BASE}${c.photo_url}`} alt={c.species.common_name} />
             )}
             <span className="card-title">{c.species.common_name}</span>
-            <span className="card-meta">
-              {getMoonPhase(c.caught_at).emoji} {new Date(c.caught_at).toLocaleString()}
-            </span>
+            <span className="card-meta">{new Date(c.caught_at).toLocaleString()}</span>
             <div className="card-stats">
               {c.weight != null && <span className="card-stat">{c.weight} lb</span>}
               {c.length != null && <span className="card-stat">{c.length} in</span>}
@@ -116,9 +113,6 @@ export default function MyCatches({
                   {selected.tide_direction === "rising" ? "↑" : "↓"} {selected.tide_height_ft}ft tide
                 </span>
               )}
-              <span className="card-stat">
-                {getMoonPhase(selected.caught_at).emoji} {getMoonPhase(selected.caught_at).name}
-              </span>
             </div>
             {selected.notes && <p style={{ marginBottom: 14 }}>{selected.notes}</p>}
 
