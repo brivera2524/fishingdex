@@ -7,6 +7,7 @@ const SYNODIC_MONTH_DAYS = 29.530588861;
 // point — any accurate new moon works equally well since we only care about
 // position within the ~29.53-day cycle, not this specific date.
 const KNOWN_NEW_MOON_MS = Date.UTC(2000, 0, 6, 18, 14);
+const DAY_MS = 86400000;
 
 export interface MoonPhase {
   name: string;
@@ -27,13 +28,35 @@ const PHASES: Array<{ name: string; emoji: string }> = [
   { name: "Waning Crescent", emoji: "🌘" },
 ];
 
-export function getMoonPhase(at: Date | string | number): MoonPhase {
-  const ms = at instanceof Date ? at.getTime() : new Date(at).getTime();
-  const daysSinceNew = (ms - KNOWN_NEW_MOON_MS) / 86400000;
+function toMs(at: Date | string | number): number {
+  return at instanceof Date ? at.getTime() : new Date(at).getTime();
+}
+
+/** Days since the most recent new moon, in [0, SYNODIC_MONTH_DAYS). */
+export function getMoonAgeDays(at: Date | string | number): number {
+  const daysSinceNew = (toMs(at) - KNOWN_NEW_MOON_MS) / DAY_MS;
   // Modulo that stays positive for dates before the reference new moon too.
-  const age = ((daysSinceNew % SYNODIC_MONTH_DAYS) + SYNODIC_MONTH_DAYS) % SYNODIC_MONTH_DAYS;
+  return ((daysSinceNew % SYNODIC_MONTH_DAYS) + SYNODIC_MONTH_DAYS) % SYNODIC_MONTH_DAYS;
+}
+
+export function getMoonPhase(at: Date | string | number): MoonPhase {
+  const age = getMoonAgeDays(at);
   const frac = age / SYNODIC_MONTH_DAYS;
   const illumination = (1 - Math.cos(2 * Math.PI * frac)) / 2;
   const index = Math.round(frac * 8) % 8;
   return { ...PHASES[index], illumination };
+}
+
+export function getNextNewMoon(at: Date | string | number): Date {
+  const ms = toMs(at);
+  const daysUntil = SYNODIC_MONTH_DAYS - getMoonAgeDays(ms);
+  return new Date(ms + daysUntil * DAY_MS);
+}
+
+export function getNextFullMoon(at: Date | string | number): Date {
+  const ms = toMs(at);
+  const age = getMoonAgeDays(ms);
+  const half = SYNODIC_MONTH_DAYS / 2;
+  const daysUntil = age < half ? half - age : SYNODIC_MONTH_DAYS - age + half;
+  return new Date(ms + daysUntil * DAY_MS);
 }

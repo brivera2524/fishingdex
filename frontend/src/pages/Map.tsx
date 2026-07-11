@@ -340,8 +340,10 @@ export default function MapPage() {
 
   return (
     <div className="map-page">
-      <TideBadge />
-      <MoonPhaseBadge />
+      <div className="map-topleft-badges">
+        <TideBadge />
+        <MoonPhaseBadge />
+      </div>
       <div className="map-badge">
         {loading
           ? "Loading..."
