@@ -1,0 +1,56 @@
+# Mission Bay tidal-current model configuration.
+#
+# Differences from model.yaml (San Diego Bay), and why:
+# - grid/source_nc: Mission Bay's own grid, built from a different source
+#   DEM -- no dedicated MLLW estuarine bathymetry product exists for
+#   Mission Bay the way San Diego Bay's P020 does (checked the NCEI
+#   catalog). Used the broader San Diego coastal tsunami-inundation DEM
+#   instead (NAVD88-referenced, converted to MLLW via a fixed -0.058m
+#   offset from NOAA station 9410230's published datum relationship).
+#   grid_dir/source_nc below are only used if the grid needs rebuilding
+#   (requires rasterio/rioxarray/GDAL, not part of this backend's runtime
+#   dependencies -- see app/sdbay/grid.py); at request time only the
+#   `forcing` section here is actually read (see app/ocean_sim_mission_bay.py).
+# - forcing.boundary_station: "9410230" (La Jolla) instead of Broadway
+#   Pier -- there is no NOAA water-level gauge inside Mission Bay itself.
+#   La Jolla sits directly on the open Pacific coast, a better open-ocean
+#   forcing proxy than San Diego Bay's own (already bay-modified) signal.
+# - validation.current_stations: empty. No NOAA current prediction
+#   stations exist inside or near Mission Bay -- there is no ground truth
+#   to calibrate or validate this model's Mission Bay output against,
+#   unlike San Diego Bay's PCT0031/PCT0061. Present as experimental/
+#   uncalibrated, not "Calibrated," in any user-facing copy.
+
+physics:
+  drag_cd: 0.0015
+  viscosity_m2s: 0.0
+  hmin_m: 0.5
+  cfl: 0.45
+  use_coriolis: true
+  use_advection: true
+  latitude_deg: 32.77
+  use_numba: true
+  use_gpu: false           # Railway's web dyno has no CUDA GPU; not used at request time anyway
+
+grid:
+  resolution_m: 20.0
+  grid_dir: app/sim_data/grid_mission_bay_20m
+  source_nc: data/raw/noaa_bathymetry_mission_bay/mission_bay_navd88_2012_subset.nc
+  min_valid_fraction: 0.5
+
+forcing:
+  boundary_station: "9410230"     # La Jolla -- nearest open-coast NOAA water-level gauge
+  boundary_product: predictions
+  validation_station: "9410230"
+  spinup_hours: 30.0
+  forecast_hours: 6.0
+  output_interval_minutes: 6
+
+validation:
+  current_stations: []            # no NOAA current stations exist near Mission Bay
+  water_level_station: "9410230"
+  calibrated_amplitude_error_max_m: 0.15
+  calibrated_timing_error_max_min: 45.0
+  calibrated_speed_error_max_mps: 0.25
+
+timezone: America/Los_Angeles

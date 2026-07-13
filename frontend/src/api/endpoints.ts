@@ -12,6 +12,7 @@ import type {
   IdentifyResult,
   LeaderboardCatch,
   MapCatch,
+  MissionBayCurrentField,
   NotificationMode,
   PushSubscriptionInput,
   RecentCatch,
@@ -84,6 +85,12 @@ export function getCurrentField() {
 // app/ocean_sim.py for what it is and isn't (modeled, not observed).
 export function getBayCurrentField() {
   return apiFetch<BayCurrentField>("/ocean-current/bay-field");
+}
+
+// Same tide-driven simulation approach as getBayCurrentField, for Mission
+// Bay instead of San Diego Bay — see the backend's app/ocean_sim_mission_bay.py.
+export function getMissionBayCurrentField() {
+  return apiFetch<MissionBayCurrentField>("/ocean-current/mission-bay-field");
 }
 
 export function getCatch(catchId: number) {

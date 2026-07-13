@@ -4,6 +4,7 @@ from app.auth import get_current_user
 from app.models import User
 from app.ocean_current import CurrentFieldUnavailable, get_current_field
 from app.ocean_sim import BayCurrentUnavailable, get_bay_current_field
+from app.ocean_sim_mission_bay import MissionBayCurrentUnavailable, get_mission_bay_current_field
 
 router = APIRouter(prefix="/ocean-current", tags=["ocean-current"])
 
@@ -23,4 +24,16 @@ def read_bay_current_field(current_user: User = Depends(get_current_user)) -> di
     try:
         return get_bay_current_field()
     except BayCurrentUnavailable as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.get("/mission-bay-field")
+def read_mission_bay_current_field(current_user: User = Depends(get_current_user)) -> dict:
+    """Simulated Mission Bay current — see app/ocean_sim_mission_bay.py for
+    what this is and its confidence caveats (notably: no independent NOAA
+    current data exists near Mission Bay to validate against, unlike San
+    Diego Bay)."""
+    try:
+        return get_mission_bay_current_field()
+    except MissionBayCurrentUnavailable as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc

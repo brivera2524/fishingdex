@@ -1,0 +1,20 @@
+{
+  "generated_at_utc": "2026-07-11T02:06:33.887313+00:00",
+  "n_entries": 174,
+  "int8_scale": 127.0,
+  "velocity_clip_mps": 1.0,
+  "header": {
+    "nx": 115,
+    "ny": 140,
+    "lo1": -117.275,
+    "la1": 32.815,
+    "lo2": -117.205,
+    "la2": 32.73,
+    "dx": 0.0006140350877193631,
+    "dy": 0.0006115107913669127
+  },
+  "spinup_hours": 30.0,
+  "forecast_hours": 384.0,
+  "map_frame_minutes": 15.0,
+  "validation_note": "Self-consistency RMSE only -- no independent NOAA current observations exist near Mission Bay to validate against (unlike San Diego Bay's PCT0031/PCT0061). Present as experimental/uncalibrated."
+}

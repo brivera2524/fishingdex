@@ -1,5 +1,5 @@
 import type { VelocityLayerRecord } from "leaflet";
-import { getBayCurrentField, getCurrentField } from "../api/endpoints";
+import { getBayCurrentField, getCurrentField, getMissionBayCurrentField } from "../api/endpoints";
 import { cachedFetch } from "./ttlCache";
 
 // On top of the backend's own cache (see app/ocean_current.py) — avoids
@@ -58,6 +58,17 @@ export function fetchCurrentField(): Promise<VelocityLayerRecord[] | null> {
 export function fetchBayCurrentField(): Promise<VelocityLayerRecord[] | null> {
   return cachedFetch("bay-current-field", FIELD_TTL_MS, async () => {
     const field = await getBayCurrentField().catch(() => null);
+    if (!field || field.status !== "ready" || !field.records) return null;
+    return prepareRecords(field.records);
+  });
+}
+
+// Same tide-model-bank approach as fetchBayCurrentField, for Mission Bay
+// (see app/ocean_sim_mission_bay.py) — a separate small embayment with its
+// own inlet, not covered by either HFRadar or the San Diego Bay bank.
+export function fetchMissionBayCurrentField(): Promise<VelocityLayerRecord[] | null> {
+  return cachedFetch("mission-bay-current-field", FIELD_TTL_MS, async () => {
+    const field = await getMissionBayCurrentField().catch(() => null);
     if (!field || field.status !== "ready" || !field.records) return null;
     return prepareRecords(field.records);
   });

@@ -1,0 +1,32 @@
+{
+  "crs": "EPSG:26911",
+  "vertical_datum": "MLLW (converted from NAVD88, -0.058m offset from NOAA station 9410230 La Jolla -- see script docstring)",
+  "resolution_m": 20.0,
+  "shape_yx": [
+    427,
+    296
+  ],
+  "transform": [
+    20.0,
+    0.0,
+    474706.90551202116,
+    0.0,
+    -20.0,
+    3630455.5236276453
+  ],
+  "open_boundary_u_face_count": 393,
+  "open_boundary_v_face_count": 0,
+  "entrance_line_lonlat": [],
+  "coronado_line_lonlat": [],
+  "source_url": "https://www.ngdc.noaa.gov/thredds/dodsC/regional/san_diego_13_navd88_2012.nc",
+  "source_dataset": "NOAA NCEI - San Diego, California Coastal Digital Elevation Model (NAVD88), 2012 -- subset to Mission Bay",
+  "source_citation": "NOAA National Centers for Environmental Information, 2012. San Diego, California Coastal Digital Elevation Model (NAVD88).",
+  "date_built_utc": "2026-07-11T00:46:36.953482+00:00",
+  "notes": [
+    "wet_mask/land_mask/nodata_mask are mutually exclusive and collectively exhaustive.",
+    "depth_m is defined (finite) only where wet_mask is True.",
+    "Unlike San Diego Bay's P020 build, this source DEM has real land elevation data (not just nodata past the coastline), so land_mask is a real elevation>=0 classification, and the open-ocean boundary is derived from which crop edge the retained connected component actually touches, not a hand-traced line -- see build_grid_mission_bay.py.",
+    "Vertical datum converted from source NAVD88 to MLLW via a fixed 0.058m offset (La Jolla station 9410230's published NAVD88/MLLW relationship), not a spatially-varying VDatum conversion -- adequate for a small embayment but a known approximation.",
+    "Resampled with block-average (rasterio Resampling.average), not stride sampling."
+  ]
+}
