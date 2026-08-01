@@ -125,6 +125,10 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
   const [pendingCrop, setPendingCrop] = useState<{ objectUrl: string; exifPromise: Promise<PhotoExif> } | null>(
     null
   );
+  // Multi-select drops several files in at once, but cropping (1:1 aspect)
+  // only handles one image at a time — extras wait here and are fed into
+  // pendingCrop sequentially as each crop is confirmed or cancelled.
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [identifying, setIdentifying] = useState(false);
   const [autoDetected, setAutoDetected] = useState(false);
@@ -214,24 +218,50 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
     ...stagedPhotos.map((p, i): DisplayPhoto => ({ kind: "staged", stagedIndex: i, url: p.previewUrl, file: p.file })),
   ];
   const clampedSelectedIndex = Math.min(selectedIndex, Math.max(combinedPhotos.length - 1, 0));
+  // Photos already queued/being cropped but not yet added to stagedPhotos —
+  // counted alongside combinedPhotos so the limit holds while a multi-select
+  // batch is still draining through the crop modal.
+  const pendingPhotoCount = cropQueue.length + (pendingCrop ? 1 : 0);
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    // Reset the input so re-selecting the same file (e.g. after cancelling
-    // the crop) fires another change event.
-    e.target.value = "";
-    if (!file) return;
-    if (combinedPhotos.length >= MAX_PHOTOS) return;
+  function startCrop(file: File) {
     // Read EXIF from the original file now — cropping re-encodes through a
     // canvas, which strips all metadata, so this has to happen before that.
     const exifPromise = !isEdit && !detectState ? readPhotoExif(file) : Promise.resolve({ coords: null, caughtAt: null });
     setPendingCrop({ objectUrl: URL.createObjectURL(file), exifPromise });
   }
 
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    // Reset the input so re-selecting the same file(s) (e.g. after cancelling
+    // the crop) fires another change event.
+    e.target.value = "";
+    if (files.length === 0) return;
+    const remaining = MAX_PHOTOS - combinedPhotos.length - pendingPhotoCount;
+    const accepted = files.slice(0, remaining);
+    if (accepted.length === 0) return;
+    const [first, ...rest] = accepted;
+    if (pendingCrop) {
+      setCropQueue((prev) => [...prev, ...accepted]);
+    } else {
+      startCrop(first);
+      if (rest.length > 0) setCropQueue((prev) => [...prev, ...rest]);
+    }
+  }
+
+  function advanceCropQueue() {
+    setCropQueue((prev) => {
+      if (prev.length === 0) return prev;
+      const [next, ...rest] = prev;
+      startCrop(next);
+      return rest;
+    });
+  }
+
   function handleCropCancel() {
     if (!pendingCrop) return;
     URL.revokeObjectURL(pendingCrop.objectUrl);
     setPendingCrop(null);
+    advanceCropQueue();
   }
 
   async function handleCropConfirm(blob: Blob) {
@@ -264,6 +294,7 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
 
     URL.revokeObjectURL(pendingCrop.objectUrl);
     setPendingCrop(null);
+    advanceCropQueue();
   }
 
   function removePhotoAt(displayIndex: number) {
@@ -532,10 +563,16 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
                 </button>
               </div>
             ))}
-            {combinedPhotos.length < MAX_PHOTOS && (
+            {combinedPhotos.length + pendingPhotoCount < MAX_PHOTOS && (
               <label className="photo-thumb-tile photo-thumb-add">
                 <span className="photo-upload-icon">📷</span>
-                <input type="file" accept="image/*" onChange={handlePhotoChange} aria-label="Add photo" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoChange}
+                  aria-label="Add photos"
+                />
               </label>
             )}
           </div>
@@ -632,7 +669,12 @@ export default function CatchForm({ catchId, detectState = null, onDone }: Catch
         </button>
       </form>
       {pendingCrop && (
-        <PhotoCropModal imageSrc={pendingCrop.objectUrl} onCancel={handleCropCancel} onConfirm={handleCropConfirm} />
+        <PhotoCropModal
+          imageSrc={pendingCrop.objectUrl}
+          remainingCount={cropQueue.length}
+          onCancel={handleCropCancel}
+          onConfirm={handleCropConfirm}
+        />
       )}
       {locationModalOpen && (
         <LocationPickerModal

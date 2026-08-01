@@ -4,6 +4,8 @@ import Cropper, { type Area, type Point } from "react-easy-crop";
 
 interface PhotoCropModalProps {
   imageSrc: string;
+  /** Photos still waiting in the multi-select queue after this one. */
+  remainingCount?: number;
   onCancel: () => void;
   onConfirm: (blob: Blob) => void;
 }
@@ -30,7 +32,7 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   });
 }
 
-export default function PhotoCropModal({ imageSrc, onCancel, onConfirm }: PhotoCropModalProps) {
+export default function PhotoCropModal({ imageSrc, remainingCount = 0, onCancel, onConfirm }: PhotoCropModalProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -70,7 +72,10 @@ export default function PhotoCropModal({ imageSrc, onCancel, onConfirm }: PhotoC
           onCropComplete={handleCropComplete}
         />
       </div>
-      <p className="photo-crop-hint">Drag to reposition, pinch or scroll to zoom</p>
+      <p className="photo-crop-hint">
+        Drag to reposition, pinch or scroll to zoom
+        {remainingCount > 0 && ` · ${remainingCount} more photo${remainingCount === 1 ? "" : "s"} to crop`}
+      </p>
       <div className="photo-crop-actions">
         <button type="button" className="secondary-button" onClick={onCancel} disabled={saving}>
           Cancel
